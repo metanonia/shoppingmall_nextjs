@@ -34,7 +34,7 @@ packages/
 |---|---|---|
 | 1 | 기반 구축 + 홈 화면 | ✅ 완료 |
 | 2 | 상품 탐색 (목록/검색/베스트/신상/상세/입점사스토어/모음전) | ✅ 완료 |
-| 3 | 회원/인증/소셜로그인 | ✅ 완료 (소셜로그인은 구조만, 아래 참고) |
+| 3 | 회원/인증/소셜로그인 + 회원가입 이후 미뤄뒀던 항목 일괄 처리 | ✅ 완료 (소셜로그인은 구조만, 아래 참고) |
 | 4 | 카트/주문 엔진 | ⬜ 미착수 |
 | 5 | 결제/알림 | ⬜ 미착수 |
 | 6 | 게시판/CMS | ⬜ 미착수 |
@@ -49,6 +49,12 @@ packages/
 - **DB**: 기존 71개 테이블 중 실제로 필요한 것만 그때그때 추가. `install_post.php`의
   DDL을 그대로 적용 후 `prisma db pull`로 introspect → 모델명만 `@@map`으로 정리
   (컬럼명/테이블명은 원본 그대로 유지, 로직 이관 리스크를 줄이기 위함).
+  **주의**: `prisma db pull`은 실행할 때마다 스키마 전체의 `String @db.Text` 컬럼에
+  수동으로 붙여둔 `@default("")`를 전부 지워버림(새로 추가되는 테이블뿐 아니라 기존
+  테이블도 전부). `db pull` 이후에는 항상
+  `grep -n "@db.Text$" packages/db/prisma/schema.prisma | grep -v "@default"`로
+  빠진 곳을 확인하고 다시 채워야 함 — 안 그러면 해당 필드를 생략한 `create()` 호출이
+  전부 "Argument X is missing" 에러로 깨짐.
 - **인증**: PHP 세션이 아니라 서명된 httpOnly 쿠키(JWT, `jose`). 신규설치라 레거시
   MD5 비밀번호 호환 불필요 — 처음부터 `argon2id`.
 - **PC/모바일**: 반응형이 아니라 레거시처럼 서버에서 User-Agent로 분기해서 완전히
@@ -90,32 +96,63 @@ OAuth2 authorization-code flow(인증 URL 생성/토큰 교환/프로필 조회,
 테이블 자체를 안 만듦 — 휴면 전환은 스케줄 작업(`async_day_proc.php`, Phase 9)이
 있어야 의미가 있는데 아직 그 인프라가 없음.
 
-### 리뷰/상품문의
-`mallRN_review`/`mallRN_inquiry` 테이블 없음. 상품상세/스토어 페이지에 카운트 0/빈
-상태 텍스트만 표시.
+### 리뷰 (`mallRN_review`)
+아직 테이블 없음. 레거시 `review_post.php`가 `og_uid`(주문상품 고유값)를 필수값으로
+요구 — 실제 구매 이력에 묶인 후기라 Phase 4(주문 엔진)의 `order_goods` 테이블 없이는
+의미 있게 구현할 수 없음. 상품상세 페이지는 항상 카운트 0/빈 상태 텍스트만 표시.
+
+### 상품문의 — ✅ Phase 3에서 처리
+`mallRN_inquiry` 테이블 추가 + `packages/core/src/inquiry.ts` + 상품상세 페이지의
+문의 탭(작성/목록, 비밀글 게이팅) + `/my_inquiry`(내 문의내역). **회원 전용으로
+단순화**: 레거시는 비회원도 비밀번호 입력으로 작성 가능(`mallRN_inquiry.passwd`,
+`popup_passwd.php`)하지만, 이 저장소는 이미 완성된 회원 인증(Phase 3)만 사용 —
+비회원 비밀번호 검증 플로우는 구현하지 않음. 답변 작성(관리자/입점사 UI)은 여전히
+Phase 7/8 대기 중이라 `answer`는 항상 빈 값("답변대기중")으로만 보임.
 
 ### 카트/주문
 장바구니/바로구매 버튼은 렌더링되지만 클릭해도 "준비 중입니다" 알림만 뜨는 no-op
 (Phase 4에서 실제 구현).
 
-### 회원등급/쿠폰가
-`packages/core/src/pricing.ts`는 게스트 경로(모음전 이벤트 할인)만 구현. 회원등급
-할인, 쿠폰 적용가는 전부 미구현 — 지금 보이는 가격은 항상 비회원 기준가.
+### 회원등급 할인가 — ✅ Phase 3에서 처리
+`packages/core/src/member.ts`의 `getMemberDiscountPct()` + `pricing.ts`의
+`getGoodsPrice()`가 로그인 회원의 `MemberLevel.discount`를 실제로 적용함(홈/목록/
+검색/베스트/신상/모음전/스토어/상품상세 전부 반영). **쿠폰 적용가는 여전히 미구현** —
+`mallRN_coupon`/`mallRN_coupon_manager` 테이블이 없고, 쿠폰 발급/차감이 카트·주문
+흐름과 묶여 있어 Phase 4 이후 처리.
 
 ### 입점사 사이트 설정 (`mallRN_vendor_configuration`)
 테이블 없음. `/store` 페이지는 항상 쇼핑몰 전체 기본값(CS 시간, 노출순서)으로 폴백.
 
 ### 홈/공통 위젯 (Phase 1)
-- 팝업 표시 (`mallRN_popup` 테이블은 있지만 렌더링 로직 없음)
-- 최근본상품 드로어, 검색어 자동완성/최근·추천검색어, 퀵메뉴 플로팅 버튼
+- ~~팝업 표시~~ — ✅ Phase 3에서 처리. `packages/core/src/popup.ts` +
+  `components/PopupLayer.tsx`, PC(`mallRN_popup`)/모바일(`mallRN_mobile_popup`)
+  별도 테이블 그대로 유지, 홈 화면(`channel=="main"`)에서만 렌더링(레거시와 동일).
+  **단순화**: 같은 `position`을 공유하는 여러 이미지형 팝업을 슬라이더로 합치는
+  로직은 생략 — 각 팝업이 독립된 박스로 렌더링됨. 관리자 CRUD가 없어 콘텐츠는
+  `seed.js`의 예시 팝업 1개로 대체.
+- ~~검색어 자동완성/최근·추천검색어~~ — ✅ Phase 3에서 처리. `packages/core/src/
+  search-keyword.ts` + `components/SearchBox.tsx`(PC/모바일 공용, `variant` prop으로
+  마크업만 분기). **단순화**: `mallRN_keyword_autocomplete`(자소분리 매칭 + 인기상품
+  기반 자동수집 파이프라인)는 생략하고, 대신 `mallRN_keyword_search`(검색 로그)를
+  직접 LIKE 매칭해 자동완성을 제공 — 관리자 수동등록 UI가 없는 지금 더 실용적인
+  대안. `mallRN_keyword_recent2`(관리자용 로그, 어떤 화면도 읽지 않음)도 생략.
+  개별 검색어 삭제 대신 "초기화"(전체삭제)만 제공.
+- 최근본상품 드로어, 퀵메뉴 플로팅 버튼 — 여전히 `cart_id` 게스트 쿠키 인프라 필요.
 - 네이버페이 버튼
 - 상단 네비 JS 폭 균등분배 (CSS padding으로 단순 대체)
 
 ### 상품상세 (Phase 2)
-- 옵션 2개 이상 조합가/조합재고 조회 (첫 번째 옵션만 실제 값 노출)
-- 찜하기(즐겨찾기 상품/스토어) 버튼 — 아예 없음
+- 옵션 2개 이상 조합가/조합재고 조회 (첫 번째 옵션만 실제 값 노출) — 레거시도 AJAX
+  팝업으로 카트 엔진과 맞물려 있어 Phase 4와 함께 처리.
+- ~~찜하기(즐겨찾기 상품/스토어)~~ — ✅ Phase 3에서 처리. `mallRN_favorite_goods`/
+  `mallRN_favorite_store` 테이블 + `packages/core/src/favorite.ts` + 상품상세/
+  스토어 페이지의 하트 버튼(토글, 100개 캡 포함) + `/my_favorite_goods`,
+  `/my_favorite_store`. 레거시와 동일하게 회원 전용(비회원은 로그인 페이지로 이동).
 - 조회수 증가/최근본상품 기록 (게스트 식별용 `cart_id` 쿠키 인프라 필요)
-- "이 판매자의 인기상품" 섹션 — 통째로 생략
+- ~~"이 판매자의 인기상품" 섹션~~ — ✅ Phase 3에서 처리. `detail.ts`의
+  `vendorGoods`(`store_display1/2/3` 우선순위 + `order_cnt` 타이브레이커, 현재 상품
+  제외, 최대 6개) + 관심스토어 하트 버튼. 상품에 `vendor`가 없으면(직영 상품)
+  레거시처럼 렌더링 자체를 생략.
 
 ### 검색/목록 UX 단순화
 - 페이지네이션: 레거시의 `jquery.timeliny.js` "pageline" 스크러버 대신 번호형 페이지네이션
@@ -131,3 +168,12 @@ Phase 6/7/8 — 전체 미착수.
   스크린샷에서 헤더가 스크롤 프레임마다 반복 캡처되어 "중복"처럼 보일 수 있음 — 이건
   실제 버그가 아니라 스크린샷 스티칭 특성. `document.querySelectorAll(...).length`나
   `scrollHeight` 안정성으로 실제 DOM을 확인할 것.
+- 반환값이 없는(`void`) 서버 액션을 일반 `<form action={...}>`로 호출하는 경우
+  (찜하기 토글 등), `page.waitForLoadState('networkidle')`가 실제 mutation의 완료를
+  보장하지 않음 — 풀 네비게이션이 아니라 fetch 기반 RSC 리렌더라 `networkidle`이 먼저
+  끝나버릴 수 있음. `waitForTimeout(1000~1500)`을 추가로 넣거나 최종 상태를 다시
+  조회해서 확인할 것.
+- `prisma generate`로 스키마를 재생성한 뒤에는 실행 중인 `next dev`(Turbopack)
+  프로세스를 반드시 재시작해야 함 — 새로 추가된 모델(`prisma.inquiry`,
+  `prisma.favoriteStore` 등)이 핫리로드로는 반영되지 않고 "Cannot read properties of
+  undefined" 형태의 런타임 에러로 나타남.

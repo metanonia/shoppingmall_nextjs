@@ -1,10 +1,12 @@
 import {
   getActiveEventDiscounts,
   getGoodsListBySearch,
+  logRecentKeyword,
+  logSearchKeyword,
   priceLimitConfigFrom,
   type SortOption,
 } from "@shoppingmall/core";
-import { getCachedShopConfig, getDevice } from "@/lib/request";
+import { getCachedMemberDiscountPct, getCachedShopConfig, getClientIp, getDevice, getSiteChrome } from "@/lib/request";
 import { GoodsGrid } from "@/components/GoodsGrid";
 import { ListingControls } from "@/components/ListingControls";
 import { Pagination } from "@/components/Pagination";
@@ -24,12 +26,32 @@ export default async function SearchPage({
   const limit = Number(params.limit) || 12;
   const page = Number(params.page) || 1;
 
-  const [device, config] = await Promise.all([getDevice(), getCachedShopConfig()]);
+  const [device, config, memberDiscountPct, { member }] = await Promise.all([
+    getDevice(),
+    getCachedShopConfig(),
+    getCachedMemberDiscountPct(),
+    getSiteChrome(),
+  ]);
   const eventDiscounts = await getActiveEventDiscounts();
 
   const result = keyword
-    ? await getGoodsListBySearch({ keyword, sort, page, limit }, eventDiscounts, priceLimitConfigFrom(config))
+    ? await getGoodsListBySearch(
+        { keyword, sort, page, limit },
+        eventDiscounts,
+        priceLimitConfigFrom(config),
+        memberDiscountPct,
+      )
     : { items: [], total: 0, page: 1, totalPages: 1, limit };
+
+  // Port of php/search.php:248-267 / php/top.php:20-27's write-on-search-hit
+  // triggers (page 1 only, so paginating the same search doesn't re-log it).
+  if (keyword && page === 1 && result.total > 0) {
+    const ip = await getClientIp();
+    await Promise.all([
+      logSearchKeyword(keyword),
+      logRecentKeyword(keyword, { memberId: member?.id, ip }),
+    ]);
+  }
 
   const makeHref = (p: number) =>
     `/search?keyword=${encodeURIComponent(keyword)}&sort=${sort}&limit=${limit}&page=${p}`;

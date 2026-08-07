@@ -1,11 +1,21 @@
 import type { StoreInfo } from "@shoppingmall/core";
+import { toggleFavoriteStoreAction } from "@/app/store/actions";
 
 // Port of store.html:1-72 / mobile_store.html:1-71's `.storeMenu` info panel.
-// Review star breakdown and favorite-store count are always zero — see
-// getStoreInfo's comment (no mallRN_review / mallRN_favorite_store table yet).
-// The hover-to-reveal storeInfo/storeCS panels are plain CSS `:hover` in the
-// legacy stylesheet (no JS needed there), so no client component is needed here.
-export function StoreHeader({ store }: { store: StoreInfo }) {
+// Review star breakdown is always zero — see getStoreInfo's comment (no
+// mallRN_review table yet, needs an order to point at). Favorite-store count
+// is real; the toggle button is a plain <form> server action, so no client
+// component is needed here. The hover-to-reveal storeInfo/storeCS panels are
+// plain CSS `:hover` in the legacy stylesheet (no JS needed there either).
+export function StoreHeader({
+  store,
+  isMember,
+  isFavorited,
+}: {
+  store: StoreInfo;
+  isMember: boolean;
+  isFavorited: boolean;
+}) {
   return (
     <h2 className="contentTitle">
       <a href={`/store?vendor=${store.vendorId}`}>{store.storeName}</a>
@@ -63,7 +73,19 @@ export function StoreHeader({ store }: { store: StoreInfo }) {
             </div>
           </li>
           <li className="left">
-            <i className="xi-heart-o xi-x" title="관심스토어등록" /> <b className="favStoreCnt">{store.favoriteCount}</b>
+            {isMember ? (
+              <form action={toggleFavoriteStoreAction} style={{ display: "inline" }}>
+                <input type="hidden" name="vendor" value={store.vendorId} />
+                <button type="submit" aria-label="관심스토어등록" style={{ background: "none", border: 0 }}>
+                  <i className={isFavorited ? "xi-heart xi-x colorOrange" : "xi-heart-o xi-x"} title="관심스토어등록" />
+                </button>
+              </form>
+            ) : (
+              <a href={`/login?redirect_to=/store?vendor=${store.vendorId}`} title="관심스토어등록">
+                <i className="xi-heart-o xi-x" />
+              </a>
+            )}{" "}
+            <b className="favStoreCnt">{store.favoriteCount}</b>
           </li>
         </ul>
       </div>

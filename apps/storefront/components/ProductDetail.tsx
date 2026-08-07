@@ -1,18 +1,38 @@
 "use client";
 
 import { useState } from "react";
-import type { GoodsDetailViewModel } from "@shoppingmall/core";
+import type { GoodsDetailViewModel, InquiryItem } from "@shoppingmall/core";
+import { toggleFavoriteGoodsAction, toggleFavoriteStoreAction } from "@/app/goods/[uid]/actions";
 import { GoodsCard } from "./GoodsCard";
 import { ProductGallery } from "./ProductGallery";
+import { InquiryPanel } from "./InquiryPanel";
+
+export type ProductDetailFavoriteState = {
+  isMember: boolean;
+  favoritedGoods: boolean;
+  favoriteGoodsCount: number;
+  favoritedStore: boolean;
+  favoriteStoreCount: number;
+};
 
 // Port of view.html / mobile_view.html's `.goodsInfo` + `.goods_explain` tab
-// panel. Cart mutation (add-to-cart / buy-now), reviews, Q&A, favorites, and
-// the vendor-store panel are stubbed or omitted — see getGoodsDetail's
-// comment for what each needs before it can be real (member auth, cart
-// tables, review/inquiry tables). Both devices share this component; legacy's
-// mobile view additionally puts options+buy behind a sticky bottom drawer
-// (`#btnFixOrder`) which isn't reproduced — options/buy render inline instead.
-export function ProductDetail({ detail, device }: { detail: GoodsDetailViewModel; device: "pc" | "mobile" }) {
+// panel. Cart mutation (add-to-cart / buy-now) and reviews are still stubbed
+// or omitted — see getGoodsDetail's comment. Favorites, product inquiry, and
+// the vendor "인기상품" panel are now wired up. Both devices share this
+// component; legacy's mobile view additionally puts options+buy behind a
+// sticky bottom drawer (`#btnFixOrder`) which isn't reproduced — options/buy
+// render inline instead.
+export function ProductDetail({
+  detail,
+  device,
+  favorite,
+  inquiries,
+}: {
+  detail: GoodsDetailViewModel;
+  device: "pc" | "mobile";
+  favorite: ProductDetailFavoriteState;
+  inquiries: InquiryItem[];
+}) {
   const [tab, setTab] = useState<1 | 2 | 3 | 4>(1);
 
   const infoRows: { label: string; value: string }[] = [
@@ -40,7 +60,27 @@ export function ProductDetail({ detail, device }: { detail: GoodsDetailViewModel
               ))}
             </div>
           )}
-          <div className="goods_name">{detail.nameCodeAble}</div>
+          <div className="goods_name">
+            {detail.nameCodeAble}
+            {favorite.isMember ? (
+              <form action={toggleFavoriteGoodsAction} style={{ display: "inline" }}>
+                <input type="hidden" name="goodsUid" value={detail.uid} />
+                <input type="hidden" name="vendor" value={detail.vendor} />
+                <button
+                  type="submit"
+                  aria-label="찜하기"
+                  style={{ background: "none", border: 0, marginLeft: 6, verticalAlign: "middle" }}
+                >
+                  <i className={favorite.favoritedGoods ? "xi-heart colorOrange" : "xi-heart-o"} />
+                </button>
+              </form>
+            ) : (
+              <a href={`/login?redirect_to=/goods/${detail.uid}`} aria-label="찜하기" style={{ marginLeft: 6 }}>
+                <i className="xi-heart-o" />
+              </a>
+            )}
+            <b className="favGoodsCnt size12"> {favorite.favoriteGoodsCount}</b>
+          </div>
 
           <div className="goods_price">
             <span>{detail.price}</span>원
@@ -144,6 +184,35 @@ export function ProductDetail({ detail, device }: { detail: GoodsDetailViewModel
         </>
       )}
 
+      {detail.vendor && detail.vendorGoods.length > 0 && (
+        <>
+          <div className="empty80" />
+          <div className="sub_title">
+            <a href={`/store?vendor=${detail.vendor}`}>{detail.vendorName}</a>의 인기상품
+            {favorite.isMember ? (
+              <form action={toggleFavoriteStoreAction} style={{ display: "inline" }}>
+                <input type="hidden" name="vendor" value={detail.vendor} />
+                <input type="hidden" name="goodsUid" value={detail.uid} />
+                <button type="submit" aria-label="스토어 찜하기" style={{ background: "none", border: 0, marginLeft: 6 }}>
+                  <i className={favorite.favoritedStore ? "xi-heart colorOrange" : "xi-heart-o"} />
+                </button>
+              </form>
+            ) : (
+              <a href={`/login?redirect_to=/goods/${detail.uid}`} aria-label="스토어 찜하기" style={{ marginLeft: 6 }}>
+                <i className="xi-heart-o" />
+              </a>
+            )}
+            <b className="favStoreCnt size12"> {favorite.favoriteStoreCount}</b>
+          </div>
+          <div className="empty20" />
+          {detail.vendorGoods.map((g) => (
+            <div key={g.uid} className="goodsItemBox">
+              <GoodsCard goods={g} itemClassName="goodsItem goodsItem6" />
+            </div>
+          ))}
+        </>
+      )}
+
       <div className="goods_explain">
         <div className="content_list">
           <div className="contentMenu">
@@ -198,7 +267,7 @@ export function ProductDetail({ detail, device }: { detail: GoodsDetailViewModel
             <div className="empty30" />
             <div className="sub_title">상품문의({detail.inquiryCount})</div>
             <div className="empty20" />
-            <div className="emptyList">아직 등록된 문의가 없습니다.</div>
+            <InquiryPanel goodsUid={detail.uid} isMember={favorite.isMember} inquiries={inquiries} />
           </div>
         )}
 

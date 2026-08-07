@@ -1,5 +1,5 @@
 import { getActiveEventDiscounts, getBestSellingGoodsList, priceLimitConfigFrom } from "@shoppingmall/core";
-import { getCachedShopConfig, getDevice } from "@/lib/request";
+import { getCachedMemberDiscountPct, getCachedShopConfig, getDevice } from "@/lib/request";
 import { GoodsGrid } from "@/components/GoodsGrid";
 
 // Port of php/best.php — a fixed top-50 ranking, no sort/limit/pagination
@@ -7,9 +7,13 @@ import { GoodsGrid } from "@/components/GoodsGrid";
 // all-time popularity fallback; only the fallback is wired until orders
 // exist — see listing.ts's getBestSellingGoodsList).
 export default async function BestGoodsPage() {
-  const [device, config] = await Promise.all([getDevice(), getCachedShopConfig()]);
+  const [device, config, memberDiscountPct] = await Promise.all([
+    getDevice(),
+    getCachedShopConfig(),
+    getCachedMemberDiscountPct(),
+  ]);
   const eventDiscounts = await getActiveEventDiscounts();
-  const items = await getBestSellingGoodsList(50, eventDiscounts, priceLimitConfigFrom(config));
+  const items = await getBestSellingGoodsList(50, eventDiscounts, priceLimitConfigFrom(config), memberDiscountPct);
 
   return (
     <div id="contents">

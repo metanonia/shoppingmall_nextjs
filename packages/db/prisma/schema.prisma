@@ -555,6 +555,89 @@ model MemberLevel {
   @@map("mallRN_member_level")
 }
 
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model FavoriteGoods {
+  uid      Int                          @id @default(autoincrement()) @db.UnsignedInt
+  id       String                       @default("") @db.VarChar(50)
+  g_uid    Int                          @default(0) @db.UnsignedInt
+  vendor   String                       @default("") @db.VarChar(50)
+  mobile   mallRN_favorite_goods_mobile @default(N)
+  signdate Int                          @default(0) @db.UnsignedInt
+
+  @@map("mallRN_favorite_goods")
+}
+
+model FavoriteStore {
+  uid      Int                          @id @default(autoincrement()) @db.UnsignedInt
+  id       String                       @default("") @db.VarChar(50)
+  vendor   String                       @default("") @db.VarChar(50)
+  mobile   mallRN_favorite_store_mobile @default(N)
+  signdate Int                          @default(0) @db.UnsignedInt
+
+  @@map("mallRN_favorite_store")
+}
+
+model Inquiry {
+  uid      Int     @id @default(autoincrement()) @db.UnsignedInt
+  vendor   String  @default("") @db.VarChar(50)
+  g_uid    Int     @default(0) @db.UnsignedInt
+  g_name   String  @default("") @db.VarChar(100)
+  id       String  @default("") @db.VarChar(50)
+  name     String  @default("") @db.VarChar(50)
+  passwd   String  @default("") @db.VarChar(100)
+  cate     Int     @default(0) @db.UnsignedTinyInt
+  subject  String  @default("") @db.VarChar(250)
+  contact  String  @default("") @db.VarChar(50)
+  content  String  @default("") @db.Text
+  answer   String  @default("") @db.Text
+  secret   Int     @default(0) @db.UnsignedTinyInt
+  files    String? @default("") @db.Text
+  acc_ip   String  @default("") @db.VarChar(50)
+  signdate Int     @default(0) @db.UnsignedInt
+
+  @@map("mallRN_inquiry")
+}
+
+model KeywordRecent {
+  uid      Int    @id @default(autoincrement()) @db.UnsignedInt
+  keyword  String @default("") @db.VarChar(100)
+  id       String @default("") @db.VarChar(50)
+  ip       String @default("") @db.VarChar(20)
+  signdate Int    @default(0) @db.UnsignedInt
+
+  @@map("mallRN_keyword_recent")
+}
+
+model KeywordSearch {
+  uid     Int       @id @default(autoincrement()) @db.UnsignedInt
+  keyword String    @default("") @db.VarChar(100)
+  count   Int       @default(0) @db.UnsignedInt
+  date    DateTime? @default(dbgenerated("'1000-01-01 00:00:00'")) @db.DateTime(0)
+
+  @@index([keyword], map: "keyword")
+  @@map("mallRN_keyword_search")
+}
+
+model MobilePopup {
+  uid            Int       @id @default(autoincrement()) @db.UnsignedInt
+  name           String    @default("") @db.VarChar(80)
+  status         Int       @default(0) @db.UnsignedInt
+  type           Int       @default(0) @db.UnsignedInt
+  period         Int       @default(0) @db.UnsignedInt
+  s_date         DateTime? @default(dbgenerated("'1000-01-01 00:00:00'")) @db.DateTime(0)
+  e_date         DateTime? @default(dbgenerated("'1000-01-01 00:00:00'")) @db.DateTime(0)
+  position       Int       @default(0) @db.UnsignedInt
+  input_position String    @default("") @db.VarChar(50)
+  input_size     String    @default("") @db.VarChar(50)
+  image_only     Int       @default(0) @db.UnsignedTinyInt
+  image1         String    @default("") @db.VarChar(100)
+  link1          String    @default("") @db.VarChar(250)
+  content        String    @default("") @db.Text
+  signdate       Int       @default(0) @db.UnsignedInt
+
+  @@map("mallRN_mobile_popup")
+}
+
 enum mallRN_exhibition_discount_yn {
   N
   Y
@@ -664,6 +747,16 @@ enum mallRN_member_mobile {
 }
 
 enum mallRN_member_auth {
+  Y
+  N
+}
+
+enum mallRN_favorite_store_mobile {
+  Y
+  N
+}
+
+enum mallRN_favorite_goods_mobile {
   Y
   N
 }

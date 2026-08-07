@@ -204,6 +204,13 @@ export async function getMemberProfile(id: string): Promise<MemberProfile | null
   return row ? toProfile(row) : null;
 }
 
+// Port of lib/checkLogin.php:34 `SELECT * FROM mallRN_member_level WHERE level = ...`
+// -> $my_discount. Coupon-aware pricing still isn't implemented (see pricing.ts).
+export async function getMemberDiscountPct(level: number): Promise<number> {
+  const row = await prisma.memberLevel.findFirst({ where: { level } });
+  return row?.discount ?? 0;
+}
+
 export type UpdateMemberInput = {
   name?: string;
   email?: string;

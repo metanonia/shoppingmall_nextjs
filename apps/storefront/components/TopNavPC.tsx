@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { BannerItem, CategoryNavItem, MemberProfile, TopMenuItem } from "@shoppingmall/core";
+import { SearchBox } from "./SearchBox";
 
 // Port of skin/seriesWhite/top.html. Hover-driven dropdowns (topNaviSub,
 // mypageBox, cateAll) are reimplemented as React state instead of the
@@ -102,24 +103,9 @@ export function TopNavPC({
             ))}
           </div>
 
-          <form id="topSearch" action="/search" method="get">
-            <div id="searchKeyword">
-              <div className="floatLeft">
-                <input
-                  type="text"
-                  name="keyword"
-                  className="topKeyword fontSCDream size14"
-                  autoComplete="off"
-                  placeholder="검색어를 입력하세요"
-                />
-              </div>
-              <div className="floatLeft" style={{ padding: "6px 0 0" }}>
-                <button type="submit" aria-label="검색" style={{ background: "none", border: 0 }}>
-                  <i className="xi-search size14 cursorPoint" />
-                </button>
-              </div>
-            </div>
-          </form>
+          <div id="topSearch">
+            <SearchBox variant="pc" />
+          </div>
         </div>
 
         <div className="naviEmpty">&nbsp;</div>

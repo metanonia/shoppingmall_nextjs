@@ -19,13 +19,14 @@ function formatWon(n: number): string {
   return Math.round(n).toLocaleString("en-US");
 }
 
-// Port of lib/lib.Shop.php:929 getGoodsInfo($row, $tname), guest/no-coupon path.
+// Port of lib/lib.Shop.php:929 getGoodsInfo($row, $tname), no-coupon path.
 // The `is_soldout` / `is_coupon` / `is_sale` / `is_orig_price` DYNAMIC regions in
 // main.html/mobile_main.html become plain boolean fields here.
 export function toGoodsCard(
   row: Goods,
   eventDiscounts: EventDiscountMap,
   priceLimitConfig: PriceLimitConfig,
+  memberDiscountPct = 0,
 ): GoodsCardViewModel {
   const link = `/goods/${row.uid}`;
   const image = row.image2 ? `/image/goods/${row.image2}` : "/image/no_image.png";
@@ -45,12 +46,14 @@ export function toGoodsCard(
       row.exhibition,
       eventDiscounts,
       priceLimitConfig,
+      memberDiscountPct,
     );
     priceText = formatWon(price);
 
-    // guest path: SALE = EVENT_DISCOUNT only (member-level discount is 0 with no login)
-    if (eventDiscountPct > 0) {
-      salePct = eventDiscountPct;
+    // legacy sums the SALE badge across both discounts (list.php:174 `$GLOBALS['SALE'] += $my_discount`)
+    const combinedPct = eventDiscountPct + memberDiscountPct;
+    if (combinedPct > 0) {
+      salePct = combinedPct;
       origPrice = formatWon(defaultPrice);
     }
   }
@@ -70,7 +73,7 @@ export function toGoodsCard(
     icons,
     price: priceText,
     soldOut,
-    hasCoupon: false, // Phase 1 has no member/coupon pricing — see pricing.ts
+    hasCoupon: false, // coupon-aware pricing needs mallRN_coupon — see pricing.ts
     salePct,
     origPrice,
   };

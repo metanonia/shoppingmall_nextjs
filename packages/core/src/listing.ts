@@ -46,6 +46,7 @@ export async function runGoodsQuery(
   limit: number,
   eventDiscounts: EventDiscountMap,
   priceLimitConfig: PriceLimitConfig,
+  memberDiscountPct = 0,
 ): Promise<GoodsListResult> {
   const total = await prisma.goods.count({ where });
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -59,7 +60,7 @@ export async function runGoodsQuery(
   });
 
   return {
-    items: rows.map((row) => toGoodsCard(row, eventDiscounts, priceLimitConfig)),
+    items: rows.map((row) => toGoodsCard(row, eventDiscounts, priceLimitConfig, memberDiscountPct)),
     total,
     page: safePage,
     totalPages,
@@ -97,6 +98,7 @@ export async function getGoodsListByCategory(
   opts: { sort: SortOption; page: number; limit: number; keyword?: string },
   eventDiscounts: EventDiscountMap,
   priceLimitConfig: PriceLimitConfig,
+  memberDiscountPct = 0,
 ): Promise<GoodsListResult> {
   const cateIds = await getDescendantCateIds(cate);
   const taggedGuids = await prisma.goodsCate.findMany({
@@ -113,6 +115,7 @@ export async function getGoodsListByCategory(
     opts.limit,
     eventDiscounts,
     priceLimitConfig,
+    memberDiscountPct,
   );
 }
 
@@ -121,6 +124,7 @@ export async function getGoodsListBySearch(
   opts: { keyword: string; sort: SortOption; page: number; limit: number },
   eventDiscounts: EventDiscountMap,
   priceLimitConfig: PriceLimitConfig,
+  memberDiscountPct = 0,
 ): Promise<GoodsListResult> {
   return runGoodsQuery(
     { ...VISIBLE_GOODS_WHERE, ...keywordWhere(opts.keyword) },
@@ -129,6 +133,7 @@ export async function getGoodsListBySearch(
     opts.limit,
     eventDiscounts,
     priceLimitConfig,
+    memberDiscountPct,
   );
 }
 
@@ -138,6 +143,7 @@ export async function getNewGoodsList(
   opts: { sort: SortOption; page: number; limit: number; keyword?: string },
   eventDiscounts: EventDiscountMap,
   priceLimitConfig: PriceLimitConfig,
+  memberDiscountPct = 0,
 ): Promise<GoodsListResult> {
   return runGoodsQuery(
     {
@@ -150,6 +156,7 @@ export async function getNewGoodsList(
     opts.limit,
     eventDiscounts,
     priceLimitConfig,
+    memberDiscountPct,
   );
 }
 
@@ -161,13 +168,14 @@ export async function getBestSellingGoodsList(
   limit: number,
   eventDiscounts: EventDiscountMap,
   priceLimitConfig: PriceLimitConfig,
+  memberDiscountPct = 0,
 ): Promise<GoodsCardViewModel[]> {
   const rows = await prisma.goods.findMany({
     where: VISIBLE_GOODS_WHERE,
     orderBy: [{ order_priority: "asc" }, { order_cnt: "desc" }, { view_cnt: "desc" }],
     take: limit,
   });
-  return rows.map((row) => toGoodsCard(row, eventDiscounts, priceLimitConfig));
+  return rows.map((row) => toGoodsCard(row, eventDiscounts, priceLimitConfig, memberDiscountPct));
 }
 
 export async function getActiveEventDiscounts(): Promise<EventDiscountMap> {

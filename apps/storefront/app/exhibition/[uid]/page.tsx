@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getActiveEventDiscounts, getExhibitionDetail, priceLimitConfigFrom } from "@shoppingmall/core";
-import { getCachedShopConfig, getDevice } from "@/lib/request";
+import { getCachedMemberDiscountPct, getCachedShopConfig, getDevice } from "@/lib/request";
 import { GoodsGrid } from "@/components/GoodsGrid";
 import { Pagination } from "@/components/Pagination";
 import { ExhibitionGroups } from "@/components/ExhibitionGroups";
@@ -21,9 +21,20 @@ export default async function ExhibitionDetailPage({
   const limit = Number(sp.limit) || 12;
   const page = Number(sp.page) || 1;
 
-  const [device, config] = await Promise.all([getDevice(), getCachedShopConfig()]);
+  const [device, config, memberDiscountPct] = await Promise.all([
+    getDevice(),
+    getCachedShopConfig(),
+    getCachedMemberDiscountPct(),
+  ]);
   const eventDiscounts = await getActiveEventDiscounts();
-  const detail = await getExhibitionDetail(uidNum, page, limit, eventDiscounts, priceLimitConfigFrom(config));
+  const detail = await getExhibitionDetail(
+    uidNum,
+    page,
+    limit,
+    eventDiscounts,
+    priceLimitConfigFrom(config),
+    memberDiscountPct,
+  );
   if (!detail) notFound();
 
   if (detail.ended) {

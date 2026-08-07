@@ -2,11 +2,11 @@ import { redirect } from "next/navigation";
 import { getMemberProfile } from "@shoppingmall/core";
 import { getSession } from "@/lib/auth";
 
-// Port of php/mypage.php, scoped down to what Phase 3 actually has: profile
-// summary + links to the account-management pages built this phase. Legacy's
-// mileage/coupon/favorites/recent-view/review/inquiry/counsel widgets each
-// need their own not-yet-built table — see MIGRATION.md — so they're left
-// out rather than linked to dead pages.
+// Port of php/mypage.php, scoped down to what's actually built: profile
+// summary + account-management + favorites/inquiry links. Legacy's
+// mileage/coupon/recent-view/review/counsel widgets each still need their
+// own not-yet-built table — see MIGRATION.md — so they're left out rather
+// than linked to dead pages.
 export default async function MyPage() {
   const session = await getSession();
   if (!session) redirect("/login?redirect_to=/mypage");
@@ -44,6 +44,21 @@ export default async function MyPage() {
         <li>
           <a href="/member_withdrawal" className="underLine">
             회원탈퇴
+          </a>
+        </li>
+        <li>
+          <a href="/my_favorite_goods" className="underLine">
+            관심상품
+          </a>
+        </li>
+        <li>
+          <a href="/my_favorite_store" className="underLine">
+            관심스토어
+          </a>
+        </li>
+        <li>
+          <a href="/my_inquiry" className="underLine">
+            상품문의내역
           </a>
         </li>
       </ul>

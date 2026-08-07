@@ -44,6 +44,9 @@ export type GoodsDetailViewModel = {
   refundInfo: string;
   exchangeInfo: string;
   asInfo: string;
+  vendor: string;
+  vendorName: string | null;
+  vendorGoods: GoodsCardViewModel[];
 };
 
 // Port of lib.Shop.php's delivery message switch used by php/view.php:266-286.
@@ -70,14 +73,16 @@ function getDeliveryMessage(
   }
 }
 
-// Port of php/view.php. Member/coupon pricing, cart mutation (add-to-cart /
-// buy-now), reviews, Q&A, favorites, and the vendor-store panel are out of
-// scope here — see the migration plan (member/coupon pricing and cart need
-// Phase 3/4's tables; reviews/inquiry/favorites need their own tables and a
-// logged-in member to be meaningful). This renders the guest-visible product
-// browsing content: gallery, price, options (display-only), delivery info,
-// description, and related goods.
-export async function getGoodsDetail(uid: number, config: ShopConfig): Promise<GoodsDetailViewModel | null> {
+// Port of php/view.php. Cart mutation (add-to-cart / buy-now) and reviews
+// are still out of scope — see the migration plan (cart needs Phase 4;
+// reviews need mallRN_review, which itself needs an order to point at via
+// og_uid). Product inquiries, member-level pricing, and the vendor's
+// popular-products panel are now wired up.
+export async function getGoodsDetail(
+  uid: number,
+  config: ShopConfig,
+  memberDiscountPct = 0,
+): Promise<GoodsDetailViewModel | null> {
   const row = await prisma.goods.findFirst({ where: { uid, display_use: 1 } });
   if (!row) return null;
 
@@ -99,11 +104,17 @@ export async function getGoodsDetail(uid: number, config: ShopConfig): Promise<G
       row.exhibition,
       eventDiscounts,
       priceLimitConfig,
+      memberDiscountPct,
     );
     price = formatWon(discounted);
-    if (eventDiscountPct > 0) {
+    if (eventDiscountPct > 0 || memberDiscountPct > 0) {
       origPrice = formatWon(row.price);
-      saleMsg = `이벤트할인 ${eventDiscountPct}%`;
+      // Port of php/view.php:119-131's $sale_msg_array join order: member
+      // discount first, then event discount.
+      const saleMsgParts: string[] = [];
+      if (memberDiscountPct > 0) saleMsgParts.push(`회원등급할인 ${memberDiscountPct}%`);
+      if (eventDiscountPct > 0) saleMsgParts.push(`이벤트할인 ${eventDiscountPct}%`);
+      saleMsg = saleMsgParts.join(", ");
     }
   }
 
@@ -172,10 +183,32 @@ export async function getGoodsDetail(uid: number, config: ShopConfig): Promise<G
     take: 6,
   });
 
-  // mallRN_review / mallRN_inquiry aren't in the schema yet — reviews and Q&A
-  // are their own feature (member-authored content), out of scope until then.
+  // mallRN_review needs og_uid (an actual order-goods row) to mean anything —
+  // still deferred until Phase 4's order engine exists. Inquiries don't have
+  // that dependency (g_uid only) so they're implemented — see inquiry.ts.
   const reviewCount = 0;
-  const inquiryCount = 0;
+  const inquiryCount = await prisma.inquiry.count({ where: { g_uid: uid } });
+
+  // Port of php/view.php:468-488's "이 판매자의 인기상품" widget: seller-curated
+  // display slots first, order count as tiebreaker, excluding this product.
+  let vendorName: string | null = null;
+  let vendorGoods: GoodsCardViewModel[] = [];
+  if (row.vendor) {
+    const vendor = await prisma.vendor.findFirst({ where: { id: row.vendor }, select: { comp_name: true } });
+    vendorName = vendor?.comp_name ?? null;
+
+    const vendorRows = await prisma.goods.findMany({
+      where: { display_use: 1, auth_ck: "Y", cate_hide: 0, vendor_hide: 0, vendor: row.vendor, uid: { not: uid } },
+      orderBy: [
+        { store_display1: "desc" },
+        { store_display2: "desc" },
+        { store_display3: "desc" },
+        { order_cnt: "desc" },
+      ],
+      take: 6,
+    });
+    vendorGoods = vendorRows.map((r) => toGoodsCard(r, eventDiscounts, priceLimitConfig, memberDiscountPct));
+  }
 
   return {
     uid: row.uid,
@@ -203,12 +236,15 @@ export async function getGoodsDetail(uid: number, config: ShopConfig): Promise<G
     limitMsg,
     optionUse: row.option_use === 1,
     options,
-    relatedGoods: relatedRows.map((r) => toGoodsCard(r, eventDiscounts, priceLimitConfig)),
+    relatedGoods: relatedRows.map((r) => toGoodsCard(r, eventDiscounts, priceLimitConfig, memberDiscountPct)),
     reviewCount,
     inquiryCount,
     deliveryInfo: row.delivery_info,
     refundInfo: row.refund_info,
     exchangeInfo: row.exchange_info,
+    vendor: row.vendor,
+    vendorName,
+    vendorGoods,
     asInfo: row.as_info,
   };
 }

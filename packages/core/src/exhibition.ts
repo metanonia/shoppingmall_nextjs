@@ -61,6 +61,7 @@ export async function getExhibitionDetail(
   limit: number,
   eventDiscounts: EventDiscountMap,
   priceLimitConfig: PriceLimitConfig,
+  memberDiscountPct = 0,
 ): Promise<ExhibitionDetail | null> {
   const row = await prisma.exhibition.findFirst({ where: { uid } });
   if (!row) return null;
@@ -92,7 +93,7 @@ export async function getExhibitionDetail(
       const goods = links
         .map((l) => byUid.get(l.guid))
         .filter((g): g is NonNullable<typeof g> => Boolean(g))
-        .map((g) => toGoodsCard(g, eventDiscounts, priceLimitConfig));
+        .map((g) => toGoodsCard(g, eventDiscounts, priceLimitConfig, memberDiscountPct));
       groups.push({ ecate: entry.ecate, name: entry.name, goods });
     }
   } else {
@@ -108,7 +109,7 @@ export async function getExhibitionDetail(
     const items = pageGuids
       .map((g) => byUid.get(g))
       .filter((g): g is NonNullable<typeof g> => Boolean(g))
-      .map((g) => toGoodsCard(g, eventDiscounts, priceLimitConfig));
+      .map((g) => toGoodsCard(g, eventDiscounts, priceLimitConfig, memberDiscountPct));
 
     flatGoods = { items, total, totalPages, page: safePage, limit };
   }

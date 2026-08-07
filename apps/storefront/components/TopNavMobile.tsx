@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { FreeMode } from "swiper/modules";
 import type { BannerItem, CategoryNavItem, MemberProfile, TopMenuItem } from "@shoppingmall/core";
+import { SearchBox } from "./SearchBox";
 import "swiper/css";
 
 // Port of skin/seriesWhite/mobile_top.html. Legacy drives the #topMenu /
@@ -82,16 +83,7 @@ export function TopNavMobile({
           <div className="topSearchClose" onClick={() => setSearchOpen(false)}>
             <i className="xi-close-thin xi-2x" />
           </div>
-          <form id="searchKeyword" action="/search" method="get">
-            <div className="floatLeft">
-              <input type="text" name="keyword" className="topKeyword fontSCDream size14" autoComplete="off" />
-            </div>
-            <div className="floatLeft" style={{ padding: "6px 0 0" }}>
-              <button type="submit" aria-label="검색" style={{ background: "none", border: 0 }}>
-                <i className="xi-search size14 cursorPoint" />
-              </button>
-            </div>
-          </form>
+          <SearchBox variant="mobile" />
         </div>
       )}
 

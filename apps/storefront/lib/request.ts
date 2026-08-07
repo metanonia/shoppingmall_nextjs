@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import {
   type Device,
   getBankAccounts,
+  getMemberDiscountPct,
   getMemberProfile,
   getShopConfig,
   getTopBanners,
@@ -40,3 +41,18 @@ export const getSiteChrome = cache(async () => {
   const bankAccounts = getBankAccounts(config);
   return { device, config, topBanners, categories, topMenu, bankAccounts, member };
 });
+
+// Port of lib/checkLogin.php's $my_discount lookup, memoized per request like
+// the rest of getSiteChrome's session-derived data.
+export const getCachedMemberDiscountPct = cache(async (): Promise<number> => {
+  const { member } = await getSiteChrome();
+  return member ? getMemberDiscountPct(member.level) : 0;
+});
+
+// Best-effort client IP for the guest half of php/top.php's recent-keyword
+// scoping (member id when logged in, IP otherwise) — there's no NextRequest.ip
+// in the app router, so this reads the proxy header directly.
+export async function getClientIp(): Promise<string> {
+  const h = await headers();
+  return h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? h.get("x-real-ip") ?? "";
+}

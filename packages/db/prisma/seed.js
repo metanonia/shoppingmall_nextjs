@@ -26,6 +26,7 @@ async function main() {
     prisma.vendor.deleteMany(),
     prisma.memberLevel.deleteMany(),
     prisma.member.deleteMany(),
+    prisma.popup.deleteMany(),
   ]);
 
   await prisma.configuration.create({
@@ -243,7 +244,22 @@ async function main() {
     await prisma.mobileBanner.create({ data: { ...b, status: 0, target: 0, ...ALWAYS_ON, moddate: now, signdate: now } });
   }
 
-  console.log(`Seeded: ${goodsSeed.length} goods, ${pcBanners.length} PC banners, ${mobileBanners.length} mobile banners, 6 categories, 1 exhibition.`);
+  // Demo popup so the feature is visible without an admin CRUD yet (Phase 7) —
+  // one always-on, position1 (top-left) welcome popup on the home page.
+  await prisma.popup.create({
+    data: {
+      name: "환영 팝업",
+      status: 0,
+      type: 0,
+      period: 0,
+      position: 1,
+      input_size: "400|300",
+      content: "<h3>환영합니다</h3><p>SHOP NEXT에 방문해 주셔서 감사합니다.</p>",
+      signdate: now,
+    },
+  });
+
+  console.log(`Seeded: ${goodsSeed.length} goods, ${pcBanners.length} PC banners, ${mobileBanners.length} mobile banners, 6 categories, 1 exhibition, 1 popup.`);
 }
 
 main()

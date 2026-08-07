@@ -4,10 +4,11 @@ import {
   getStoreCategories,
   getStoreGoodsList,
   getStoreInfo,
+  isFavoriteStore,
   priceLimitConfigFrom,
   type SortOption,
 } from "@shoppingmall/core";
-import { getCachedShopConfig, getDevice } from "@/lib/request";
+import { getCachedMemberDiscountPct, getCachedShopConfig, getDevice, getSiteChrome } from "@/lib/request";
 import { StoreHeader } from "@/components/StoreHeader";
 import { StoreCategoryList } from "@/components/StoreCategoryList";
 import { GoodsGrid } from "@/components/GoodsGrid";
@@ -38,17 +39,21 @@ export default async function StorePage({
   const page = Number(params.page) || 1;
   const keyword = Array.isArray(params.keyword) ? params.keyword[0] : params.keyword;
 
-  const [device, config, categories] = await Promise.all([
+  const [device, config, categories, memberDiscountPct, { member }] = await Promise.all([
     getDevice(),
     getCachedShopConfig(),
     getStoreCategories(vendorId),
+    getCachedMemberDiscountPct(),
+    getSiteChrome(),
   ]);
+  const isFavorited = member ? await isFavoriteStore(member.id, vendorId) : false;
   const eventDiscounts = await getActiveEventDiscounts();
   const result = await getStoreGoodsList(
     vendorId,
     { cate, sort, page, limit, keyword },
     eventDiscounts,
     priceLimitConfigFrom(config),
+    memberDiscountPct,
   );
 
   const makeHref = (p: number) =>
@@ -56,7 +61,7 @@ export default async function StorePage({
 
   return (
     <div id="contents">
-      <StoreHeader store={store} />
+      <StoreHeader store={store} isMember={Boolean(member)} isFavorited={isFavorited} />
       <div className="empty40" />
 
       {categories.length > 0 && <StoreCategoryList vendorId={vendorId} categories={categories} selectedCate={cateParam} />}

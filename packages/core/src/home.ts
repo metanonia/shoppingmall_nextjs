@@ -74,6 +74,7 @@ async function getGoodsSection(
   displayValue: number,
   eventDiscounts: EventDiscountMap,
   priceLimitConfig: PriceLimitConfig,
+  memberDiscountPct: number,
 ): Promise<GoodsSection | null> {
   if (displayValue === 0) return null;
 
@@ -88,7 +89,7 @@ async function getGoodsSection(
     kind: "goods",
     key,
     displayType: displayType(displayValue),
-    goods: rows.map((row) => toGoodsCard(row, eventDiscounts, priceLimitConfig)),
+    goods: rows.map((row) => toGoodsCard(row, eventDiscounts, priceLimitConfig, memberDiscountPct)),
   };
 }
 
@@ -96,6 +97,7 @@ async function getCategorySection(
   config: ShopConfig,
   eventDiscounts: EventDiscountMap,
   priceLimitConfig: PriceLimitConfig,
+  memberDiscountPct: number,
 ): Promise<CategorySection | null> {
   if (config.mainCategory === 0 || !config.mainCategoryInfo) return null;
 
@@ -120,7 +122,7 @@ async function getCategorySection(
     groups.push({
       cateName,
       displayType: displayType(config.mainCategory),
-      goods: rows.map((row) => toGoodsCard(row, eventDiscounts, priceLimitConfig)),
+      goods: rows.map((row) => toGoodsCard(row, eventDiscounts, priceLimitConfig, memberDiscountPct)),
     });
   }
 
@@ -128,9 +130,9 @@ async function getCategorySection(
 }
 
 // Port of php/main.php's $main_display_arr loop (design_main_display_order,
-// default "reco, code, best, cate, new"). Member-level pricing/coupons are
-// intentionally not applied — see pricing.ts.
-export async function getHomeSections(config: ShopConfig): Promise<HomeSection[]> {
+// default "reco, code, best, cate, new"). Coupon-aware pricing is still not
+// applied — see pricing.ts.
+export async function getHomeSections(config: ShopConfig, memberDiscountPct = 0): Promise<HomeSection[]> {
   const order = config.mainDisplayOrder.split(",").map((s) => s.trim());
   const eventDiscounts = await getEventDiscounts();
   const priceLimitConfig: PriceLimitConfig = {
@@ -144,10 +146,10 @@ export async function getHomeSections(config: ShopConfig): Promise<HomeSection[]
     if (key === "reco" || key === "best" || key === "new") {
       const slot = DISPLAY_SLOT[key];
       const displayValue = slot === 1 ? config.mainDisplay1 : slot === 2 ? config.mainDisplay2 : config.mainDisplay3;
-      const section = await getGoodsSection(key, slot, displayValue, eventDiscounts, priceLimitConfig);
+      const section = await getGoodsSection(key, slot, displayValue, eventDiscounts, priceLimitConfig, memberDiscountPct);
       if (section) sections.push(section);
     } else if (key === "cate") {
-      const section = await getCategorySection(config, eventDiscounts, priceLimitConfig);
+      const section = await getCategorySection(config, eventDiscounts, priceLimitConfig, memberDiscountPct);
       if (section) sections.push(section);
     } else if (key === "code") {
       if (config.mainCustomCode !== 0 && config.mainCustomCodeInfo) {

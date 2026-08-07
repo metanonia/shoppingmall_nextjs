@@ -1,7 +1,6 @@
-// Port of lib/lib.Shop.php's priceLimit() and getGoodsPrice() for the
-// guest (no member, no member-level discount, no personal coupon) case.
-// Member-level pricing and coupon-aware pricing are out of scope for Phase 1
-// (see the migration plan) and are ported alongside the member/login phase.
+// Port of lib/lib.Shop.php's priceLimit() and getGoodsPrice(). Member-level
+// discount (my_discount) is applied; personal/product coupons are still out
+// of scope (mallRN_coupon doesn't exist yet — needs the cart/order tables).
 
 export type PriceLimitConfig = {
   goodsPriceLimit1: number; // rounding unit
@@ -25,18 +24,21 @@ export type EventDiscountMap = Map<number, number>;
 export type GoodsPriceResult = {
   price: number;
   eventDiscountPct: number;
+  memberDiscountPct: number;
   saleAmount: number;
 };
 
-// Port of lib/lib.Shop.php:247 getGoodsPrice($price, $uid, $exhibition), guest path only:
-// member discount (my_discount) and personal/product coupons are skipped because
-// there is no logged-in member in Phase 1.
+// Port of lib/lib.Shop.php:247 getGoodsPrice($price, $uid, $exhibition).
+// Personal/product coupons are still skipped — mallRN_coupon needs the
+// cart/order tables (Phase 4).
 export function getGoodsPrice(
   price: number,
   exhibitionField: string,
   eventDiscounts: EventDiscountMap,
   priceLimitConfig: PriceLimitConfig,
+  memberDiscountPct = 0,
 ): GoodsPriceResult {
+  const origPrice = price;
   let saleAmount = 0;
   let eventDiscountPct = 0;
 
@@ -44,7 +46,7 @@ export function getGoodsPrice(
     for (const [exhibitionUid, discountPct] of eventDiscounts) {
       // legacy: preg_match("/,{$k},/i", $exhibition) — exhibition field looks like ",1,2,"
       if (exhibitionField.includes(`,${exhibitionUid},`)) {
-        const eventDiscountAmount = priceLimit((price * discountPct) / 100, priceLimitConfig);
+        const eventDiscountAmount = priceLimit((origPrice * discountPct) / 100, priceLimitConfig);
         saleAmount += eventDiscountAmount;
         eventDiscountPct = discountPct;
         price -= eventDiscountAmount;
@@ -53,5 +55,13 @@ export function getGoodsPrice(
     }
   }
 
-  return { price, eventDiscountPct, saleAmount };
+  // legacy applies this against orig_price too, not the already
+  // event-discounted price (lib.Shop.php:281-283).
+  if (memberDiscountPct > 0) {
+    const memberDiscountAmount = priceLimit((origPrice * memberDiscountPct) / 100, priceLimitConfig);
+    saleAmount += memberDiscountAmount;
+    price -= memberDiscountAmount;
+  }
+
+  return { price, eventDiscountPct, memberDiscountPct, saleAmount };
 }

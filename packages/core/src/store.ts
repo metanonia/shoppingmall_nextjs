@@ -1,6 +1,7 @@
 import { prisma } from "@shoppingmall/db";
 import { getDescendantCateIds, keywordWhere, runGoodsQuery, VISIBLE_GOODS_WHERE, type GoodsListResult, type SortOption } from "./listing";
 import type { EventDiscountMap, PriceLimitConfig } from "./pricing";
+import { getFavoriteStoreCount } from "./favorite";
 
 export type StoreInfo = {
   vendorId: string;
@@ -25,9 +26,9 @@ export type StoreInfo = {
 // settings — custom CS hours, custom display order) doesn't exist yet — see
 // packages/db/sql/002_phase2_tables.sql — so this always falls back to
 // shop-wide defaults the same way legacy does for a vendor who hasn't
-// configured their own settings. Review stars and favorite-store count are
-// hardcoded to zero: mallRN_review / mallRN_favorite_store aren't in the
-// schema (same reasoning as detail.ts's review/inquiry stub).
+// configured their own settings. Review stars are still hardcoded to zero:
+// mallRN_review needs an order to point at (see detail.ts) — favorite-store
+// count is now real (mallRN_favorite_store, added alongside member auth).
 export async function getStoreInfo(vendorId: string): Promise<StoreInfo | null> {
   const vendor = await prisma.vendor.findFirst({ where: { id: vendorId, sell: { not: "N" } } });
   if (!vendor) return null;
@@ -46,7 +47,7 @@ export async function getStoreInfo(vendorId: string): Promise<StoreInfo | null> 
     csTime2: "휴무",
     csTime3: "휴무",
     csTime4: "12:00 ~ 13:00",
-    favoriteCount: 0,
+    favoriteCount: await getFavoriteStoreCount(vendorId),
     reviewCount: 0,
     starsAvg: "0.0",
   };
@@ -96,6 +97,7 @@ export async function getStoreGoodsList(
   opts: { cate?: bigint; sort: SortOption; page: number; limit: number; keyword?: string },
   eventDiscounts: EventDiscountMap,
   priceLimitConfig: PriceLimitConfig,
+  memberDiscountPct = 0,
 ): Promise<GoodsListResult> {
   let cateFilter = {};
   if (opts.cate) {
@@ -110,5 +112,6 @@ export async function getStoreGoodsList(
     opts.limit,
     eventDiscounts,
     priceLimitConfig,
+    memberDiscountPct,
   );
 }

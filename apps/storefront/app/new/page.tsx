@@ -4,7 +4,7 @@ import {
   priceLimitConfigFrom,
   type SortOption,
 } from "@shoppingmall/core";
-import { getCachedShopConfig, getDevice } from "@/lib/request";
+import { getCachedMemberDiscountPct, getCachedShopConfig, getDevice } from "@/lib/request";
 import { GoodsGrid } from "@/components/GoodsGrid";
 import { ListingControls } from "@/components/ListingControls";
 import { Pagination } from "@/components/Pagination";
@@ -23,12 +23,17 @@ export default async function NewGoodsPage({
   const page = Number(params.page) || 1;
   const keyword = Array.isArray(params.keyword) ? params.keyword[0] : params.keyword;
 
-  const [device, config] = await Promise.all([getDevice(), getCachedShopConfig()]);
+  const [device, config, memberDiscountPct] = await Promise.all([
+    getDevice(),
+    getCachedShopConfig(),
+    getCachedMemberDiscountPct(),
+  ]);
   const eventDiscounts = await getActiveEventDiscounts();
   const result = await getNewGoodsList(
     { sort, page, limit, keyword },
     eventDiscounts,
     priceLimitConfigFrom(config),
+    memberDiscountPct,
   );
 
   const makeHref = (p: number) =>
