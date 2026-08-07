@@ -27,6 +27,13 @@ export function TopNavMobile({
 
   return (
     <>
+      {/* mobile_style.css:362-370: #topUtil and #topContent are both
+          position:fixed (a persistent header), so they take up no space in
+          normal flow. mobile_top.html reserves the equivalent space with
+          these two spacers immediately before/between them — without them,
+          real page content starts at y=0 and renders underneath the opaque
+          fixed header instead of below it. */}
+      <div className="empty40" />
       <div id="topUtil">
         <div className="logo">
           {logo.map((b) => (
@@ -53,6 +60,7 @@ export function TopNavMobile({
         </div>
       </div>
 
+      <div className="empty50 topContentEmpty" />
       <div id="topContent">
         <div className="topNavis">
           <div className="swiper-container">

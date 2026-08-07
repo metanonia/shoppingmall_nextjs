@@ -41,6 +41,13 @@ export function CategoryChips({ chips }: { chips: CategoryChip[] }) {
           </li>
         ))}
       </ul>
+      {/* mobile_style.css:475 defines `.cateList .line{clear:both;...}` but no
+          skin HTML file actually places one — without it, `.cateList`'s only
+          content is float:left <li>s, so the container collapses to 0 height
+          on mobile and whatever follows in the DOM paints over the (still
+          floating, still visible-but-unreachable) chips. This is that
+          missing clearfix, using the class the stylesheet already expects. */}
+      <div className="line" />
     </div>
   );
 }

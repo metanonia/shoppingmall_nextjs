@@ -17,11 +17,13 @@ async function main() {
   await prisma.$transaction([
     prisma.banner.deleteMany(),
     prisma.mobileBanner.deleteMany(),
+    prisma.exhibitionGoods.deleteMany(),
     prisma.goods.deleteMany(),
     prisma.goodsCate.deleteMany(),
     prisma.cate.deleteMany(),
     prisma.exhibition.deleteMany(),
     prisma.configuration.deleteMany(),
+    prisma.vendor.deleteMany(),
   ]);
 
   await prisma.configuration.create({
@@ -44,7 +46,7 @@ async function main() {
       basic_cs_time1: "09:00 ~ 18:00",
       basic_cs_time4: "12:00 ~ 13:00",
       design_skin: "seriesWhite",
-      design_top_menu: "BEST|?channel=best|1|*|NEW|?channel=new|1|*|EVENT|?channel=exhibition_list|1",
+      design_top_menu: "BEST|/best|1|*|NEW|/new|1|*|EVENT|/exhibition_list|1",
       design_main_display_order: "reco, code, best, cate, new",
       // display_check_arr: reco=>2, best=>1, new=>3
       design_main_display1: 2, // best: 상품이동형
@@ -54,7 +56,7 @@ async function main() {
       design_main_category_info: "100|1|1",
       design_main_custom_code: 1,
       design_main_custom_code_info: "<p style='text-align:center;padding:40px 0;'>이번 시즌 신규 입점 브랜드를 만나보세요</p>",
-      mobile_top_menu: "BEST|?channel=best|1|*|NEW|?channel=new|1|*|EVENT|?channel=exhibition_list|1",
+      mobile_top_menu: "BEST|/best|1|*|NEW|/new|1|*|EVENT|/exhibition_list|1",
       mobile_yn: "Y",
       goods_price_limit1: 0,
       goods_price_limit2: 1,
@@ -73,14 +75,51 @@ async function main() {
     ],
   });
 
-  await prisma.exhibition.create({
+  await prisma.exhibition.createMany({
+    data: [
+      {
+        uid: 1,
+        name: "가을 시즌 오프",
+        discount_yn: "Y",
+        discount: 15,
+        status: 2,
+        image1: "goods-04.svg",
+        detail_image_only: 0,
+        explains: "<p>가을 시즌을 맞아 준비한 특별 할인 모음전입니다.</p>",
+        // A real discount window (unlike ALWAYS_ON's 1000-01-01 sentinel,
+        // which is meant for "no restriction" banners/popups, not a
+        // discount campaign's own displayed date range).
+        s_date: new Date(Date.UTC(2026, 7, 1)),
+        e_date: new Date(Date.UTC(2026, 8, 30)),
+        signdate: now,
+      },
+      {
+        uid: 2,
+        name: "겨울 신상 프리뷰",
+        discount_yn: "N",
+        status: 1,
+        image1: "goods-12.svg",
+        explains: "<p>다가오는 겨울 시즌 신상품을 미리 만나보세요.</p>",
+        ...ALWAYS_ON,
+        signdate: now,
+      },
+    ],
+  });
+
+  await prisma.vendor.create({
     data: {
       uid: 1,
-      name: "가을 시즌 오프",
-      discount_yn: "Y",
-      discount: 15,
-      status: 2,
-      ...ALWAYS_ON,
+      id: "vendor01",
+      auth: "Y",
+      sell: "A",
+      comp_name: "데일리클로젯",
+      comp_owner: "김민지",
+      comp_license_no: "234-56-78901",
+      comp_address1: "서울특별시 마포구 월드컵로 45",
+      comp_address2: "3층",
+      comp_email: "contact@dailycloset.example.com",
+      comp_tel: "02-1234-5678",
+      comp_fax: "02-1234-5679",
       signdate: now,
     },
   });
@@ -90,9 +129,9 @@ async function main() {
     { uid: 10001, name: "캐시미어 니트", cate: 100n, price: 79000, image2: "goods-02.svg", best: 1, reco: 1, new: 0, icon: "" },
     { uid: 10002, name: "와이드 슬랙스", cate: 200n, price: 49000, image2: "goods-03.svg", best: 1, reco: 0, new: 1, icon: "" },
     { uid: 10003, name: "트렌치 코트", cate: 100n, price: 129000, image2: "goods-04.svg", best: 1, reco: 1, new: 0, icon: "icons_002.png", exhibition: ",1," },
-    { uid: 10004, name: "미니 크로스백", cate: 300n, price: 39000, image2: "goods-05.svg", best: 0, reco: 1, new: 1, icon: "" },
-    { uid: 10005, name: "가죽 스니커즈", cate: 400n, price: 69000, image2: "goods-06.svg", best: 0, reco: 1, new: 0, icon: "" },
-    { uid: 10006, name: "울 머플러", cate: 100n, price: 29000, image2: "goods-07.svg", best: 0, reco: 0, new: 1, icon: "" },
+    { uid: 10004, name: "미니 크로스백", cate: 300n, price: 39000, image2: "goods-05.svg", best: 0, reco: 1, new: 1, icon: "", vendor: "vendor01", storeBest: 1 },
+    { uid: 10005, name: "가죽 스니커즈", cate: 400n, price: 69000, image2: "goods-06.svg", best: 0, reco: 1, new: 0, icon: "", vendor: "vendor01", storeBest: 2 },
+    { uid: 10006, name: "울 머플러", cate: 100n, price: 29000, image2: "goods-07.svg", best: 0, reco: 0, new: 1, icon: "", vendor: "vendor01"},
     { uid: 10007, name: "실크 블라우스", cate: 100n, price: 45000, image2: "goods-08.svg", best: 0, reco: 0, new: 1, icon: "icons_003.png" },
     { uid: 10008, name: "데님 와이드 팬츠", cate: 200n, price: 55000, image2: "goods-09.svg", best: 0, reco: 0, new: 0, icon: "" },
     { uid: 10009, name: "후드 집업", cate: 200n, price: 42000, image2: "goods-10.svg", best: 0, reco: 0, new: 0, icon: "" },
@@ -130,6 +169,9 @@ async function main() {
         main2_display1: g.cate === 100n ? 1 : 0,
         main2_display1_sequence: g.cate === 100n ? seq.cate++ : 99999,
         exhibition: g.exhibition ?? "",
+        vendor: g.vendor ?? "",
+        store_display1: g.storeBest ? 1 : 0,
+        store_display1_sequence: g.storeBest ?? 99999,
         auth_ck: "Y",
         cate_hide: 0,
         vendor_hide: 0,
@@ -141,6 +183,18 @@ async function main() {
       data: { guid: g.uid, cate: g.cate, cate_rep: 1, sequence: 0 },
     });
   }
+
+  // 모음전(exhibition) 상품 연결 — 겨울 신상 프리뷰(uid 2)에 몇 개 매핑
+  await prisma.exhibitionGoods.createMany({
+    data: [
+      { euid: 1, guid: 10003, ecate: 0, sequence: 1 },
+      { euid: 1, guid: 10000, ecate: 0, sequence: 2 },
+      { euid: 1, guid: 10011, ecate: 0, sequence: 3 },
+      { euid: 2, guid: 10007, ecate: 0, sequence: 1 },
+      { euid: 2, guid: 10009, ecate: 0, sequence: 2 },
+      { euid: 2, guid: 10011, ecate: 0, sequence: 3 },
+    ],
+  });
 
   const pcBanners = [
     { uid: 1, name: "로고", code: "LOGO", image1: "LOGO_image.jpg", link1: "/", sequence: 1 },

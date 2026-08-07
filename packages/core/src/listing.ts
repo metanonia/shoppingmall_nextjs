@@ -32,14 +32,14 @@ function sortToOrderBy(sort: SortOption) {
 // keyword matching, simplified to a single search phrase against name/goods_code
 // (legacy also ANDs successive "결과 내 검색" narrowing terms and matches the
 // pipe-delimited `keyword` field — deferred, see the migration plan).
-function keywordWhere(keyword: string | undefined) {
+export function keywordWhere(keyword: string | undefined) {
   if (!keyword) return {};
   return {
     OR: [{ name: { contains: keyword } }, { goods_code: { contains: keyword } }],
   };
 }
 
-async function runGoodsQuery(
+export async function runGoodsQuery(
   where: NonNullable<Parameters<typeof prisma.goods.findMany>[0]>["where"],
   sort: SortOption,
   page: number,
@@ -67,7 +67,7 @@ async function runGoodsQuery(
   };
 }
 
-const VISIBLE_GOODS_WHERE = { display_use: 1, auth_ck: "Y" as const, cate_hide: 0, vendor_hide: 0 };
+export const VISIBLE_GOODS_WHERE = { display_use: 1, auth_ck: "Y" as const, cate_hide: 0, vendor_hide: 0 };
 
 // Port of php/list.php's category listing query. Legacy matches descendants by
 // string-slicing the zero-padded digit-segment `cate` code
@@ -77,7 +77,7 @@ const VISIBLE_GOODS_WHERE = { display_use: 1, auth_ck: "Y" as const, cate_hide: 
 // convention. Legacy also joins through mallRN_goods_cate (a product can be
 // tagged into more than one category) rather than the single `goods.cate`
 // column, which this mirrors.
-async function getDescendantCateIds(cate: bigint): Promise<bigint[]> {
+export async function getDescendantCateIds(cate: bigint): Promise<bigint[]> {
   const all = [cate];
   let frontier = [cate];
   for (let depth = 0; depth < 4 && frontier.length > 0; depth++) {

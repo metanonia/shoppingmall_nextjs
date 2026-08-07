@@ -429,6 +429,47 @@ model Popup {
   @@map("mallRN_popup")
 }
 
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Vendor {
+  uid             Int                      @id @default(autoincrement()) @db.UnsignedInt
+  auth            mallRN_vendor_auth       @default(R)
+  sell            mallRN_vendor_sell       @default(R)
+  delivery_type   Int                      @default(0) @db.UnsignedTinyInt
+  id              String                   @default("") @db.VarChar(50)
+  passwd          String                   @default("") @db.VarChar(50)
+  comp_name       String                   @default("") @db.VarChar(100)
+  comp_owner      String                   @default("") @db.VarChar(20)
+  comp_license_no String                   @default("") @db.VarChar(50)
+  comp_postcode   String                   @default("") @db.VarChar(10)
+  comp_address1   String                   @default("") @db.VarChar(100)
+  comp_address2   String                   @default("") @db.VarChar(100)
+  comp_type       String                   @default("") @db.VarChar(100)
+  comp_item       String                   @default("") @db.VarChar(100)
+  comp_email      String                   @default("") @db.VarChar(100)
+  comp_tel        String                   @default("") @db.VarChar(20)
+  comp_fax        String                   @default("") @db.VarChar(20)
+  cont_name       String                   @default("") @db.VarChar(100)
+  cont_cell       String                   @default("") @db.VarChar(20)
+  cont_email      String                   @default("") @db.VarChar(50)
+  cont_part       String                   @default("") @db.VarChar(50)
+  cont_position   String                   @default("") @db.VarChar(50)
+  goods_auth      mallRN_vendor_goods_auth @default(A)
+  commission      Float                    @default(0.00) @db.Float
+  bank_name       String                   @default("") @db.VarChar(20)
+  bank_num        String                   @default("") @db.VarChar(20)
+  bank_owner      String                   @default("") @db.VarChar(20)
+  account_cycle   Int                      @default(1) @db.UnsignedInt
+  memo            String                   @default("") @db.Text
+  image1          String                   @default("") @db.VarChar(100)
+  image2          String                   @default("") @db.VarChar(100)
+  fail_cnts       Int                      @default(0) @db.UnsignedInt
+  fail_time       Int                      @default(0) @db.UnsignedInt
+  login_time      Int                      @default(0) @db.UnsignedInt
+  signdate        Int                      @default(0) @db.UnsignedInt
+
+  @@map("mallRN_vendor")
+}
+
 enum mallRN_exhibition_discount_yn {
   N
   Y
@@ -485,4 +526,21 @@ enum mallRN_configuration_sms_yn {
 enum mallRN_configuration_mobile_yn {
   Y
   N
+}
+
+enum mallRN_vendor_auth {
+  R
+  Y
+  N
+}
+
+enum mallRN_vendor_sell {
+  A
+  R
+  N
+}
+
+enum mallRN_vendor_goods_auth {
+  A
+  P
 }
