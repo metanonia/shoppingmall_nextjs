@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createOrder, getActiveEventDiscounts, priceLimitConfigFrom } from "@shoppingmall/core";
-import { hashPassword } from "@shoppingmall/auth";
+import { hashPassword, signPaymentToken } from "@shoppingmall/auth";
 import { getSession } from "@/lib/auth";
 import { ensureCartId } from "@/lib/cart-id";
 import { getCachedMemberDiscountPct, getCachedShopConfig, getDevice } from "@/lib/request";
@@ -28,7 +28,8 @@ export async function submitOrderAction(
   const priceLimitConfig = priceLimitConfigFrom(config);
 
   const direct = formData.get("direct") === "1";
-  const payType = String(formData.get("payType") ?? "B") === "M" ? "M" : "B";
+  const payTypeRaw = String(formData.get("payType") ?? "B");
+  const payType = payTypeRaw === "M" || payTypeRaw === "C" || payTypeRaw === "H" ? payTypeRaw : "B";
   const couponUidRaw = Number(formData.get("couponUid") ?? 0);
   const couponUid = couponUidRaw > 0 ? couponUidRaw : null;
   const useMileageAmount = Math.max(0, Number(formData.get("useMileage") ?? 0));
@@ -79,5 +80,13 @@ export async function submitOrderAction(
   });
 
   if (!result.ok) return { error: result.error };
+
+  if (payType === "C" || payType === "H") {
+    const secret = process.env.AUTH_SECRET;
+    if (!secret) throw new Error("AUTH_SECRET is not set");
+    const token = await signPaymentToken({ purpose: "pg_pending", orderNum: result.orderNum }, secret);
+    redirect(`/order/pay?order_num=${result.orderNum}&token=${token}`);
+  }
+
   redirect(`/order/complete?order_num=${result.orderNum}`);
 }

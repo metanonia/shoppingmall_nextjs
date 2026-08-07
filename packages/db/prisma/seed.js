@@ -63,7 +63,9 @@ async function main() {
       mobile_yn: "Y",
       goods_price_limit1: 0,
       goods_price_limit2: 1,
-      payment_type_b: 1, // bank transfer — the only payment method Phase 4 wires up (card/etc. wait for Phase 5)
+      payment_type_b: 1, // bank transfer (Phase 4)
+      payment_type_c: 1, // card (Phase 5) — payment_cp left blank so it resolves to the Mock gateway until real Aronhub credentials exist
+      payment_type_h: 1, // mobile/phone (Phase 5), same Mock fallback
       signdate: now,
     },
   });

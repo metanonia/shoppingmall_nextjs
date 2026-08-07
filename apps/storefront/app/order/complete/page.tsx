@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getOrderConfirmation, getOrderDetail } from "@shoppingmall/core";
 import { getSession } from "@/lib/auth";
 
-const PAY_TYPE_LABELS: Record<string, string> = { B: "무통장입금", M: "마일리지 결제" };
+const PAY_TYPE_LABELS: Record<string, string> = { B: "무통장입금", C: "카드", H: "휴대폰", M: "마일리지 결제" };
 
 function formatWon(n: number): string {
   return Math.round(n).toLocaleString("en-US");

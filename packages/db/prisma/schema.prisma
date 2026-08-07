@@ -816,6 +816,24 @@ model OrderLog {
   @@map("mallRN_order_log")
 }
 
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model SmsLog {
+  uid           Int    @id @default(autoincrement()) @db.UnsignedInt
+  cell          String @default("") @db.VarChar(50)
+  message       String @default("") @db.Text
+  type          Int    @default(0) @db.UnsignedInt
+  groupId       String @default("") @db.VarChar(50)
+  messageId     String @default("") @db.VarChar(50)
+  accountId     String @default("") @db.VarChar(50)
+  result        String @default("") @db.VarChar(250)
+  result_code   Int    @default(0) @db.UnsignedInt
+  status        Int    @default(0) @db.UnsignedInt
+  received_date Int    @default(0) @db.UnsignedInt
+  signdate      Int    @default(0) @db.UnsignedInt
+
+  @@map("mallRN_sms_list")
+}
+
 enum mallRN_exhibition_discount_yn {
   N
   Y

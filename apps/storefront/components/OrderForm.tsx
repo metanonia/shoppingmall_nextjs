@@ -28,6 +28,8 @@ export function OrderForm({
   defaultAddress1,
   defaultAddress2,
   bankTransferEnabled,
+  cardEnabled,
+  phoneEnabled,
   mileageOnlyEnabled,
 }: {
   direct: boolean;
@@ -43,6 +45,8 @@ export function OrderForm({
   defaultAddress1: string;
   defaultAddress2: string;
   bankTransferEnabled: boolean;
+  cardEnabled: boolean;
+  phoneEnabled: boolean;
   mileageOnlyEnabled: boolean;
 }) {
   const [state, formAction, pending] = useActionState<SubmitOrderFormState, FormData>(submitOrderAction, {});
@@ -51,27 +55,29 @@ export function OrderForm({
 
   const couponDiscount = coupons.find((c) => c.couponUid === couponUid)?.discountAmount ?? 0;
   const preDiscountTotal = subtotal + deliveryTotal - couponDiscount;
-  // Mileage-only (M) requires the balance to cover the whole order — this
-  // repo doesn't support partial-mileage + bank-transfer combos (legacy
-  // does via use_mileage on a B order, but Phase 4 only exposes mileage
-  // alongside B when payType stays "B"; picking "M" auto-maxes the input).
+  // Mileage-only (M) requires the balance to cover the whole order — partial
+  // mileage use alongside another payment method is still supported (see
+  // useMileage below), only the dedicated "M" radio auto-maxes the input.
   const canPayEntirelyByMileage = mileageOnlyEnabled && mileageBalance >= preDiscountTotal;
-
-  const [payType, setPayType] = useState<"B" | "M">(bankTransferEnabled ? "B" : "M");
-  const noPaymentMethodAvailable = !bankTransferEnabled && !canPayEntirelyByMileage;
-  const effectivePayType = bankTransferEnabled ? payType : "M";
-
-  const maxMileage = Math.max(0, Math.min(mileageBalance, preDiscountTotal));
-  const useMileage = effectivePayType === "M" ? Math.min(preDiscountTotal, mileageBalance) : Math.min(useMileageInput, maxMileage);
-  const total = Math.max(0, preDiscountTotal - useMileage);
 
   const payOptions = useMemo(
     () => [
       { value: "B" as const, label: "무통장입금", enabled: bankTransferEnabled },
+      { value: "C" as const, label: "신용카드", enabled: cardEnabled },
+      { value: "H" as const, label: "휴대폰", enabled: phoneEnabled },
       { value: "M" as const, label: "마일리지 전액결제", enabled: canPayEntirelyByMileage },
     ],
-    [bankTransferEnabled, canPayEntirelyByMileage],
+    [bankTransferEnabled, cardEnabled, phoneEnabled, canPayEntirelyByMileage],
   );
+  const noPaymentMethodAvailable = payOptions.every((opt) => !opt.enabled);
+
+  const [payType, setPayType] = useState<"B" | "C" | "H" | "M">(
+    () => payOptions.find((opt) => opt.enabled)?.value ?? "M",
+  );
+
+  const maxMileage = Math.max(0, Math.min(mileageBalance, preDiscountTotal));
+  const useMileage = payType === "M" ? Math.min(preDiscountTotal, mileageBalance) : Math.min(useMileageInput, maxMileage);
+  const total = Math.max(0, preDiscountTotal - useMileage);
 
   return (
     <form action={formAction}>
@@ -79,7 +85,7 @@ export function OrderForm({
       <input type="hidden" name="couponUid" value={couponUid} />
       <input type="hidden" name="useMileage" value={useMileage} />
       <input type="hidden" name="clientPayTotal" value={total} />
-      <input type="hidden" name="payType" value={effectivePayType} />
+      <input type="hidden" name="payType" value={payType} />
 
       <div className="sub_title">주문자 정보</div>
       <input type="text" name="name" defaultValue={defaultName} placeholder="이름" required />
@@ -119,8 +125,8 @@ export function OrderForm({
             type="number"
             min={0}
             max={maxMileage}
-            value={effectivePayType === "M" ? maxMileage : useMileageInput}
-            disabled={effectivePayType === "M"}
+            value={payType === "M" ? maxMileage : useMileageInput}
+            disabled={payType === "M"}
             onChange={(e) => setUseMileageInput(Math.max(0, Number(e.target.value) || 0))}
           />
           <span className="size12 colorGray"> 보유 마일리지 {formatWon(mileageBalance)} (최대 {formatWon(maxMileage)} 사용 가능)</span>
@@ -134,7 +140,7 @@ export function OrderForm({
           <input
             type="radio"
             name="payTypeChoice"
-            checked={effectivePayType === opt.value}
+            checked={payType === opt.value}
             disabled={!opt.enabled}
             onChange={() => setPayType(opt.value)}
           />
@@ -142,7 +148,7 @@ export function OrderForm({
         </label>
       ))}
       <label style={{ marginLeft: 12 }}>
-        <input type="radio" disabled /> 신용카드/실시간계좌이체/가상계좌/휴대폰 (Phase 5 예정)
+        <input type="radio" disabled /> 실시간계좌이체/가상계좌 (미지원 결제대행사)
       </label>
       {noPaymentMethodAvailable && (
         <div className="colorRed size12">현재 이용 가능한 결제수단이 없습니다. 관리자에게 문의해주세요.</div>

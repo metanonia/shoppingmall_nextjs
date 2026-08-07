@@ -13,10 +13,12 @@
   },
   "dependencies": {
     "@shoppingmall/auth": "workspace:*",
-    "@shoppingmall/db": "workspace:*"
+    "@shoppingmall/db": "workspace:*",
+    "nodemailer": "^9.0.5"
   },
   "devDependencies": {
     "@types/node": "^22",
+    "@types/nodemailer": "^8.0.1",
     "typescript": "^5",
     "vitest": "^4.1.10"
   }

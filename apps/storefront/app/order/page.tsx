@@ -89,6 +89,8 @@ export default async function OrderPage({ searchParams }: { searchParams: Promis
             defaultAddress1={profile?.address1 ?? ""}
             defaultAddress2={profile?.address2 ?? ""}
             bankTransferEnabled={config.paymentTypeB === 1}
+            cardEnabled={config.paymentTypeC === 1}
+            phoneEnabled={config.paymentTypeH === 1}
             mileageOnlyEnabled={Boolean(session)}
           />
         </>

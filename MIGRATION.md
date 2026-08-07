@@ -56,8 +56,8 @@ cd ../../apps/storefront && pnpm dev        # http://localhost:3000
 | 2 | 상품 탐색 (목록/검색/베스트/신상/상세/입점사스토어/모음전) | ✅ 완료 |
 | 3 | 회원/인증/소셜로그인 + 회원가입 이후 미뤄뒀던 항목 일괄 처리 | ✅ 완료 (소셜로그인은 구조만, 아래 참고) |
 | 4 | 카트/주문 엔진 | ✅ 완료 (무통장입금/마일리지결제만, 아래 참고) |
-| 5 | 결제/알림 | ⬜ **다음 작업** (아래 가이드 참고) |
-| 6 | 게시판/CMS | ⬜ 미착수 |
+| 5 | 결제/알림 | ✅ 완료 (아론허브 PG만, 이메일+SMS, 아래 참고) |
+| 6 | 게시판/CMS | ⬜ **다음 작업** (미착수, 아직 조사 안 함) |
 | 7 | 관리자 백엔드 | ⬜ 미착수 |
 | 8 | 입점사 백엔드 | ⬜ 미착수 |
 | 9 | 하드닝/정규화/마무리 | ⬜ 미착수 |
@@ -87,20 +87,31 @@ cd ../../apps/storefront && pnpm dev        # http://localhost:3000
 - 주문 생성 시 임시 `order_num` 플레이스홀더가 `varchar(32)` 제한을 초과해 매 주문마다
   DB 에러로 깨졌음 → 28자 hex 토큰으로 축소.
 
-## 다음 작업: Phase 5 (결제/알림) 시작 가이드
+## Phase 5 완료 요약 (결제(아론허브 PG)/알림)
 
-**목표**: 카드/실시간계좌이체/가상계좌/휴대폰(PG) 결제 연동. `OrderForm.tsx`에 이미
-해당 라디오 버튼이 "Phase 5 예정"으로 비활성 표시되어 있고, `order.ts`의 `createOrder`
-는 현재 `payType: "B"|"M"`만 받음 — PG 콜백이 오면 `reals=1` + 재고차감(이미 있는
-헬퍼 재사용 검토) + `orderStatus1` 호출까지 이어지도록 확장 필요.
+계획 문서: `~/.claude/plans/smooth-finding-ullman.md`. 카드(C)/휴대폰(H) 결제가
+`PaymentGateway` 인터페이스(`packages/core/src/payment.ts`) 뒤에서 동작하며, 실제
+가맹점 자격증명(`Configuration.payment_cp/payment_shop_id/payment_shop_key`)이
+없으면 `MockPaymentGateway`로 자동 폴백합니다(레거시 소셜로그인 게이팅과 동일 패턴 —
+키가 생기면 코드 변경 없이 `AronhubPaymentGateway`로 전환됨). 주문완료/결제완료 시
+이메일(`mailer.ts`)과 SMS(`sms.ts`, coolSMS 스펙 포팅)를 시도하되, SMS는 키가 없으면
+`mallRN_sms_list`에 `SKIPPED_NO_CREDENTIALS`로 기록하고 조용히 스킵합니다(예외
+없음). 핵심 코드: `packages/core/src/payment.ts`/`payment-aronhub.ts`/`sms.ts`/
+`mailer.ts`/`notification.ts`, `apps/storefront/app/api/payment/`,
+`apps/storefront/app/order/pay/`, `components/PaymentWidget.tsx`. 상세 스코프
+결정과 구현 내역은 아래 "미뤄둔 것 > 결제(PG)/알림" 항목 참고.
 
-**참고**: `핵심 설계 결정`의 "결제: KCP는 스텁, aronhub→nicepay→inicis 순으로 실제
-구현" 방침 그대로. KCP는 컴파일 바이너리+SOAP라 포팅 불가하므로 `PaymentGateway`
-인터페이스 뒤에 스텁만 두고 aronhub부터 구현.
+**Playwright E2E로 실제 검증 완료**(Mock PG 사용): 게스트 카드결제 주문 생성→PC 팝업
+결제→`confirmPgPayment`(CAS 멱등 처리 확인)→주문완료, 결제후 취소(`orderStatus95`가
+Mock의 `cancelPayment` 호출 경유 확인, 환불 반영), 결제 포기(팝업을 결제 없이 닫음
+→`orderStatus9` 자동 취소+재고복원), 모바일 풀페이지 결제 흐름까지 DB 상태 대조로
+확인했습니다. 이메일은 JSON transport 콘솔 로그로 실제 조립된 메일 내용을, SMS는
+`mallRN_sms_list`의 `SKIPPED_NO_CREDENTIALS` 기록을 대조 확인했습니다.
 
-**Phase 4가 남긴, Phase 5 착수 전 확인할 점**은 아래 "미뤄둔 것 > 카트/주문"의
-마지막 소단락("나중에 확인할 사항")에 정리되어 있습니다 — 특히 무통장입금 주문이
-Phase 7 전까지 결제완료로 전환될 방법이 없다는 점.
+## 다음 작업: Phase 6 (게시판/CMS)
+
+아직 레거시 코드 조사를 시작하지 않았습니다 — 착수 시 이 문서에 시작 가이드를
+추가할 것.
 
 ## 핵심 설계 결정 (다시 논의하지 않아도 되는 것들)
 
@@ -119,7 +130,11 @@ Phase 7 전까지 결제완료로 전환될 방법이 없다는 점.
   분리된 컴포넌트 트리를 렌더링 (`proxy.ts` = 구 middleware, `x-device` 헤더).
 - **관리자/입점사**: 레거시의 `managers/`+`vendor/` 중복 구조를 그대로 복제하지 않고,
   하나의 backoffice 앱에서 role(admin/vendor)로 분기.
-- **결제**: KCP(컴파일 바이너리+SOAP)는 스텁, aronhub→nicepay→inicis 순으로 실제 구현.
+- **결제**: KCP(컴파일 바이너리+SOAP)는 스텁, aronhub→nicepay→inicis 순으로 실제 구현
+  (Phase 5에서 aronhub 완료 — 카드/휴대폰만 지원, 가상계좌/실시간계좌이체는 nicepay
+  단계에서). `PaymentGateway` 인터페이스(`packages/core/src/payment.ts`) 뒤에 실제
+  자격증명 없으면 `MockPaymentGateway`로 자동 폴백하는 게이팅 패턴 확립 — 이후
+  nicepay/inicis도 동일 패턴으로 추가.
 - **카트/주문 트랜잭션**: 레거시는 DB 트랜잭션이 전혀 없지만(순차 호출+수동 보상으로
   "롤백" 흉내), 이 저장소는 `createOrder`/`orderStatus9`/`orderStatus95`를
   `prisma.$transaction`으로 감싸 실제 원자성 보장(Phase 4, 상세는 아래 "Phase 4 완료
@@ -152,7 +167,8 @@ OAuth2 authorization-code flow(인증 URL 생성/토큰 교환/프로필 조회,
 
 ### KCP 결제
 컴파일 바이너리+SOAP라 Node로 직접 포팅 불가. `PaymentGateway` 인터페이스 뒤에 스텁만
-있음. aronhub(최근 커밋 기준 실사용 중)를 먼저 구현.
+있음. ✅ aronhub는 Phase 5에서 구현됨(카드/휴대폰만) — nicepay/inicis(가상계좌/
+실시간계좌이체 포함)는 아래 "결제(PG)/알림" 항목 참고.
 
 ### 휴면회원 (`mallRN_member_sleep`)
 테이블 자체를 안 만듦 — 휴면 전환은 스케줄 작업(`async_day_proc.php`, Phase 9)이
@@ -178,8 +194,8 @@ Phase 7/8 대기 중이라 `answer`는 항상 빈 값("답변대기중")으로�
 `/cart`, `/order`, `/order/complete`, `/my_order`, `/my_order/[order_num]`,
 `/my_order/guest` 페이지. 장바구니 담기(옵션 선택 포함)부터 결제, 주문내역 조회,
 취소까지 실사용 가능. **단순화/스코프컷한 부분**:
-- **결제수단은 무통장입금(B)과 마일리지 전액결제(M)만** — 카드/실시간계좌이체/
-  가상계좌/휴대폰은 Phase 5 대기, UI에 비활성 표시만 있음.
+- **결제수단은 무통장입금(B)/마일리지 전액결제(M)/카드(C)/휴대폰(H)** — 실시간계좌이체/
+  가상계좌는 아론허브가 지원하지 않아(아래 "결제(PG)/알림" 항목 참고) 여전히 미지원.
 - **무통장입금은 레거시처럼 입금대기(status=0)로 남김** — 관리자 입금확인 화면이
   Phase 7까지 없어 결제완료 전환 수단이 아직 없음(아래 "나중에 확인할 사항" 참고).
 - **배송상태 진행(배송준비중/배송중/배송완료)과 구매확정은 전부 Phase 7/8 대기** —
@@ -213,14 +229,47 @@ Phase 7/8 대기 중이라 `answer`는 항상 빈 값("답변대기중")으로�
   Phase 7에서 관리자 입금확인 기능이 생긴 뒤 B 주문도 한 번 더 확인할 것.
 - **[Phase 7/8] `orderStatus4`/`orderStatus5`(배송완료/구매확정) 호출 지점 없음.**
   마일리지 적립 로직(`saveMileage` 경유)이 이때 처음 실사용 검증됨.
-- **[Phase 5] 카드/PG 결제 경로.** `createOrder`는 B/M만 지원 — PG 콜백이 `reals=1`
-  +재고차감+`orderStatus1`으로 이어지도록 확장 시 지금의 트랜잭션 구조를 그대로
-  재사용할 수 있는지 재검토할 것.
+- ~~**[Phase 5] 카드/PG 결제 경로.**~~ ✅ Phase 5에서 아론허브(C/H)로 처리됨 — 아래
+  "결제(PG)/알림" 항목 참고.
 - **[발견 시] 부분환불 재검토.** Phase 7에서 admin 부분환불 화면(legacy
   `php/admin/*order*cancel*` 계열로 추정, 미확인)을 먼저 찾아 읽고 `orderStatus95_partial`
   포팅 여부 재판단할 것.
 - **[발견 시] `order_list_guest.php` 실물 미확인.** `/my_order/guest`를 목록형으로
   확장하려면 그 파일을 먼저 읽고 `guest_where` 쿠키 유도 조건을 확인할 것.
+
+### 결제(PG)/알림 — ✅ Phase 5에서 처리
+`PaymentGateway` 인터페이스(`packages/core/src/payment.ts`) + `MockPaymentGateway`
+(로컬 개발/테스트 기본값) + `AronhubPaymentGateway`(`payment-aronhub.ts`, 카드/휴대폰만
+— 아론허브 자체가 가상계좌/실시간계좌이체 미지원) + `confirmPgPayment`/PG 취소 호출
+(`order.ts`) + 콜백 라우트 3개(`app/api/payment/aronhub/{callback,return}`,
+`app/api/payment/mock/checkout`) + `/order/pay` 결제위젯 페이지
+(`components/PaymentWidget.tsx`). 알림은 `sms.ts`(coolSMS HMAC 서명 포팅, 키 없으면
+`mallRN_sms_list`에 `SKIPPED_NO_CREDENTIALS`로 기록 후 스킵)와 `mailer.ts`
+(nodemailer, `SMTP_HOST` 없으면 JSON transport로 폴백해 콘솔에만 로그) +
+`notification.ts`(오케스트레이션). **단순화/스코프컷한 부분**:
+- **나이스페이/이니시스는 아직 미구현** — 가상계좌(V)/실시간계좌이체(R)는 이 두
+  PG가 있어야 지원 가능. `getPaymentGateway()`가 `payment_cp`별로 분기하도록
+  설계되어 있어 추가 시 기존 코드 변경 없이 새 어댑터만 추가하면 됨.
+- **현금영수증(`cashReceiptsApply`) 완전 스코프아웃** — 레거시에서도 B/V/R 전용
+  기능이라 이번에 구현한 C/H와 무관.
+- **배송완료/구매확정 알림 없음** — Phase 4와 동일한 이유(`orderStatus4/5` 호출
+  UI가 Phase 7/8 대기)로 알림도 같이 대기.
+- **관리자 알림 on/off 토글 하드코딩** — 레거시 `mallRN_sms_auto.ck_message1/2`,
+  `mallRN_auto_mail.send` 같은 관리자 설정 UI가 없어 "항상 시도"로 단순화.
+  SMS/이메일 템플릿도 DB 테이블(`mallRN_sms_auto`/`mallRN_auto_mail`) 대신 TS
+  함수로 하드코딩(관리 UI 없는 admin 전용 테이블은 스킵하는 기존 원칙과 동일).
+- **푸시(FCM) 완전 스코프아웃** — 레거시가 쓰는 FCM Legacy HTTP API가 2024년 6월
+  구글에 의해 이미 폐기되어 재구축이 필요함(OAuth2 기반 HTTP v1로 이전해야 함).
+
+**나중에 확인할 사항**:
+- **[아론허브 실키 확보 시] 실사용 검증 필요.** 지금까지는 전부 `MockPaymentGateway`로
+  검증됨 — 실제 가맹점 자격증명이 생기면 `AronhubPaymentGateway`의 요청/콜백/취소
+  흐름을 실제 PG로 한 번 더 확인할 것(특히 콜백에 서명검증이 없다는 레거시 특성상
+  `confirmPgPayment`의 금액검증이 실제로 걸리는지).
+- **[Phase 7] 무통장입금 결제완료 시에도 `notifyOrderPaid` 연결 필요.** 관리자
+  "입금확인" 액션이 `orderStatus1`을 호출할 때 알림도 같이 트리거되도록 반드시
+  연결할 것(자동으로 안 붙게 설계되어 있어 잊기 쉬움 — Phase 4의 기존 "나중에
+  확인할 사항"과 동일한 함정).
 
 ### 회원등급 할인가 — ✅ Phase 3에서 처리
 `packages/core/src/member.ts`의 `getMemberDiscountPct()` + `pricing.ts`의
@@ -312,6 +361,18 @@ Phase 6/7/8 — 전체 미착수.
   `button[type="submit"]` 같은 범용 셀렉터는 페이지 상단 검색폼의 제출버튼과 충돌해
   엉뚱한 곳으로 제출될 수 있음 — 버튼 텍스트(`button:has-text("결제하기")`)처럼
   구체적으로 지정할 것.
+- **Playwright로 "결제 팝업을 사용자가 그냥 닫는" 시나리오를 테스트할 때 `popup.close()`를
+  바로 호출하면 메인 페이지까지 죽는 것처럼 보이는 현상이 있었음**(`Target page,
+  context or browser has been closed` 에러) — 원인은 앱 버그가 아니라 Mock 결제
+  콜백이 매우 빨라서(수백 ms 안에 `window.close()`까지 자체 실행) 팝업이 테스트
+  스크립트보다 먼저 스스로 닫혀버린 레이스였음. `context.route("**/api/payment/mock/
+  checkout**", route => route.abort())`로 콜백 자체를 막아서 팝업이 절대 자동으로
+  안 끝나게 만든 뒤 `popup.close()`를 호출해야 "포기" 경로를 안정적으로 재현할 수 있음.
+- SMS 발송은 `mallRN_sms_list.result`(자격증명 없으면 `SKIPPED_NO_CREDENTIALS`)로,
+  이메일은 `next dev`를 실행한 터미널의 `[mailer:json]` 로그(기본 JSON transport,
+  실제 조립된 메일 전체가 콘솔에 찍힘)로 확인. `EMAIL_DEV_TRANSPORT=ethereal`을
+  `.env.local`에 설정하면 실제로 발송되는 무료 테스트 SMTP로 전환되고 미리보기
+  URL이 로그에 남음(수동 1회 확인용, 자동 테스트에서는 기본값 그대로 둘 것).
 
 ## 새 테이블 추가 시 체크리스트 (Phase 4부터 그대로 재사용)
 

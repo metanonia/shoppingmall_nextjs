@@ -1,11 +1,13 @@
 import { type Prisma, prisma } from "@shoppingmall/db";
 import { verifyPassword } from "@shoppingmall/auth";
-import type { ShopConfig } from "./config";
+import { type ShopConfig, getShopConfig } from "./config";
 import type { EventDiscountMap, PriceLimitConfig } from "./pricing";
 import { getCartSummary, validateAndSyncCart } from "./cart";
 import { consumeCoupon, getCouponPrice, restoreCoupon } from "./coupon";
 import { type MileageValidityConfig, getMileageBalance, saveMileage, useMileage } from "./mileage";
 import type { Device } from "./device";
+import { type PgPayType, getPaymentGateway } from "./payment";
+import { notifyOrderCreated, notifyOrderPaid } from "./notification";
 
 type Tx = Prisma.TransactionClient;
 
@@ -57,7 +59,7 @@ export type CreateOrderInput = {
   address2: string;
   message: string;
   guestPasswordHash?: string; // pre-hashed (argon2id) — see actions.ts
-  payType: "B" | "M";
+  payType: "B" | "M" | "C" | "H";
   couponUid: number | null; // mallRN_coupon.uid (an issued instance), cart-level (g_uid=0)
   useMileage: number;
   clientPayTotal: number;
@@ -243,6 +245,17 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
       return orderNum;
     });
 
+    // Best-effort, outside the transaction, after commit — a notification
+    // failure must never undo or block a successfully created order. Port
+    // of php/order_ok.php's async_order_mail.php dispatch, made synchronous
+    // (no fire-and-forget socket trick needed — sendMail/sendSms already
+    // never throw).
+    if (input.payType === "B") {
+      await notifyOrderCreated(orderNum).catch(() => {});
+    } else if (input.payType === "M" && grandTotal === 0) {
+      await notifyOrderPaid(orderNum).catch(() => {});
+    }
+
     return { ok: true, orderNum };
   } catch (err) {
     if (err instanceof Error && err.message === "OUT_OF_STOCK") {
@@ -254,9 +267,11 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
 
 // Port of lib.Shop.php:1462 orderStatus1() (payment confirmed), trimmed of
 // the revenue-ledger/PG-commission/cash-receipt side effects that need
-// mallRN_order_sales — not added in Phase 4 (admin reporting only, see
-// MIGRATION.md). B (무통장입금) orders never reach this in Phase 4 — see
-// MIGRATION.md's "나중에 확인할 사항" for why and when that changes.
+// mallRN_order_sales — not added (admin reporting only, see MIGRATION.md).
+// B (무통장입금) orders still never reach this until Phase 7 adds an admin
+// deposit-confirmation action — see MIGRATION.md's "나중에 확인할 사항". M
+// (전액 마일리지) and C/H (Phase 5 PG payment, via confirmPgPayment below)
+// both call this once payment is actually confirmed.
 export async function orderStatus1(orderNum: string, actorId: string, db: Tx | typeof prisma = prisma): Promise<void> {
   const lines = await db.orderGoods.findMany({ where: { order_num: orderNum, status: 0 } });
   for (const line of lines) {
@@ -273,6 +288,43 @@ export async function orderStatus1(orderNum: string, actorId: string, db: Tx | t
     });
   }
   await db.orderInfo.update({ where: { order_num: orderNum }, data: { sales_issued: 1, pay_status: "C", status_date: now() } });
+}
+
+export type ConfirmPgPaymentResult = { ok: true; alreadyProcessed: boolean } | { ok: false; reason: string };
+
+// Port of plugin/aronhub/payResult.php's confirmation sequence, called from
+// the PG callback route (and, defensively, from the return route too — see
+// MIGRATION.md). Legacy has two gaps this closes:
+// 1. It compares AMOUNT to pay_total but only *logs* a mismatch, still
+//    approving the payment — here a mismatch is a hard failure.
+// 2. Its idempotency check (`if pay_status=='C') exit`) has a race window
+//    between the check and the UPDATE if two callbacks land at once; here
+//    the check-and-set is one atomic conditional UPDATE inside the
+//    transaction (same `WHERE ... AND pay_status != 'C'` CAS pattern as the
+//    stock-decrement guard in createOrder).
+export async function confirmPgPayment(
+  orderNum: string,
+  pgTransactionId: string,
+  amount: number,
+): Promise<ConfirmPgPaymentResult> {
+  const order = await prisma.orderInfo.findFirst({ where: { order_num: orderNum } });
+  if (!order) return { ok: false, reason: "ORDER_NOT_FOUND" };
+  if (order.pay_type !== "C" && order.pay_type !== "H") return { ok: false, reason: "INVALID_PAY_TYPE" };
+  if (amount !== order.pay_total) return { ok: false, reason: "AMOUNT_MISMATCH" };
+
+  const alreadyProcessed = await prisma.$transaction(async (tx) => {
+    const updated = await tx.orderInfo.updateMany({
+      where: { order_num: orderNum, pay_status: { not: "C" } },
+      data: { pay_info: `거래번호: ${pgTransactionId}`, pay_number: pgTransactionId, reals: 1 },
+    });
+    if (updated.count === 0) return true;
+    await orderStatus1(orderNum, order.id || "guest", tx);
+    return false;
+  });
+
+  if (!alreadyProcessed) await notifyOrderPaid(orderNum).catch(() => {});
+
+  return { ok: true, alreadyProcessed };
 }
 
 async function loadMileageValidityConfig(db: Tx | typeof prisma): Promise<MileageValidityConfig> {
@@ -347,15 +399,35 @@ export async function orderStatus9(orderNum: string, actorId: string): Promise<C
 // Port of lib.Shop.php:1931 orderStatus95() — cancel after payment
 // completed. Legacy expects the caller to have already flipped every line's
 // status to 9 before invoking this; here the status flip and the
-// restore/reconcile logic happen together in one atomic step. In Phase 4
-// the only orders that can ever reach pay_status "C" are mileage-only (M,
-// total 0) — see MIGRATION.md's "나중에 확인할 사항".
+// restore/reconcile logic happen together in one atomic step. Until Phase 7
+// adds an admin deposit-confirmation action, the only orders that can reach
+// pay_status "C" are mileage-only (M, total 0) and PG (C/H) — see
+// MIGRATION.md's "나중에 확인할 사항".
 export async function orderStatus95(orderNum: string, actorId: string): Promise<CancelResult> {
-  return prisma.$transaction(async (tx) => {
-    const order = await tx.orderInfo.findFirst({ where: { order_num: orderNum } });
-    if (!order) return { ok: false, error: "존재하지 않는 주문입니다." };
-    if (order.pay_status !== "C") return { ok: false, error: "결제완료된 주문만 취소할 수 있습니다." };
+  const order = await prisma.orderInfo.findFirst({ where: { order_num: orderNum } });
+  if (!order) return { ok: false, error: "존재하지 않는 주문입니다." };
+  if (order.pay_status !== "C") return { ok: false, error: "결제완료된 주문만 취소할 수 있습니다." };
 
+  // PG cancel happens outside the transaction, before any DB state changes —
+  // if the PG refuses the refund, nothing here is rolled back either. A
+  // "money not refunded but stock/mileage restored" mismatch is worse than
+  // an oversell, so this fails closed instead of racing the two.
+  if (order.pay_type === "C" || order.pay_type === "H") {
+    const config = await getShopConfig();
+    const gateway = getPaymentGateway(order.pay_type as PgPayType, config);
+    const cancelResult = await gateway.cancelPayment({
+      payType: order.pay_type as PgPayType,
+      pgTransactionId: order.pay_number,
+      amount: order.pay_total,
+    });
+    await prisma.orderInfo.update({
+      where: { order_num: orderNum },
+      data: { pay_info: `${order.pay_info} | 취소결과: ${cancelResult.ok ? "SUCCESS" : cancelResult.reason}` },
+    });
+    if (!cancelResult.ok) return { ok: false, error: "결제 취소에 실패했습니다. 잠시 후 다시 시도해주세요." };
+  }
+
+  return prisma.$transaction(async (tx) => {
     const lines = await tx.orderGoods.findMany({ where: { order_num: orderNum, status: { not: 9 } } });
     for (const line of lines) {
       await tx.orderGoods.update({ where: { uid: line.uid }, data: { status: 9, status2: 5, status_date: now() } });
@@ -550,7 +622,14 @@ export async function getMyOrders(memberId: string, page = 1): Promise<OrderList
   return { items, total, page: safePage, totalPages };
 }
 
-export type OrderConfirmation = { orderNum: string; payTotal: number; payType: string; deliveryTotal: number; signdate: number };
+export type OrderConfirmation = {
+  orderNum: string;
+  payTotal: number;
+  payType: string;
+  payStatus: string;
+  deliveryTotal: number;
+  signdate: number;
+};
 
 // Port of php/order_ok.php. Deliberately minimal (no address/phone) so the
 // immediate post-checkout redirect can render for a guest without asking
@@ -563,7 +642,41 @@ export async function getOrderConfirmation(orderNum: string): Promise<OrderConfi
     orderNum: order.order_num,
     payTotal: order.pay_total,
     payType: order.pay_type,
+    payStatus: order.pay_status,
     deliveryTotal: order.delivery_total,
     signdate: order.signdate,
+  };
+}
+
+export type OrderPaymentInfo = {
+  orderNum: string;
+  payTotal: number;
+  payType: string;
+  payStatus: string;
+  buyerId: string;
+  buyerName: string;
+  buyerEmail: string;
+  itemName: string;
+};
+
+// Backing query for /order/pay — the caller already holds a signed payment
+// token scoped to this exact order_num (see packages/auth/src/payment-token.ts),
+// so this doesn't re-check member/guest ownership the way getOrderDetail does.
+// Only C/H (PG) orders are meaningful here.
+export async function getOrderPaymentInfo(orderNum: string): Promise<OrderPaymentInfo | null> {
+  const order = await prisma.orderInfo.findFirst({ where: { order_num: orderNum, reals: 1 } });
+  if (!order || (order.pay_type !== "C" && order.pay_type !== "H")) return null;
+  const firstLine = await prisma.orderGoods.findFirst({ where: { order_num: orderNum }, orderBy: { uid: "asc" } });
+  const lineCount = await prisma.orderGoods.count({ where: { order_num: orderNum } });
+  const itemName = firstLine ? `${firstLine.g_name}${lineCount > 1 ? ` 외 ${lineCount - 1}건` : ""}` : "주문 상품";
+  return {
+    orderNum: order.order_num,
+    payTotal: order.pay_total,
+    payType: order.pay_type,
+    payStatus: order.pay_status,
+    buyerId: order.id,
+    buyerName: order.name,
+    buyerEmail: order.email,
+    itemName,
   };
 }
