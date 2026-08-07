@@ -1,6 +1,13 @@
 import { cache } from "react";
 import { headers } from "next/headers";
-import { getShopConfig, type Device } from "@shoppingmall/core";
+import {
+  type Device,
+  getBankAccounts,
+  getShopConfig,
+  getTopBanners,
+  getTopLevelCategories,
+  getTopMenu,
+} from "@shoppingmall/core";
 
 // React.cache memoizes these per request so layout.tsx and page.tsx (both of
 // which need the device + shop config) don't each issue their own query.
@@ -15,4 +22,15 @@ export const getDevice = cache(async (): Promise<Device> => {
   const config = await getCachedShopConfig();
   if (config.mobileYn === "N") return "pc";
   return uaDevice;
+});
+
+// Shared across every page's layout: top nav (logo/menu/categories) + footer
+// (bank accounts) data. Cached per request so navigating between pages only
+// re-fetches what each page actually adds (goods lists, product detail, ...).
+export const getSiteChrome = cache(async () => {
+  const [device, config] = await Promise.all([getDevice(), getCachedShopConfig()]);
+  const [topBanners, categories] = await Promise.all([getTopBanners(device), getTopLevelCategories()]);
+  const topMenu = getTopMenu(device === "mobile" ? config.mobileTopMenu : config.designTopMenu);
+  const bankAccounts = getBankAccounts(config);
+  return { device, config, topBanners, categories, topMenu, bankAccounts };
 });

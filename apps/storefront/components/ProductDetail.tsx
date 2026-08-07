@@ -1,0 +1,249 @@
+"use client";
+
+import { useState } from "react";
+import type { GoodsDetailViewModel } from "@shoppingmall/core";
+import { GoodsCard } from "./GoodsCard";
+import { ProductGallery } from "./ProductGallery";
+
+// Port of view.html / mobile_view.html's `.goodsInfo` + `.goods_explain` tab
+// panel. Cart mutation (add-to-cart / buy-now), reviews, Q&A, favorites, and
+// the vendor-store panel are stubbed or omitted — see getGoodsDetail's
+// comment for what each needs before it can be real (member auth, cart
+// tables, review/inquiry tables). Both devices share this component; legacy's
+// mobile view additionally puts options+buy behind a sticky bottom drawer
+// (`#btnFixOrder`) which isn't reproduced — options/buy render inline instead.
+export function ProductDetail({ detail, device }: { detail: GoodsDetailViewModel; device: "pc" | "mobile" }) {
+  const [tab, setTab] = useState<1 | 2 | 3 | 4>(1);
+
+  const infoRows: { label: string; value: string }[] = [
+    ...(detail.consumerPrice ? [{ label: "소비자가격", value: `${detail.consumerPrice}원` }] : []),
+    ...(detail.goodsCode ? [{ label: "상품코드", value: detail.goodsCode }] : []),
+    ...(detail.make ? [{ label: "제조사", value: detail.make }] : []),
+    ...(detail.brand ? [{ label: "브랜드", value: detail.brand }] : []),
+    ...(detail.model ? [{ label: "모델명", value: detail.model }] : []),
+    ...(detail.origin ? [{ label: "원산지", value: detail.origin }] : []),
+    ...detail.makingInfo.map((m) => ({ label: m.name, value: m.value })),
+  ];
+
+  return (
+    <div id="contents">
+      <div className="empty50" />
+
+      <div className="goodsInfo">
+        <ProductGallery images={detail.images} name={detail.name} device={device} />
+
+        <div className="goodsDetail">
+          {detail.icons.length > 0 && (
+            <div className="goods_icon">
+              {detail.icons.map((icon) => (
+                <img key={icon} src={`/image/icon/${icon}`} alt="icon" />
+              ))}
+            </div>
+          )}
+          <div className="goods_name">{detail.nameCodeAble}</div>
+
+          <div className="goods_price">
+            <span>{detail.price}</span>원
+            {detail.origPrice && (
+              <>
+                &nbsp;&nbsp;&nbsp;&nbsp;
+                <s className="size18 colorGray fontMontserrat">{detail.origPrice}</s>
+                {detail.saleMsg && <b className="size14">({detail.saleMsg})</b>}
+              </>
+            )}
+          </div>
+
+          <div className="empty20" />
+
+          {infoRows.length > 0 && (
+            <ul>
+              {infoRows.map((row) => (
+                <li key={row.label}>
+                  <div>{row.label}</div>
+                  <div>{row.value}</div>
+                </li>
+              ))}
+              <li>
+                <div>배송비</div>
+                <div>{detail.deliveryMessage}</div>
+              </li>
+              {detail.mileagePct > 0 && (
+                <li>
+                  <div>적립혜택</div>
+                  <div>
+                    마일리지 <span>{detail.mileagePct}%</span> 적립
+                  </div>
+                </li>
+              )}
+              {detail.limitQty > 0 && (
+                <li style={{ height: 20 }}>
+                  <div>구매제한</div>
+                  <div>
+                    회원당 <strong>{detail.limitQty}</strong>개까지 구매가능 합니다.
+                  </div>
+                </li>
+              )}
+              <li className="line" />
+            </ul>
+          )}
+
+          {detail.optionUse && detail.options.length > 0 && (
+            <>
+              <div className="empty20" />
+              <div className="optionList">
+                {detail.options.map((group) => (
+                  <div key={group.name} className="optionBox">
+                    <div className="option_title">
+                      <b>{group.name}</b>
+                    </div>
+                    {group.values.length > 0 && (
+                      <div className="option_select">
+                        {group.values.map((v) => (
+                          <div key={v.value} className="option_value">
+                            {v.value} {v.priceLabel}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          <div className="empty20" />
+          <div className="totalPrice">
+            총 금액 <span className="total_price">{detail.price}</span>원
+          </div>
+          <div className="empty20" />
+
+          {detail.soldOut ? (
+            <button className="shineButton" style={{ width: 433 }} type="button" disabled>
+              품절된 상품 입니다.
+            </button>
+          ) : detail.memberOnly ? (
+            <button className="shineButton" style={{ width: 433 }} type="button" disabled>
+              {detail.limitMsg}
+            </button>
+          ) : (
+            <BuyButtons />
+          )}
+        </div>
+      </div>
+
+      {detail.relatedGoods.length > 0 && (
+        <>
+          <div className="empty80" />
+          <div className="sub_title">함께보면 좋은상품</div>
+          <div className="empty20" />
+          {detail.relatedGoods.map((g) => (
+            <div key={g.uid} className="goodsItemBox">
+              <GoodsCard goods={g} itemClassName="goodsItem goodsItem6" />
+            </div>
+          ))}
+        </>
+      )}
+
+      <div className="goods_explain">
+        <div className="content_list">
+          <div className="contentMenu">
+            <ul>
+              <li className={tab === 1 ? "contentMenuSub selected" : "contentMenuSub"} onClick={() => setTab(1)}>
+                상품상세정보
+              </li>
+              <li className={tab === 2 ? "contentMenuSub selected" : "contentMenuSub"} onClick={() => setTab(2)}>
+                구매후기({detail.reviewCount})
+              </li>
+              <li className={tab === 3 ? "contentMenuSub selected" : "contentMenuSub"} onClick={() => setTab(3)}>
+                상품문의({detail.inquiryCount})
+              </li>
+              <li className={tab === 4 ? "contentMenuSub selected" : "contentMenuSub"} onClick={() => setTab(4)}>
+                배송/교환/반품
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        {tab === 1 && (
+          <div className="goods_explain_01">
+            <div className="empty30" />
+            <div className="sub_title">상품상세정보</div>
+            <div className="fontSCDream" dangerouslySetInnerHTML={{ __html: detail.detailHtml }} />
+            {detail.requireInfo.length > 0 && (
+              <table style={{ borderBottom: "1px solid #ccc", width: "100%" }}>
+                <tbody>
+                  {detail.requireInfo.map((r) => (
+                    <tr key={r.name}>
+                      <td className="tdType1">{r.name}</td>
+                      <td className="tdType2">{r.value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {tab === 2 && (
+          <div className="goods_explain_02">
+            <div className="empty30" />
+            <div className="sub_title">구매후기({detail.reviewCount})</div>
+            <div className="empty20" />
+            <div className="emptyList">아직 등록된 후기가 없습니다.</div>
+          </div>
+        )}
+
+        {tab === 3 && (
+          <div className="goods_explain_03">
+            <div className="empty30" />
+            <div className="sub_title">상품문의({detail.inquiryCount})</div>
+            <div className="empty20" />
+            <div className="emptyList">아직 등록된 문의가 없습니다.</div>
+          </div>
+        )}
+
+        {tab === 4 && (
+          <div className="goods_explain_04">
+            <div className="empty30" />
+            <div className="sub_title">배송안내</div>
+            <div dangerouslySetInnerHTML={{ __html: detail.deliveryInfo }} />
+            <div className="empty30" />
+            <div className="sub_title">환불안내</div>
+            <div dangerouslySetInnerHTML={{ __html: detail.refundInfo }} />
+            <div className="empty30" />
+            <div className="sub_title">교환안내</div>
+            <div dangerouslySetInnerHTML={{ __html: detail.exchangeInfo }} />
+            <div className="empty30" />
+            <div className="sub_title">AS안내</div>
+            <div dangerouslySetInnerHTML={{ __html: detail.asInfo }} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Add-to-cart / buy-now need the cart engine (Phase 4) — these are visually
+// real but intentionally no-op until then.
+function BuyButtons() {
+  return (
+    <>
+      <button
+        className="shineButton btnCart"
+        style={{ width: 200 }}
+        type="button"
+        onClick={() => window.alert("장바구니 기능은 준비 중입니다.")}
+      >
+        장바구니
+      </button>
+      <button
+        className="shineButtonBlack btnOrder"
+        style={{ width: 226, marginLeft: 6 }}
+        type="button"
+        onClick={() => window.alert("구매 기능은 준비 중입니다.")}
+      >
+        바로구매
+      </button>
+    </>
+  );
+}

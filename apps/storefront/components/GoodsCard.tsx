@@ -4,9 +4,17 @@ import type { GoodsCardViewModel } from "@shoppingmall/core";
 // mobile_main.html:44-69 (mobile) for each `loop_goods_item` / `loop_cate_goods_item`
 // slide. The only structural difference between devices is an extra empty spacer
 // div before the struck-through original price on mobile.
-export function GoodsCard({ goods, spacer }: { goods: GoodsCardViewModel; spacer?: string }) {
+export function GoodsCard({
+  goods,
+  spacer,
+  itemClassName = "goodsItem",
+}: {
+  goods: GoodsCardViewModel;
+  spacer?: string;
+  itemClassName?: string;
+}) {
   return (
-    <div className="goodsItem">
+    <div className={itemClassName}>
       <ul>
         <li>
           <a href={goods.link}>

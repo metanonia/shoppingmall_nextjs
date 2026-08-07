@@ -1,11 +1,16 @@
 import "./globals.css";
-import { getCachedShopConfig, getDevice } from "@/lib/request";
+import { getSiteChrome } from "@/lib/request";
+import { TopNavPC } from "@/components/TopNavPC";
+import { TopNavMobile } from "@/components/TopNavMobile";
+import { Footer } from "@/components/Footer";
 
-// Port of header.html's <head> block. Legacy loads a whole separate
-// stylesheet per device (style.css vs mobile_style.css) rather than using
-// responsive breakpoints in one file — see packages/core/src/device.ts.
+// Port of header.html's <head> block plus php/top.php / php/bottom.php, which
+// legacy renders around every channel's content the same way. Layout is the
+// natural place for the nav/footer that index.php wraps every page in — each
+// page (home, list, goods detail, ...) only needs to render its own
+// `<div id="contents">` content.
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const [device, config] = await Promise.all([getDevice(), getCachedShopConfig()]);
+  const { device, config, topBanners, categories, topMenu, bankAccounts } = await getSiteChrome();
   const styleHref = device === "mobile" ? "/skin/css/mobile_style.css" : "/skin/css/style.css";
 
   return (
@@ -47,7 +52,18 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           </>
         )}
       </head>
-      <body>{children}</body>
+      <body>
+        {device === "mobile" ? (
+          <TopNavMobile logo={topBanners.LOGO ?? []} topMenu={topMenu} categories={categories} compTel={config.compTel} />
+        ) : (
+          <TopNavPC logo={topBanners.LOGO ?? []} topBanner={topBanners.TOPL ?? []} topMenu={topMenu} categories={categories} />
+        )}
+
+        {children}
+
+        <div className="empty40" />
+        <Footer config={config} bankAccounts={bankAccounts} device={device} />
+      </body>
     </html>
   );
 }
