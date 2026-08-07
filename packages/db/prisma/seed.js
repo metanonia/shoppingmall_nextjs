@@ -27,6 +27,9 @@ async function main() {
     prisma.memberLevel.deleteMany(),
     prisma.member.deleteMany(),
     prisma.popup.deleteMany(),
+    prisma.boardComment.deleteMany(),
+    prisma.boardPost.deleteMany(),
+    prisma.addPage.deleteMany(),
   ]);
 
   await prisma.configuration.create({
@@ -49,7 +52,8 @@ async function main() {
       basic_cs_time1: "09:00 ~ 18:00",
       basic_cs_time4: "12:00 ~ 13:00",
       design_skin: "seriesWhite",
-      design_top_menu: "BEST|/best|1|*|NEW|/new|1|*|EVENT|/exhibition_list|1",
+      design_top_menu:
+        "BEST|/best|1|*|NEW|/new|1|*|EVENT|/exhibition_list|1|*|공지사항|/board/notice|1|*|FAQ|/board/faq|1|*|1:1문의|/board/counsel|1|*|갤러리|/board/gallery|1",
       design_main_display_order: "reco, code, best, cate, new",
       // display_check_arr: reco=>2, best=>1, new=>3
       design_main_display1: 2, // best: 상품이동형
@@ -59,7 +63,8 @@ async function main() {
       design_main_category_info: "100|1|1",
       design_main_custom_code: 1,
       design_main_custom_code_info: "<p style='text-align:center;padding:40px 0;'>이번 시즌 신규 입점 브랜드를 만나보세요</p>",
-      mobile_top_menu: "BEST|/best|1|*|NEW|/new|1|*|EVENT|/exhibition_list|1",
+      mobile_top_menu:
+        "BEST|/best|1|*|NEW|/new|1|*|EVENT|/exhibition_list|1|*|공지사항|/board/notice|1|*|FAQ|/board/faq|1|*|1:1문의|/board/counsel|1|*|갤러리|/board/gallery|1",
       mobile_yn: "Y",
       goods_price_limit1: 0,
       goods_price_limit2: 1,
@@ -79,7 +84,8 @@ async function main() {
       member_mileage_yn: "N",
       member_limit_count: 5,
       member_limit_minute: 10,
-      agreement_info1: "<p>이용약관 내용 (샘플)</p>",
+      agreement_info1: "<p>이용약관 내용 (샘플)</p><p>본 약관은 {SYEAR}년 {SMONTH}월 {SDAY}일부터 시행합니다. ({SHOPNAME} / {COMPANY})</p>",
+      agreement_info2: "<p>개인정보처리방침 내용 (샘플)</p><p>개인정보 관리책임자: {MANAGERNAME} ({MANAGERTEL}, {MANAGEREMAIL})</p>",
       agreement_info3: "<p>개인정보 수집 및 이용에 동의합니다. 수집 항목: {JOINFORM}</p>",
       signdate: now,
     },
@@ -262,7 +268,81 @@ async function main() {
     },
   });
 
-  console.log(`Seeded: ${goodsSeed.length} goods, ${pcBanners.length} PC banners, ${mobileBanners.length} mobile banners, 6 categories, 1 exhibition, 1 popup.`);
+  // Board (Phase 6) — notice/faq are read-only (no admin write UI), so
+  // their example content is seed-only, same principle as the popup above.
+  // counsel/gallery get one guest-authored example each so the write/secret
+  // flows aren't empty on first load. Guest password for both is "1234"
+  // (pre-hashed below — `require("@node-rs/argon2")` isn't a declared
+  // dependency of this package, unlike packages/auth).
+  const DEMO_GUEST_PASSWD = "$argon2id$v=19$m=19456,t=2,p=1$plISJqlR+nQ5fw0gwJnd5A$So+AffWkT/yoEGJp/G5t/K5gn/jBqERM7+RLvi7P3fE";
+
+  const boardPosts = [
+    { board: "notice", notice: 1, subject: "SHOP NEXT 오픈 안내", content: "<p>SHOP NEXT가 오픈했습니다. 많은 이용 부탁드립니다.</p>", name: "admin" },
+    { board: "notice", notice: 0, subject: "배송 지연 안내", content: "<p>일부 지역 배송이 지연될 수 있습니다. 양해 부탁드립니다.</p>", name: "admin" },
+    { board: "faq", category: 0, subject: "주문 후 취소는 어떻게 하나요?", content: "<p>주문내역에서 주문취소 버튼으로 직접 취소하실 수 있습니다.</p>", name: "admin" },
+    { board: "faq", category: 1, subject: "배송은 얼마나 걸리나요?", content: "<p>결제 완료 후 2~3일 이내 발송됩니다.</p>", name: "admin" },
+    { board: "faq", category: 4, subject: "상품 재입고는 언제 되나요?", content: "<p>재입고 일정은 상품마다 다르며, 별도 안내드리지 않습니다.</p>", name: "admin" },
+  ];
+  for (const p of boardPosts) {
+    await prisma.boardPost.create({
+      data: {
+        board: p.board,
+        notice: p.notice ?? 0,
+        category: p.category ?? 0,
+        id: "",
+        name: p.name,
+        subject: p.subject,
+        content: p.content,
+        signdate: now,
+      },
+    });
+  }
+
+  const counselPost = await prisma.boardPost.create({
+    data: {
+      board: "counsel",
+      category: 0,
+      id: "",
+      name: "게스트",
+      subject: "배송 주소를 변경하고 싶어요",
+      content: "<p>배송 전인데 주소를 변경할 수 있을까요?</p>",
+      contact: "010-1234-5678",
+      secret: 1,
+      passwd: DEMO_GUEST_PASSWD,
+      signdate: now,
+    },
+  });
+
+  const galleryPost = await prisma.boardPost.create({
+    data: {
+      board: "gallery",
+      id: "",
+      name: "게스트",
+      subject: "이번에 산 옷 너무 마음에 들어요",
+      content: "<p>사이즈도 잘 맞고 색감도 예뻐요!</p>",
+      passwd: DEMO_GUEST_PASSWD,
+      comment_count: 1,
+      signdate: now,
+    },
+  });
+  await prisma.boardComment.create({
+    data: { post_uid: galleryPost.uid, id: "", name: "관리자", content: "예쁘게 입어주셔서 감사합니다 :)", signdate: now },
+  });
+
+  await prisma.addPage.create({
+    data: {
+      uid: 1,
+      title: "회사소개",
+      detail_image_only: 0,
+      explains: "<h3>SHOP NEXT</h3><p>고객과 함께 성장하는 데일리룩 셀렉샵입니다.</p>",
+      status: 0,
+      signdate: now,
+    },
+  });
+
+  console.log(
+    `Seeded: ${goodsSeed.length} goods, ${pcBanners.length} PC banners, ${mobileBanners.length} mobile banners, 6 categories, 1 exhibition, 1 popup, ${boardPosts.length + 2} board posts, 1 add_page.`,
+  );
 }
 
 main()

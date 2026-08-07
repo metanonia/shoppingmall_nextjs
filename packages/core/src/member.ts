@@ -89,6 +89,16 @@ export async function getMemberFormConfig(): Promise<MemberFormConfig> {
   };
 }
 
+export type AgreementPages = { terms: string; privacy: string };
+
+// Port of php/agreement.php / privacy.php's source rows — full-page rich
+// text, distinct from getMemberFormConfig's agreement_info1/3 (registration
+// checkbox summary text). Both live in the same uid=2 row.
+export async function getAgreementPages(): Promise<AgreementPages> {
+  const row = await prisma.configuration.findUnique({ where: { uid: 2 } });
+  return { terms: row?.agreement_info1 ?? "", privacy: row?.agreement_info2 ?? "" };
+}
+
 export type RegisterMemberInput = {
   id: string;
   password: string;

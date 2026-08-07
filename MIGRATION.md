@@ -57,8 +57,8 @@ cd ../../apps/storefront && pnpm dev        # http://localhost:3000
 | 3 | 회원/인증/소셜로그인 + 회원가입 이후 미뤄뒀던 항목 일괄 처리 | ✅ 완료 (소셜로그인은 구조만, 아래 참고) |
 | 4 | 카트/주문 엔진 | ✅ 완료 (무통장입금/마일리지결제만, 아래 참고) |
 | 5 | 결제/알림 | ✅ 완료 (아론허브 PG만, 이메일+SMS, 아래 참고) |
-| 6 | 게시판/CMS | ⬜ **다음 작업** (미착수, 아직 조사 안 함) |
-| 7 | 관리자 백엔드 | ⬜ 미착수 |
+| 6 | 게시판/CMS | ✅ 완료 (notice/faq/counsel/gallery만, 아래 참고) |
+| 7 | 관리자 백엔드 | ⬜ **다음 작업** (미착수) |
 | 8 | 입점사 백엔드 | ⬜ 미착수 |
 | 9 | 하드닝/정규화/마무리 | ⬜ 미착수 |
 
@@ -108,10 +108,51 @@ Mock의 `cancelPayment` 호출 경유 확인, 환불 반영), 결제 포기(팝�
 확인했습니다. 이메일은 JSON transport 콘솔 로그로 실제 조립된 메일 내용을, SMS는
 `mallRN_sms_list`의 `SKIPPED_NO_CREDENTIALS` 기록을 대조 확인했습니다.
 
-## 다음 작업: Phase 6 (게시판/CMS)
+## Phase 6 완료 요약 (게시판/CMS)
 
-아직 레거시 코드 조사를 시작하지 않았습니다 — 착수 시 이 문서에 시작 가이드를
-추가할 것.
+계획 문서: `~/.claude/plans/smooth-finding-ullman.md`. "CMS"는 이 코드베이스에서
+별도 용어가 아니라 (1) 범용 게시판 엔진(공지사항/FAQ/1:1문의/갤러리), (2) 이용약관·
+개인정보처리방침 전체 페이지, (3) 관리자가 만드는 정적 페이지(`mallRN_add_page`)
+세 가지를 가리킵니다. 판매사 전용 게시판(vnotice/vcounsel)은 벤더 로그인이 아직
+없어 Phase 8로 미룸.
+
+**게시판 테이블 통합**: 레거시는 게시판 인스턴스마다 런타임에
+`CREATE TABLE mallRN_board_{id}`를 동적 생성하는 구조(zeroboard 계열)라 정적
+Prisma 스키마로 그대로 옮길 수 없습니다. 이 저장소는 `BoardPost`/`BoardComment`
+공유 테이블 + `board` 판별 컬럼으로 통합했습니다(카테고리 계층을 `cate_parent`
+체인으로 바꾼 것과 같은 종류의 재설계). 스레딩도 `idx/main/sub/depth` 숫자 갭
+정렬 대신 flat 댓글(대댓글 없음)로 단순화 — 4개 게시판 중 실제로 고객 댓글이
+노출되는 건 gallery뿐이라 깊은 스레딩 자체가 불필요했습니다.
+
+**권한/템플릿은 TS 상수로 하드코딩**: `packages/core/src/board.ts`의
+`BOARD_CONFIG`가 게시판별 쓰기/비밀글/카테고리/댓글/첨부 여부를 정의합니다.
+`mallRN_board_manager` 같은 관리 테이블은 만들지 않음 — 관리 UI가 없다는 점에서
+`popup.ts`/Phase 5 알림 템플릿과 같은 원칙. notice/faq는 쓰기 UI 자체가 없어(관리자
+전용) 읽기 전용, counsel은 항상 비밀글(작성자 argon2id 비밀번호로 게이팅, Phase 4
+게스트 주문조회와 동일 패턴), gallery만 고객 댓글을 지원합니다.
+
+**파일 첨부**: 로컬 디스크(`apps/storefront/public/uploads/board/{boardId}/{postUid}/`)
+저장, 확장자 화이트리스트(jpg/jpeg/png/gif/webp/pdf) + 5MB/파일 + 5개/게시글 캡.
+`saveBoardFiles`(서버 전용, `node:fs/promises` 사용)와 `boardFileUrl`(순수 함수)을
+별도 파일로 분리했는데, 처음엔 한 파일에 같이 두었다가 시크릿 게시글 잠금해제
+클라이언트 컴포넌트가 `boardFileUrl`을 쓰려고 `fs/promises`까지 브라우저 번들에
+끌어들여 Turbopack 빌드가 깨지는 실제 버그를 Playwright 검증 중 발견/수정했습니다
+— 서버 전용 유틸과 순수 유틸은 항상 파일을 분리할 것.
+
+**핵심 코드**: `packages/core/src/board.ts`(+ `board.test.ts`)/`add-page.ts`,
+`apps/storefront/lib/board-upload.ts`/`board-file-url.ts`,
+`apps/storefront/app/board/[boardId]/`(list/detail/write pages + actions.ts),
+`apps/storefront/app/agreement/`·`app/privacy/`·`app/page/[uid]/`,
+`components/BoardPostBody.tsx`/`SecretPostUnlock.tsx`/`BoardCommentSection.tsx`/
+`BoardWriteForm.tsx`. `agreement_info1/2`는 `shop_config`(uid=1)가 아니라
+`member_config`(uid=2) 행에 있다는 걸 조사 중 확인 — `getAgreementPages()`
+(`packages/core/src/member.ts`)로 별도 조회.
+
+**Playwright E2E로 실제 검증 완료**: notice/faq 목록·상세 읽기전용 렌더링(글쓰기
+버튼 없음 확인), counsel 게스트 비밀글 작성→목록에서 잠금 아이콘 확인→오답
+비밀번호 거부→정답으로 열람, gallery 이미지 첨부 작성→상세 렌더→댓글 작성까지
+DB 상태 대조로 확인. `/agreement`·`/privacy`가 `{PLACEHOLDER}` 치환까지 끝난
+상태로 렌더되는지, 시드된 `add_page`가 `/page/1`에서 렌더되는지도 확인했습니다.
 
 ## 핵심 설계 결정 (다시 논의하지 않아도 되는 것들)
 
@@ -319,8 +360,21 @@ Phase 7/8 대기 중이라 `answer`는 항상 빈 값("답변대기중")으로�
 - 페이지네이션: 레거시의 `jquery.timeliny.js` "pageline" 스크러버 대신 번호형 페이지네이션
 - "결과 내 검색": 다중 키워드 AND 좁히기 대신 단일 키워드로 단순화
 
-### 게시판/CMS, 관리자 백엔드, 입점사 백엔드
-Phase 6/7/8 — 전체 미착수.
+### 게시판/CMS — ✅ Phase 6에서 처리
+notice/faq/counsel/gallery 4개만 구현. 판매사 전용 게시판(vnotice/vcounsel)은
+벤더 로그인(`v_my_id`)이 있어야 하는데 아직 없어 Phase 8로 미룸. 게시글
+수정/삭제 기능은 스코프아웃(v1) — `inquiry.ts`도 없다는 기존 전례를 따름.
+게시판별 관리 권한(`mallRN_board_manager`)도 테이블 없이 `BOARD_CONFIG` TS
+상수로 하드코딩(관리 UI 자체가 없음). 상세는 위 "Phase 6 완료 요약" 참고.
+
+**[나중에 확인]** `/agreement`·`/privacy`의 `{JOINFORM}`/`{DELIVERYNAME}`/
+`{PGNAME}` 플레이스홀더는 각각 `member_config`의 회원가입 항목 토글, 배송사
+목록, PG사명에 의존하는데 아직 포팅되지 않아 빈 문자열(JOINFORM/DELIVERYNAME)
+또는 하드코딩된 상수(PGNAME="NHN한국사이버결제 주식회사")로 대체함 — 해당
+테이블/설정 UI가 생기면 다시 확인할 것.
+
+### 관리자 백엔드, 입점사 백엔드
+Phase 7/8 — 전체 미착수.
 
 ## 검증 방법
 

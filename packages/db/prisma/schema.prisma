@@ -834,6 +834,54 @@ model SmsLog {
   @@map("mallRN_sms_list")
 }
 
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model AddPage {
+  uid               Int    @id @default(autoincrement()) @db.UnsignedInt
+  title             String @default("") @db.VarChar(100)
+  detail_image      String @default("") @db.Text
+  detail_image_only Int    @default(0) @db.UnsignedTinyInt
+  detail_image_type Int    @default(1) @db.UnsignedTinyInt
+  explains          String @default("") @db.Text
+  status            Int    @default(0) @db.UnsignedTinyInt
+  signdate          Int    @default(0) @db.UnsignedInt
+
+  @@map("mallRN_add_page")
+}
+
+model BoardComment {
+  uid      Int    @id @default(autoincrement()) @db.UnsignedInt
+  post_uid Int    @default(0) @db.UnsignedInt
+  id       String @default("") @db.VarChar(50)
+  name     String @default("") @db.VarChar(50)
+  content  String @default("") @db.Text
+  passwd   String @default("") @db.VarChar(100)
+  signdate Int    @default(0) @db.UnsignedInt
+
+  @@index([post_uid], map: "post_uid")
+  @@map("mallRN_board_comment")
+}
+
+model BoardPost {
+  uid           Int    @id @default(autoincrement()) @db.UnsignedInt
+  board         String @default("") @db.VarChar(20)
+  notice        Int    @default(0) @db.UnsignedTinyInt
+  category      Int    @default(0) @db.UnsignedTinyInt
+  id            String @default("") @db.VarChar(50)
+  name          String @default("") @db.VarChar(50)
+  subject       String @default("") @db.VarChar(250)
+  content       String @default("") @db.Text
+  contact       String @default("") @db.VarChar(50)
+  secret        Int    @default(0) @db.UnsignedTinyInt
+  passwd        String @default("") @db.VarChar(100)
+  files         String @default("") @db.Text
+  view_count    Int    @default(0) @db.UnsignedInt
+  comment_count Int    @default(0) @db.UnsignedInt
+  signdate      Int    @default(0) @db.UnsignedInt
+
+  @@index([board], map: "board")
+  @@map("mallRN_board_post")
+}
+
 enum mallRN_exhibition_discount_yn {
   N
   Y

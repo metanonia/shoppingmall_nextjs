@@ -1,4 +1,6 @@
+export * from "./add-page";
 export * from "./banners";
+export * from "./board";
 export * from "./cart";
 export * from "./cart-id";
 export * from "./categories";
