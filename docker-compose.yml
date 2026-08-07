@@ -1,0 +1,22 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: shoppingmall-nextjs-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: shoppingmall
+      MYSQL_USER: shoppingmall
+      MYSQL_PASSWORD: shoppingmall
+    ports:
+      - "3307:3306"
+    volumes:
+      - shoppingmall-nextjs-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  shoppingmall-nextjs-mysql-data:

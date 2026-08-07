@@ -1,0 +1,12 @@
+{
+  "name": "shoppingmall-nextjs",
+  "private": true,
+  "scripts": {
+    "dev:storefront": "pnpm --filter storefront dev",
+    "db:up": "docker compose up -d mysql",
+    "db:down": "docker compose down"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

@@ -1,0 +1,488 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Banner {
+  uid      Int       @id @default(autoincrement()) @db.UnsignedInt
+  name     String    @default("") @db.VarChar(100)
+  code     String    @default("") @db.VarChar(10)
+  image1   String    @default("") @db.VarChar(100)
+  link1    String    @default("") @db.VarChar(250)
+  status   Int       @default(0) @db.UnsignedInt
+  target   Int       @default(0) @db.UnsignedInt
+  s_date   DateTime? @default(dbgenerated("'1000-01-01 00:00:00'")) @db.DateTime(0)
+  e_date   DateTime? @default(dbgenerated("'1000-01-01 00:00:00'")) @db.DateTime(0)
+  sequence Int       @default(0) @db.UnsignedInt
+  moddate  Int       @default(0) @db.UnsignedInt
+  signdate Int       @default(0) @db.UnsignedInt
+
+  @@map("mallRN_banner")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Cate {
+  uid          Int    @id @default(autoincrement()) @db.UnsignedInt
+  cate         BigInt @default(0) @db.UnsignedBigInt
+  cate_name    String @default("") @db.VarChar(60)
+  cate_dep     Int    @default(0) @db.UnsignedTinyInt
+  cate_parent  BigInt @default(0) @db.UnsignedBigInt
+  cate_sub     Int    @default(1) @db.UnsignedTinyInt
+  used         Int    @default(1) @db.UnsignedTinyInt
+  sequence     Int    @default(0) @db.UnsignedInt
+  access_type  Int    @default(0) @db.UnsignedTinyInt
+  access_level String @default("") @db.VarChar(250)
+  matching     String @default("") @db.VarChar(100)
+  image1       String @default("") @db.VarChar(100)
+  image2       String @default("") @db.VarChar(100)
+  image3       String @default("") @db.VarChar(100)
+
+  @@index([cate], map: "cate")
+  @@map("mallRN_cate")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model CateMatching {
+  uid      Int    @id @default(autoincrement()) @db.UnsignedInt
+  vendor   String @default("") @db.VarChar(50)
+  cate     BigInt @default(0) @db.UnsignedBigInt
+  matching String @default("") @db.VarChar(100)
+
+  @@index([cate], map: "cate")
+  @@map("mallRN_cate_matching")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Configuration {
+  uid                           Int                                               @id @default(autoincrement()) @db.UnsignedInt
+  basic_url                     String                                            @default("") @db.VarChar(100)
+  basic_name                    String                                            @default("") @db.VarChar(50)
+  basic_admin                   String                                            @default("") @db.VarChar(50)
+  basic_email                   String                                            @default("") @db.VarChar(100)
+  basic_cs_time1                String                                            @default("") @db.VarChar(50)
+  basic_cs_time2                String                                            @default("") @db.VarChar(50)
+  basic_cs_time3                String                                            @default("") @db.VarChar(50)
+  basic_cs_time4                String                                            @default("") @db.VarChar(50)
+  basic_title                   String                                            @default("") @db.VarChar(250)
+  basic_description             String                                            @default("") @db.VarChar(250)
+  basic_image                   String                                            @default("") @db.VarChar(100)
+  basic_keyword                 String                                            @default("") @db.VarChar(250)
+  basic_real_keyword            String                                            @default("") @db.VarChar(250)
+  comp_name                     String                                            @default("") @db.VarChar(50)
+  comp_owner                    String                                            @default("") @db.VarChar(50)
+  comp_license_no1              String                                            @default("") @db.VarChar(50)
+  comp_license_no2              String                                            @default("") @db.VarChar(50)
+  comp_type                     String                                            @default("") @db.VarChar(100)
+  comp_item                     String                                            @default("") @db.VarChar(100)
+  comp_email                    String                                            @default("") @db.VarChar(100)
+  comp_tel                      String                                            @default("") @db.VarChar(50)
+  comp_fax                      String                                            @default("") @db.VarChar(50)
+  comp_postcode                 String                                            @default("") @db.VarChar(10)
+  comp_address1                 String                                            @default("") @db.VarChar(100)
+  comp_address2                 String                                            @default("") @db.VarChar(100)
+  comp_rtn_postcode             String                                            @default("") @db.VarChar(10)
+  comp_rtn_address1             String                                            @default("") @db.VarChar(100)
+  comp_rtn_address2             String                                            @default("") @db.VarChar(100)
+  payment_type_b                Int                                               @default(0) @db.UnsignedTinyInt
+  payment_type_c                Int                                               @default(0) @db.UnsignedTinyInt
+  payment_type_r                Int                                               @default(0) @db.UnsignedTinyInt
+  payment_type_v                Int                                               @default(0) @db.UnsignedTinyInt
+  payment_type_h                Int                                               @default(0) @db.UnsignedTinyInt
+  payment_cp                    String                                            @default("") @db.VarChar(30)
+  payment_shop_id               String                                            @default("") @db.VarChar(50)
+  payment_shop_key              String                                            @default("") @db.VarChar(100)
+  payment_install_range         Int                                               @default(6) @db.UnsignedInt
+  payment_escrow_v              Int                                               @default(0) @db.UnsignedTinyInt
+  payment_complex_tax           Int                                               @default(0) @db.UnsignedTinyInt
+  payment_bank_info             String                                            @default("") @db.Text
+  payment_commission_c          Float                                             @default(0.00) @db.Float
+  payment_commission_r          Float                                             @default(0.00) @db.Float
+  payment_commission_r2         Int                                               @default(0) @db.UnsignedInt
+  payment_commission_v          Int                                               @default(0) @db.UnsignedInt
+  payment_commission_h          Float                                             @default(0.00) @db.Float
+  cash_receipts_used            Int                                               @default(0) @db.UnsignedTinyInt
+  cash_receipts_require         Int                                               @default(0) @db.UnsignedTinyInt
+  cash_receipts_method          Int                                               @default(0) @db.UnsignedTinyInt
+  cash_receipts_type            Int                                               @default(0) @db.UnsignedTinyInt
+  naverpay_used                 Int                                               @default(0) @db.UnsignedTinyInt
+  naverpay_mode                 Int                                               @default(0) @db.UnsignedTinyInt
+  naverpay_test_id              String                                            @default("") @db.VarChar(50)
+  naverpay_shop_id              String                                            @default("") @db.VarChar(50)
+  naverpay_key1                 String                                            @default("") @db.VarChar(50)
+  naverpay_key2                 String                                            @default("") @db.VarChar(50)
+  naverpay_key3                 String                                            @default("") @db.VarChar(50)
+  delivery_type                 mallRN_configuration_delivery_type                @default(P)
+  delivery_d_price              Int                                               @default(0) @db.UnsignedInt
+  delivery_p_type               String                                            @default("order") @db.VarChar(20)
+  delivery_p_price1             Int                                               @default(0) @db.UnsignedInt
+  delivery_p_price2             Int                                               @default(0) @db.UnsignedInt
+  delivery_info                 String                                            @default("") @db.Text
+  member_auth                   mallRN_configuration_member_auth                  @default(A)
+  member_auth_email             Int                                               @default(0) @db.UnsignedInt
+  member_auth_cell              Int                                               @default(0) @db.UnsignedInt
+  member_unavailable_id         String                                            @default("") @db.Text
+  member_mileage_yn             mallRN_configuration_member_mileage_yn            @default(Y)
+  member_mileage_validity_yn    mallRN_configuration_member_mileage_validity_yn   @default(N)
+  member_mileage_validity       String                                            @default("") @db.VarChar(100)
+  member_mileage_validity_type  mallRN_configuration_member_mileage_validity_type @default(Y)
+  member_mileage_join           Int                                               @default(0) @db.UnsignedInt
+  member_mileage_order          Int                                               @default(0) @db.UnsignedInt
+  member_limit_count            Int                                               @default(0) @db.UnsignedInt
+  member_limit_minute           Int                                               @default(0) @db.UnsignedInt
+  member_admin_auth             mallRN_configuration_member_admin_auth            @default(N)
+  member_login_limit_minute     Int                                               @default(0) @db.UnsignedInt
+  member_form_tel               Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_cell              Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_address           Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_birth             Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_gender            Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_marry             Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_job               Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_job_info          String                                            @default("") @db.Text
+  member_form_hobby             Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_hobby_info        String                                            @default("") @db.Text
+  member_form_mailling          Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_sms               Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_comp              Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_comp_num          Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_comp_owner        Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_comp_address      Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_comp_type         Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_comp_item         Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_add1_title        String                                            @default("") @db.VarChar(50)
+  member_form_add1              Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_add2_title        String                                            @default("") @db.VarChar(50)
+  member_form_add2              Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_add3_title        String                                            @default("") @db.VarChar(50)
+  member_form_add3              Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_add4_title        String                                            @default("") @db.VarChar(50)
+  member_form_add4              Int                                               @default(0) @db.UnsignedTinyInt
+  member_form_add5_title        String                                            @default("") @db.VarChar(50)
+  member_form_add5              Int                                               @default(0) @db.UnsignedTinyInt
+  member_level_time             Int                                               @default(0) @db.UnsignedInt
+  member_level_date             String                                            @default("") @db.VarChar(50)
+  agreement_info1               String                                            @default("") @db.Text
+  agreement_info2               String                                            @default("") @db.Text
+  agreement_info3               String                                            @default("") @db.Text
+  agreement_info4               String                                            @default("") @db.Text
+  agreement_info5               String                                            @default("") @db.Text
+  agreement_info6               String                                            @default("") @db.Text
+  goods_price_limit1            Int                                               @default(0) @db.UnsignedInt
+  goods_price_limit2            Int                                               @default(1) @db.UnsignedTinyInt
+  goods_soldout                 Int                                               @default(0) @db.UnsignedTinyInt
+  goods_engine_naver            Int                                               @default(0) @db.UnsignedTinyInt
+  goods_engine_daum             Int                                               @default(0) @db.UnsignedTinyInt
+  goods_option_info             String                                            @default("") @db.Text
+  goods_brand_info              String                                            @default("") @db.Text
+  goods_make_info               String                                            @default("") @db.Text
+  goods_origin_info             String                                            @default("") @db.Text
+  goods_require_info            String                                            @default("") @db.Text
+  goods_icon_info               String                                            @default("") @db.Text
+  goods_delivery_info           String                                            @default("") @db.Text
+  goods_refund_info             String                                            @default("") @db.Text
+  goods_exchange_info           String                                            @default("") @db.Text
+  goods_as_info                 String                                            @default("") @db.Text
+  order_cancel_info             String                                            @default("") @db.Text
+  order_message_info            String                                            @default("") @db.Text
+  order_auto_completed1         Int                                               @default(0) @db.UnsignedInt
+  order_auto_completed2         Int                                               @default(0) @db.UnsignedInt
+  order_auto_completed3         Int                                               @default(0) @db.UnsignedInt
+  order_tracker_yn              mallRN_configuration_order_tracker_yn             @default(N)
+  order_tracker_key             String                                            @default("") @db.VarChar(50)
+  sms_yn                        mallRN_configuration_sms_yn                       @default(Y)
+  sms_key                       String                                            @default("") @db.VarChar(50)
+  sms_secret                    String                                            @default("") @db.VarChar(50)
+  sms_calling_number            String                                            @default("") @db.VarChar(30)
+  sms_admin_number1             String                                            @default("") @db.VarChar(30)
+  sms_admin_number2             String                                            @default("") @db.VarChar(30)
+  sms_admin_number3             String                                            @default("") @db.VarChar(30)
+  design_skin                   String                                            @default("") @db.VarChar(50)
+  design_skin_ing               String                                            @default("") @db.VarChar(50)
+  design_top_menu               String                                            @default("") @db.Text
+  design_main_display1          Int                                               @default(0) @db.UnsignedTinyInt
+  design_main_display2          Int                                               @default(0) @db.UnsignedTinyInt
+  design_main_display3          Int                                               @default(0) @db.UnsignedTinyInt
+  design_main_category          Int                                               @default(0) @db.UnsignedTinyInt
+  design_main_category_info     String                                            @default("") @db.Text
+  design_main_custom_code       Int                                               @default(0) @db.UnsignedTinyInt
+  design_main_custom_code_image String                                            @default("") @db.Text
+  design_main_custom_code_info  String                                            @default("") @db.Text
+  design_main_display_order     String                                            @default("") @db.Text
+  design_main2_display1         Int                                               @default(0) @db.UnsignedTinyInt
+  design_main2_display2         Int                                               @default(0) @db.UnsignedTinyInt
+  design_main2_display3         Int                                               @default(0) @db.UnsignedTinyInt
+  design_main2_display_order    String                                            @default("") @db.Text
+  design_icon_display           String                                            @default("") @db.VarChar(20)
+  design_vendor_link            Int                                               @default(0) @db.UnsignedTinyInt
+  mobile_yn                     mallRN_configuration_mobile_yn                    @default(Y)
+  mobile_icon                   String                                            @default("") @db.VarChar(50)
+  mobile_top_menu               String                                            @default("") @db.Text
+  inquiry_cate_info             String                                            @default("") @db.Text
+  inquiry_access_write          Int                                               @default(0) @db.UnsignedInt
+  inquiry_secret_type           Int                                               @default(0) @db.UnsignedInt
+  inquiry_privacy_type          Int                                               @default(0) @db.UnsignedInt
+  push_apiKey                   String                                            @default("") @db.VarChar(100)
+  push_authDomain               String                                            @default("") @db.VarChar(100)
+  push_projectId                String                                            @default("") @db.VarChar(100)
+  push_storageBucket            String                                            @default("") @db.VarChar(100)
+  push_messagingSenderId        String                                            @default("") @db.VarChar(100)
+  push_appId                    String                                            @default("") @db.VarChar(100)
+  push_server_key               String                                            @default("") @db.VarChar(200)
+  push_server_key2              String                                            @default("") @db.VarChar(200)
+  script_naver_tag              String                                            @default("") @db.VarChar(100)
+  script_google_analytics       String                                            @default("") @db.VarChar(100)
+  script_top_code               String                                            @default("") @db.Text
+  script_bottom_code            String                                            @default("") @db.Text
+  signdate                      Int                                               @default(0) @db.UnsignedInt
+
+  @@map("mallRN_configuration")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Exhibition {
+  uid               Int                           @id @default(autoincrement()) @db.UnsignedInt
+  name              String                        @default("") @db.VarChar(100)
+  discount_yn       mallRN_exhibition_discount_yn @default(Y)
+  discount          Int                           @default(0) @db.UnsignedInt
+  s_date            DateTime?                     @default(dbgenerated("'1000-01-01 00:00:00'")) @db.DateTime(0)
+  e_date            DateTime?                     @default(dbgenerated("'1000-01-01 00:00:00'")) @db.DateTime(0)
+  cate_info         String                        @default("") @db.Text
+  image1            String                        @default("") @db.VarChar(100)
+  detail_image      String                        @default("") @db.Text
+  detail_image_only Int                           @default(0) @db.UnsignedTinyInt
+  detail_image_type Int                           @default(1) @db.UnsignedTinyInt
+  explains          String                        @default("") @db.Text
+  status            Int                           @default(0) @db.UnsignedTinyInt
+  signdate          Int                           @default(0) @db.UnsignedInt
+
+  @@map("mallRN_exhibition")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model ExhibitionGoods {
+  uid      Int @id @default(autoincrement()) @db.UnsignedInt
+  euid     Int @default(0) @db.UnsignedInt
+  guid     Int @default(0) @db.UnsignedInt
+  ecate    Int @default(0) @db.UnsignedInt
+  sequence Int @default(99999) @db.UnsignedInt
+
+  @@map("mallRN_exhibition_goods")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Goods {
+  uid                     Int                  @id @default(autoincrement()) @db.UnsignedInt
+  re_uid                  Int                  @default(99999999) @db.UnsignedInt
+  cate                    BigInt               @default(0) @db.UnsignedBigInt
+  vendor                  String               @default("") @db.VarChar(50)
+  name                    String               @default("") @db.VarChar(250)
+  name_code_able          String               @default("") @db.VarChar(250)
+  price                   Int                  @default(0) @db.UnsignedInt
+  orig_price              Int                  @default(0) @db.UnsignedInt
+  consumer_price          Int                  @default(0) @db.UnsignedInt
+  price_ment              String               @default("") @db.VarChar(100)
+  commission_type         Int                  @default(0) @db.UnsignedTinyInt
+  commission              Float                @default(0.00) @db.Float
+  image1                  String               @default("") @db.VarChar(50)
+  image2                  String               @default("") @db.VarChar(50)
+  image3                  String               @default("") @db.VarChar(50)
+  other_image             String               @default("") @db.Text
+  detail_image            String               @default("") @db.Text
+  detail_image_only       Int                  @default(0) @db.UnsignedTinyInt
+  detail_image_type       Int                  @default(1) @db.UnsignedTinyInt
+  explains                String               @default("") @db.Text
+  option_use              Int                  @default(0) @db.UnsignedTinyInt
+  option_info             String               @default("") @db.Text
+  option_soldout          Int                  @default(0) @db.UnsignedInt
+  qty_type                Int                  @default(0) @db.UnsignedTinyInt
+  qty                     Int                  @default(0) @db.UnsignedInt
+  limit_qty               Int                  @default(0) @db.UnsignedInt
+  require_info            String               @default("") @db.Text
+  display_use             Int                  @default(0) @db.UnsignedTinyInt
+  sale_use                Int                  @default(0) @db.UnsignedTinyInt
+  order_priority          Int                  @default(5) @db.UnsignedTinyInt
+  main1_display1          Int                  @default(0) @db.UnsignedTinyInt
+  main1_display2          Int                  @default(0) @db.UnsignedTinyInt
+  main1_display3          Int                  @default(0) @db.UnsignedTinyInt
+  main2_display1          Int                  @default(0) @db.UnsignedTinyInt
+  main2_display2          Int                  @default(0) @db.UnsignedTinyInt
+  main2_display3          Int                  @default(0) @db.UnsignedTinyInt
+  store_display1          Int                  @default(0) @db.UnsignedTinyInt
+  store_display2          Int                  @default(0) @db.UnsignedTinyInt
+  store_display3          Int                  @default(0) @db.UnsignedTinyInt
+  main1_display1_sequence Int                  @default(99999) @db.UnsignedInt
+  main1_display2_sequence Int                  @default(99999) @db.UnsignedInt
+  main1_display3_sequence Int                  @default(99999) @db.UnsignedInt
+  main2_display1_sequence Int                  @default(99999) @db.UnsignedInt
+  main2_display2_sequence Int                  @default(99999) @db.UnsignedInt
+  main2_display3_sequence Int                  @default(99999) @db.UnsignedInt
+  store_display1_sequence Int                  @default(99999) @db.UnsignedInt
+  store_display2_sequence Int                  @default(99999) @db.UnsignedInt
+  store_display3_sequence Int                  @default(99999) @db.UnsignedInt
+  icon                    String               @default("") @db.VarChar(250)
+  goods_code              String               @default("") @db.VarChar(50)
+  detail                  String               @default("") @db.Text
+  brand                   String               @default("") @db.VarChar(50)
+  make                    String               @default("") @db.VarChar(50)
+  origin                  String               @default("") @db.VarChar(50)
+  model                   String               @default("") @db.VarChar(50)
+  making_info             String               @default("") @db.Text
+  mileage_type            Int                  @default(1) @db.UnsignedTinyInt
+  mileage_common          Int                  @default(0) @db.UnsignedInt
+  mileage_level           String               @default("") @db.Text
+  delivery_type           Int                  @default(1) @db.UnsignedTinyInt
+  delivery_price          Int                  @default(0) @db.UnsignedInt
+  keyword                 String               @default("") @db.Text
+  related_goods_type      Int                  @default(0) @db.UnsignedTinyInt
+  related_goods           String               @default("") @db.VarChar(250)
+  information_use         Int                  @default(1) @db.UnsignedTinyInt
+  delivery_info           String               @default("") @db.Text
+  refund_info             String               @default("") @db.Text
+  exchange_info           String               @default("") @db.Text
+  as_info                 String               @default("") @db.Text
+  exhibition              String               @default("") @db.Text
+  engine_use              Int                  @default(1) @db.UnsignedTinyInt
+  view_cnt                Int                  @default(0) @db.UnsignedInt
+  order_cnt               Int                  @default(0) @db.UnsignedInt
+  cate_hide               Int                  @default(0) @db.UnsignedTinyInt
+  vendor_hide             Int                  @default(0) @db.UnsignedTinyInt
+  auth_ck                 mallRN_goods_auth_ck @default(Y)
+  moddate                 Int                  @default(0) @db.UnsignedInt
+  signdate                Int                  @default(0) @db.UnsignedInt
+
+  @@index([name], map: "name")
+  @@map("mallRN_goods")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model GoodsCate {
+  uid       Int    @id @default(autoincrement()) @db.UnsignedInt
+  guid      Int    @default(0) @db.UnsignedInt
+  cate      BigInt @default(0) @db.UnsignedBigInt
+  cate_rep  Int    @default(0) @db.UnsignedTinyInt
+  sequence  Int    @default(0) @db.UnsignedInt
+  sequence1 Int    @default(99999) @db.UnsignedInt
+  sequence2 Int    @default(99999) @db.UnsignedInt
+  sequence3 Int    @default(99999) @db.UnsignedInt
+  sequence4 Int    @default(99999) @db.UnsignedInt
+
+  @@index([guid], map: "guid")
+  @@map("mallRN_goods_cate")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model GoodsOption {
+  uid      Int    @id @default(autoincrement()) @db.UnsignedInt
+  guid     Int    @default(0) @db.UnsignedInt
+  value    String @default("") @db.VarChar(250)
+  price    Int    @default(0)
+  qty_type Int    @default(0) @db.UnsignedTinyInt
+  qty      Int    @default(0) @db.UnsignedInt
+  used     Int    @default(0) @db.UnsignedTinyInt
+  code     String @default("") @db.VarChar(100)
+  sequence Int    @default(0) @db.UnsignedInt
+
+  @@map("mallRN_goods_option")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model MobileBanner {
+  uid      Int       @id @default(autoincrement()) @db.UnsignedInt
+  name     String    @default("") @db.VarChar(100)
+  code     String    @default("") @db.VarChar(10)
+  image1   String    @default("") @db.VarChar(100)
+  link1    String    @default("") @db.VarChar(250)
+  status   Int       @default(0) @db.UnsignedInt
+  target   Int       @default(0) @db.UnsignedInt
+  s_date   DateTime? @default(dbgenerated("'1000-01-01 00:00:00'")) @db.DateTime(0)
+  e_date   DateTime? @default(dbgenerated("'1000-01-01 00:00:00'")) @db.DateTime(0)
+  sequence Int       @default(0) @db.UnsignedInt
+  moddate  Int       @default(0) @db.UnsignedInt
+  signdate Int       @default(0) @db.UnsignedInt
+
+  @@map("mallRN_mobile_banner")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Popup {
+  uid            Int       @id @default(autoincrement()) @db.UnsignedInt
+  name           String    @default("") @db.VarChar(80)
+  status         Int       @default(0) @db.UnsignedInt
+  type           Int       @default(0) @db.UnsignedInt
+  period         Int       @default(0) @db.UnsignedInt
+  s_date         DateTime? @default(dbgenerated("'1000-01-01 00:00:00'")) @db.DateTime(0)
+  e_date         DateTime? @default(dbgenerated("'1000-01-01 00:00:00'")) @db.DateTime(0)
+  position       Int       @default(0) @db.UnsignedInt
+  input_position String    @default("") @db.VarChar(50)
+  input_size     String    @default("") @db.VarChar(50)
+  image_only     Int       @default(0) @db.UnsignedTinyInt
+  image1         String    @default("") @db.VarChar(100)
+  link1          String    @default("") @db.VarChar(250)
+  content        String    @default("") @db.Text
+  signdate       Int       @default(0) @db.UnsignedInt
+
+  @@map("mallRN_popup")
+}
+
+enum mallRN_exhibition_discount_yn {
+  N
+  Y
+}
+
+enum mallRN_configuration_delivery_type {
+  F
+  D
+  P
+}
+
+enum mallRN_configuration_member_auth {
+  A
+  P
+}
+
+enum mallRN_configuration_member_mileage_yn {
+  Y
+  N
+}
+
+enum mallRN_configuration_member_mileage_validity_yn {
+  Y
+  N
+}
+
+enum mallRN_configuration_member_mileage_validity_type {
+  D
+  M
+  Y
+}
+
+enum mallRN_configuration_member_admin_auth {
+  N
+  E
+  H
+}
+
+enum mallRN_goods_auth_ck {
+  N
+  Y
+}
+
+enum mallRN_configuration_order_tracker_yn {
+  Y
+  N
+}
+
+enum mallRN_configuration_sms_yn {
+  Y
+  N
+}
+
+enum mallRN_configuration_mobile_yn {
+  Y
+  N
+}

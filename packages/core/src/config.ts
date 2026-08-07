@@ -1,0 +1,50 @@
+import { prisma } from "@shoppingmall/db";
+
+export type ShopConfig = Awaited<ReturnType<typeof getShopConfig>>;
+
+// Port of php/init.php:85-86 `SELECT * FROM mallRN_configuration WHERE uid=1`.
+export async function getShopConfig() {
+  const row = await prisma.configuration.findUniqueOrThrow({ where: { uid: 1 } });
+  return {
+    basicName: row.basic_name,
+    basicTitle: row.basic_title,
+    basicDescription: row.basic_description,
+    basicKeyword: row.basic_keyword,
+    basicUrl: row.basic_url,
+    basicAdmin: row.basic_admin,
+    basicEmail: row.basic_email,
+    compName: row.comp_name,
+    compOwner: row.comp_owner,
+    compLicenseNo1: row.comp_license_no1,
+    compLicenseNo2: row.comp_license_no2,
+    compTel: row.comp_tel,
+    compFax: row.comp_fax,
+    compAddress1: row.comp_address1,
+    compAddress2: row.comp_address2,
+    compRtnAddress1: row.comp_rtn_address1,
+    compRtnAddress2: row.comp_rtn_address2,
+    csTime1: row.basic_cs_time1 || "09:00 ~ 18:00",
+    csTime2: row.basic_cs_time2 || "휴무",
+    csTime3: row.basic_cs_time3 || "휴무",
+    csTime4: row.basic_cs_time4 || "12:00 ~ 13:00",
+    designTopMenu: row.design_top_menu,
+    mobileTopMenu: row.mobile_top_menu,
+    mainDisplayOrder: row.design_main_display_order || "reco, code, best, cate, new",
+    mainDisplay1: row.design_main_display1,
+    mainDisplay2: row.design_main_display2,
+    mainDisplay3: row.design_main_display3,
+    mainCategory: row.design_main_category,
+    mainCategoryInfo: row.design_main_category_info,
+    mainCustomCode: row.design_main_custom_code,
+    mainCustomCodeInfo: row.design_main_custom_code_info,
+    iconDisplay: row.design_icon_display,
+    vendorLink: row.design_vendor_link,
+    mobileYn: row.mobile_yn,
+    goodsPriceLimit1: row.goods_price_limit1,
+    goodsPriceLimit2: row.goods_price_limit2,
+    paymentBankInfo: row.payment_bank_info,
+    naverTag: row.script_naver_tag,
+    googleAnalytics: row.script_google_analytics,
+    signDate: row.signdate,
+  };
+}

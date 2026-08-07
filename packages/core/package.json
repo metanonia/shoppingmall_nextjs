@@ -1,0 +1,18 @@
+{
+  "name": "@shoppingmall/core",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./device": "./src/device.ts"
+  },
+  "dependencies": {
+    "@shoppingmall/db": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5"
+  }
+}

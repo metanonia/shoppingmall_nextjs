@@ -1,0 +1,12 @@
+node_modules/
+.pnpm-store/
+.next/
+out/
+dist/
+.env
+.env.local
+.env*.local
+*.log
+.DS_Store
+/packages/db/generated/
+mysql-data/

@@ -1,0 +1,12 @@
+/*
+ * Intentionally minimal. Pixel fidelity for this app comes from the legacy
+ * skin stylesheets (public/skin/css/style.css, mobile_style.css), which are
+ * loaded per-request in app/layout.tsx based on device and already ship
+ * their own full CSS reset. A framework reset (e.g. Tailwind's Preflight)
+ * would fight that reset — e.g. forcing box-sizing:border-box globally,
+ * which the legacy CSS does not assume — so this app does not use Tailwind.
+ */
+html,
+body {
+  height: 100%;
+}
