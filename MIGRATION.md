@@ -28,6 +28,26 @@ packages/
 - 로컬 개발 DB: `docker-compose.yml`의 `shoppingmall-nextjs-mysql` 컨테이너
   (호스트 포트 3307 — 다른 프로젝트의 MySQL과 충돌 방지).
 
+## 빠르게 시작하기
+
+```bash
+docker compose up -d                        # MySQL 기동 (호스트 3307)
+pnpm install
+cd packages/db && node prisma/seed.js       # 개발용 시드 데이터 (기존 데이터 삭제 후 재삽입)
+cd ../../apps/storefront && pnpm dev        # http://localhost:3000
+```
+
+- `apps/storefront/.env.local`에 `DATABASE_URL`, `AUTH_SECRET`가 필요합니다(레포에는
+  커밋되어 있지 않음 — 없으면 각자 새로 생성: `AUTH_SECRET`은 임의의 긴 랜덤 문자열,
+  `DATABASE_URL`은 `mysql://root:root@localhost:3307/shoppingmall`).
+- 관리자 계정: 시드에는 실제 로그인 가능한 관리자 회원이 없습니다 — `/regist`로
+  가입하면 기본적으로 `level=1`(일반회원)로 생성됩니다. 관리자 기능 자체는 Phase 7
+  전까지 없으므로 지금은 상관없습니다.
+- Playwright로 스크린샷 검증할 때는 설치된 `playwright` npm 패키지가 기대하는
+  브라우저 리비전과 실제 캐시된 빌드가 다를 수 있어
+  `chromium.launch({ executablePath: '~/Library/Caches/ms-playwright/chromium-1208/...' })`처럼
+  캐시된 빌드 경로를 직접 지정해야 할 수 있습니다.
+
 ## 진행 상황 (전체 9단계 계획, 상세는 아래 "설계 결정" 참고)
 
 | Phase | 내용 | 상태 |
@@ -35,7 +55,7 @@ packages/
 | 1 | 기반 구축 + 홈 화면 | ✅ 완료 |
 | 2 | 상품 탐색 (목록/검색/베스트/신상/상세/입점사스토어/모음전) | ✅ 완료 |
 | 3 | 회원/인증/소셜로그인 + 회원가입 이후 미뤄뒀던 항목 일괄 처리 | ✅ 완료 (소셜로그인은 구조만, 아래 참고) |
-| 4 | 카트/주문 엔진 | ⬜ 미착수 |
+| 4 | 카트/주문 엔진 | ⬜ **다음 작업** (아래 가이드 참고) |
 | 5 | 결제/알림 | ⬜ 미착수 |
 | 6 | 게시판/CMS | ⬜ 미착수 |
 | 7 | 관리자 백엔드 | ⬜ 미착수 |
@@ -43,6 +63,44 @@ packages/
 | 9 | 하드닝/정규화/마무리 | ⬜ 미착수 |
 
 커밋 로그가 각 Phase의 실제 작업 내역이니 `git log`로 확인하세요.
+
+## 다음 작업: Phase 4 (카트/주문 엔진) 시작 가이드
+
+**목표**: 장바구니 담기 → 주문서 작성 → 주문 완료까지의 실제 파이프라인. PG 연동
+자체는 Phase 5이므로, Phase 4의 "결제"는 즉시 완료 처리되는 방법(예: 무통장입금)만
+우선 동작시키고 실제 카드/PG 결제 버튼은 Phase 5까지 비활성 상태로 두면 됩니다.
+
+**주요 레거시 참고 파일** (`../shoppingmall_php`):
+- `php/cart.php` — 장바구니 조회/수량변경/삭제
+- `php/order.php` — 주문서 작성 화면(배송지, 결제수단, 쿠폰/마일리지 적용)
+- `php/order_post.php` — 주문 생성 처리
+- `php/order_list.php`, `order_list_view.php` — 주문내역 목록/상세
+- `lib/lib.Shop.php`의 핵심 함수 (3160줄, 이 저장소에서 가장 위험도 높은 로직):
+  - `checkCartOrder` — 주문 가능 여부 검증(재고/구매제한/회원등급 등)
+  - `orderStatus1/4/5/9/95/95_partial` — 주문 상태 전이 상태머신(결제완료/배송중/
+    배송완료/취소/환불/부분환불)
+  - `orderReset` — 주문 취소 시 재고/마일리지/쿠폰 롤백
+  - `goodsOrderQtyChange`/`goodsOrderQtyCancel` — 재고 증감
+  - `couponIssuance` — 쿠폰 발급/차감
+  - `mileageChange*` — 마일리지 적립/차감
+
+**새로 필요한 테이블** (`install_post.php` DDL을 그대로 가져와 introspect하는 기존
+패턴 그대로):
+- `mallRN_cart` — 장바구니
+- `mallRN_order_info` / `mallRN_order_goods` / `mallRN_order_log` — 주문/주문상품/로그
+- `mallRN_coupon` / `mallRN_coupon_manager` — 쿠폰. Phase 3에서 "쿠폰 적용가
+  미구현"으로 미뤄둔 부분이 이 Phase에서 함께 풀립니다(회원등급 할인은 이미 완료).
+
+**주의할 점**:
+- 계획 문서(`~/.claude/plans/hazy-prancing-reddy.md`)에 명시된 대로, 이 상태머신은
+  돈/재고/마일리지/쿠폰이 한 트랜잭션처럼 같이 움직이는 전체 계획 중 최고 위험도
+  로직입니다 — 결제 연동(Phase 5) 전에 단위 테스트로 상태 전이를 먼저 검증하세요.
+- 리뷰(`mallRN_review`, 지금까지 계속 미뤄둔 항목)는 `og_uid`(주문상품 고유값)가
+  있어야 작성 가능한 구조라, 이 Phase에서 주문 테이블이 생기면 자연스럽게 같이 풀립니다.
+- 게스트 장바구니를 지원하려면 여러 곳에서 "게스트 식별용 `cart_id` 쿠키 필요"로
+  미뤄둔 인프라(최근본상품, 조회수 증가)를 이 Phase에서 만들 좋은 기회입니다. 단,
+  찜하기/상품문의 등은 이미 회원 전용으로 구현이 끝났으니 `cart_id`는 순수 게스트
+  장바구니 전용으로만 필요합니다.
 
 ## 핵심 설계 결정 (다시 논의하지 않아도 되는 것들)
 
@@ -177,3 +235,28 @@ Phase 6/7/8 — 전체 미착수.
   프로세스를 반드시 재시작해야 함 — 새로 추가된 모델(`prisma.inquiry`,
   `prisma.favoriteStore` 등)이 핫리로드로는 반영되지 않고 "Cannot read properties of
   undefined" 형태의 런타임 에러로 나타남.
+
+## 새 테이블 추가 시 체크리스트 (Phase 4부터 그대로 재사용)
+
+1. `packages/db/sql/00N_*.sql`에 `install_post.php`의 해당 DDL을 그대로 복사
+2. `docker exec -i shoppingmall-nextjs-mysql mysql -uroot -proot shoppingmall < 그파일.sql`로 적용
+3. `cd packages/db && pnpm exec prisma db pull`
+4. 새로 생긴 `model mallRN_xxx { ... }` 블록을 PascalCase로 rename + `@@map("mallRN_xxx")` 추가
+5. **`grep -n "@db.Text$" packages/db/prisma/schema.prisma | grep -v "@default"`로
+   스키마 전체에서 빠진 `@default("")`를 확인하고 복구** (db pull이 매번 전체를
+   지워버림 — 위 "핵심 설계 결정" 참고)
+6. `pnpm exec prisma format && pnpm exec prisma generate`
+7. 실행 중인 `next dev`를 반드시 재시작
+8. `pnpm exec tsc --noEmit` (packages/core, packages/db, apps/storefront 각각)
+
+## 세션 인수인계 체크리스트
+
+- `git log --oneline`으로 Phase별 실제 커밋과 커밋 메시지(각 Phase가 무엇을
+  포팅/단순화/발견한 버그인지 상세히 적혀 있음) 확인
+- 위 "미뤄둔 것" 섹션을 먼저 확인 — 화면에서 뭔가 비어있어 보여도 의도된 스코프컷일
+  수 있음. 새로 처리했다면 해당 항목을 `~~취소선~~` + "✅ Phase N에서 처리"로 갱신하고
+  단순화한 부분은 반드시 명시할 것(이 문서의 기존 항목들이 그 형식을 따름)
+- 검증은 항상 PC+모바일 둘 다 Playwright로 확인 (`~/Library/Caches/ms-playwright/...`
+  경로 고정 필요, 위 "빠르게 시작하기" 참고)
+- 작업 완료 후 이 MIGRATION.md와 Claude 메모리(`migration_overview`,
+  `migration_deferred_items`)를 함께 갱신 — 두 곳의 내용이 서로 어긋나지 않게 유지
