@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import type { GoodsDetailViewModel, InquiryItem } from "@shoppingmall/core";
+import type { DownloadableCoupon, GoodsDetailViewModel, InquiryItem } from "@shoppingmall/core";
 import { toggleFavoriteGoodsAction, toggleFavoriteStoreAction } from "@/app/goods/[uid]/actions";
 import { GoodsCard } from "./GoodsCard";
 import { ProductGallery } from "./ProductGallery";
 import { InquiryPanel } from "./InquiryPanel";
+import { CartActions } from "./CartActions";
+import { CouponDownload } from "./CouponDownload";
 
 export type ProductDetailFavoriteState = {
   isMember: boolean;
@@ -16,22 +18,24 @@ export type ProductDetailFavoriteState = {
 };
 
 // Port of view.html / mobile_view.html's `.goodsInfo` + `.goods_explain` tab
-// panel. Cart mutation (add-to-cart / buy-now) and reviews are still stubbed
-// or omitted — see getGoodsDetail's comment. Favorites, product inquiry, and
-// the vendor "인기상품" panel are now wired up. Both devices share this
-// component; legacy's mobile view additionally puts options+buy behind a
-// sticky bottom drawer (`#btnFixOrder`) which isn't reproduced — options/buy
-// render inline instead.
+// panel. Add-to-cart/buy-now (Phase 4) and favorites/inquiry/vendor
+// "인기상품" are wired up; reviews are still stubbed — see getGoodsDetail's
+// comment. Both devices share this component; legacy's mobile view
+// additionally puts options+buy behind a sticky bottom drawer
+// (`#btnFixOrder`) which isn't reproduced — options/buy render inline
+// instead.
 export function ProductDetail({
   detail,
   device,
   favorite,
   inquiries,
+  downloadableCoupons,
 }: {
   detail: GoodsDetailViewModel;
   device: "pc" | "mobile";
   favorite: ProductDetailFavoriteState;
   inquiries: InquiryItem[];
+  downloadableCoupons: DownloadableCoupon[];
 }) {
   const [tab, setTab] = useState<1 | 2 | 3 | 4>(1);
 
@@ -93,6 +97,8 @@ export function ProductDetail({
             )}
           </div>
 
+          <CouponDownload goodsUid={detail.uid} coupons={downloadableCoupons} isMember={favorite.isMember} />
+
           <div className="empty20" />
 
           {infoRows.length > 0 && (
@@ -136,15 +142,6 @@ export function ProductDetail({
                     <div className="option_title">
                       <b>{group.name}</b>
                     </div>
-                    {group.values.length > 0 && (
-                      <div className="option_select">
-                        {group.values.map((v) => (
-                          <div key={v.value} className="option_value">
-                            {v.value} {v.priceLabel}
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
@@ -166,7 +163,7 @@ export function ProductDetail({
               {detail.limitMsg}
             </button>
           ) : (
-            <BuyButtons />
+            <CartActions goodsUid={detail.uid} optionUse={detail.optionUse} options={detail.options} />
           )}
         </div>
       </div>
@@ -289,30 +286,5 @@ export function ProductDetail({
         )}
       </div>
     </div>
-  );
-}
-
-// Add-to-cart / buy-now need the cart engine (Phase 4) — these are visually
-// real but intentionally no-op until then.
-function BuyButtons() {
-  return (
-    <>
-      <button
-        className="shineButton btnCart"
-        style={{ width: 200 }}
-        type="button"
-        onClick={() => window.alert("장바구니 기능은 준비 중입니다.")}
-      >
-        장바구니
-      </button>
-      <button
-        className="shineButtonBlack btnOrder"
-        style={{ width: 226, marginLeft: 6 }}
-        type="button"
-        onClick={() => window.alert("구매 기능은 준비 중입니다.")}
-      >
-        바로구매
-      </button>
-    </>
   );
 }

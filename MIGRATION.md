@@ -55,8 +55,8 @@ cd ../../apps/storefront && pnpm dev        # http://localhost:3000
 | 1 | 기반 구축 + 홈 화면 | ✅ 완료 |
 | 2 | 상품 탐색 (목록/검색/베스트/신상/상세/입점사스토어/모음전) | ✅ 완료 |
 | 3 | 회원/인증/소셜로그인 + 회원가입 이후 미뤄뒀던 항목 일괄 처리 | ✅ 완료 (소셜로그인은 구조만, 아래 참고) |
-| 4 | 카트/주문 엔진 | ⬜ **다음 작업** (아래 가이드 참고) |
-| 5 | 결제/알림 | ⬜ 미착수 |
+| 4 | 카트/주문 엔진 | ✅ 완료 (무통장입금/마일리지결제만, 아래 참고) |
+| 5 | 결제/알림 | ⬜ **다음 작업** (아래 가이드 참고) |
 | 6 | 게시판/CMS | ⬜ 미착수 |
 | 7 | 관리자 백엔드 | ⬜ 미착수 |
 | 8 | 입점사 백엔드 | ⬜ 미착수 |
@@ -64,43 +64,43 @@ cd ../../apps/storefront && pnpm dev        # http://localhost:3000
 
 커밋 로그가 각 Phase의 실제 작업 내역이니 `git log`로 확인하세요.
 
-## 다음 작업: Phase 4 (카트/주문 엔진) 시작 가이드
+## Phase 4 완료 요약 (카트/주문 엔진)
 
-**목표**: 장바구니 담기 → 주문서 작성 → 주문 완료까지의 실제 파이프라인. PG 연동
-자체는 Phase 5이므로, Phase 4의 "결제"는 즉시 완료 처리되는 방법(예: 무통장입금)만
-우선 동작시키고 실제 카드/PG 결제 버튼은 Phase 5까지 비활성 상태로 두면 됩니다.
+계획 문서: `~/.claude/plans/smooth-finding-ullman.md`. 장바구니 담기 → 주문서 작성 →
+주문 완료 → 주문내역 조회/취소까지 전체 파이프라인이 동작합니다. 게스트 체크아웃(주문
+비밀번호 기반 조회/취소)도 지원합니다. 상세 스코프 결정과 구현 내역은 아래 "미뤄둔
+것 > 카트/주문" 항목 참고. `packages/core/src/cart.ts`/`coupon.ts`/`mileage.ts`/
+`order.ts`, `apps/storefront/app/cart/`·`app/order/`·`app/my_order/`가 핵심 코드.
 
-**주요 레거시 참고 파일** (`../shoppingmall_php`):
-- `php/cart.php` — 장바구니 조회/수량변경/삭제
-- `php/order.php` — 주문서 작성 화면(배송지, 결제수단, 쿠폰/마일리지 적용)
-- `php/order_post.php` — 주문 생성 처리
-- `php/order_list.php`, `order_list_view.php` — 주문내역 목록/상세
-- `lib/lib.Shop.php`의 핵심 함수 (3160줄, 이 저장소에서 가장 위험도 높은 로직):
-  - `checkCartOrder` — 주문 가능 여부 검증(재고/구매제한/회원등급 등)
-  - `orderStatus1/4/5/9/95/95_partial` — 주문 상태 전이 상태머신(결제완료/배송중/
-    배송완료/취소/환불/부분환불)
-  - `orderReset` — 주문 취소 시 재고/마일리지/쿠폰 롤백
-  - `goodsOrderQtyChange`/`goodsOrderQtyCancel` — 재고 증감
-  - `couponIssuance` — 쿠폰 발급/차감
-  - `mileageChange*` — 마일리지 적립/차감
+**레거시와 달리 실제 DB 트랜잭션 사용**: 레거시(`lib/lib.Shop.php`)는 BEGIN/COMMIT이
+전혀 없이 순차 함수 호출 + 실패 시 수동 보상 로직으로 "롤백"을 흉내내는 구조였습니다.
+이 저장소는 `createOrder`/`orderStatus9`/`orderStatus95`를 전부 `prisma.$transaction`
+으로 감싸 원자성을 보장합니다 — 재고 차감도 `UPDATE ... WHERE qty >= N` 조건부
+갱신으로 동시성 오버셀을 방지합니다(레거시엔 없는 안전장치).
 
-**새로 필요한 테이블** (`install_post.php` DDL을 그대로 가져와 introspect하는 기존
-패턴 그대로):
-- `mallRN_cart` — 장바구니
-- `mallRN_order_info` / `mallRN_order_goods` / `mallRN_order_log` — 주문/주문상품/로그
-- `mallRN_coupon` / `mallRN_coupon_manager` — 쿠폰. Phase 3에서 "쿠폰 적용가
-  미구현"으로 미뤄둔 부분이 이 Phase에서 함께 풀립니다(회원등급 할인은 이미 완료).
+**Playwright E2E로 실제 검증 완료**: 게스트 무통장입금 주문 생성→조회→취소,
+회원 마일리지 전액결제 주문 생성(`orderStatus1` 자동 호출)→취소(`orderStatus95`,
+마일리지 환급까지 확인) 흐름을 브라우저로 직접 구동해 DB 상태까지 대조 검증했습니다.
+이 과정에서 실제 버그 2건을 발견/수정했습니다:
+- 시드 데이터에 `payment_type_b`(무통장입금 활성화)가 빠져 있어 결제수단을 아예 선택할
+  수 없었음 → `packages/db/prisma/seed.js`에 추가.
+- 주문 생성 시 임시 `order_num` 플레이스홀더가 `varchar(32)` 제한을 초과해 매 주문마다
+  DB 에러로 깨졌음 → 28자 hex 토큰으로 축소.
 
-**주의할 점**:
-- 계획 문서(`~/.claude/plans/hazy-prancing-reddy.md`)에 명시된 대로, 이 상태머신은
-  돈/재고/마일리지/쿠폰이 한 트랜잭션처럼 같이 움직이는 전체 계획 중 최고 위험도
-  로직입니다 — 결제 연동(Phase 5) 전에 단위 테스트로 상태 전이를 먼저 검증하세요.
-- 리뷰(`mallRN_review`, 지금까지 계속 미뤄둔 항목)는 `og_uid`(주문상품 고유값)가
-  있어야 작성 가능한 구조라, 이 Phase에서 주문 테이블이 생기면 자연스럽게 같이 풀립니다.
-- 게스트 장바구니를 지원하려면 여러 곳에서 "게스트 식별용 `cart_id` 쿠키 필요"로
-  미뤄둔 인프라(최근본상품, 조회수 증가)를 이 Phase에서 만들 좋은 기회입니다. 단,
-  찜하기/상품문의 등은 이미 회원 전용으로 구현이 끝났으니 `cart_id`는 순수 게스트
-  장바구니 전용으로만 필요합니다.
+## 다음 작업: Phase 5 (결제/알림) 시작 가이드
+
+**목표**: 카드/실시간계좌이체/가상계좌/휴대폰(PG) 결제 연동. `OrderForm.tsx`에 이미
+해당 라디오 버튼이 "Phase 5 예정"으로 비활성 표시되어 있고, `order.ts`의 `createOrder`
+는 현재 `payType: "B"|"M"`만 받음 — PG 콜백이 오면 `reals=1` + 재고차감(이미 있는
+헬퍼 재사용 검토) + `orderStatus1` 호출까지 이어지도록 확장 필요.
+
+**참고**: `핵심 설계 결정`의 "결제: KCP는 스텁, aronhub→nicepay→inicis 순으로 실제
+구현" 방침 그대로. KCP는 컴파일 바이너리+SOAP라 포팅 불가하므로 `PaymentGateway`
+인터페이스 뒤에 스텁만 두고 aronhub부터 구현.
+
+**Phase 4가 남긴, Phase 5 착수 전 확인할 점**은 아래 "미뤄둔 것 > 카트/주문"의
+마지막 소단락("나중에 확인할 사항")에 정리되어 있습니다 — 특히 무통장입금 주문이
+Phase 7 전까지 결제완료로 전환될 방법이 없다는 점.
 
 ## 핵심 설계 결정 (다시 논의하지 않아도 되는 것들)
 
@@ -120,6 +120,10 @@ cd ../../apps/storefront && pnpm dev        # http://localhost:3000
 - **관리자/입점사**: 레거시의 `managers/`+`vendor/` 중복 구조를 그대로 복제하지 않고,
   하나의 backoffice 앱에서 role(admin/vendor)로 분기.
 - **결제**: KCP(컴파일 바이너리+SOAP)는 스텁, aronhub→nicepay→inicis 순으로 실제 구현.
+- **카트/주문 트랜잭션**: 레거시는 DB 트랜잭션이 전혀 없지만(순차 호출+수동 보상으로
+  "롤백" 흉내), 이 저장소는 `createOrder`/`orderStatus9`/`orderStatus95`를
+  `prisma.$transaction`으로 감싸 실제 원자성 보장(Phase 4, 상세는 아래 "Phase 4 완료
+  요약" 참고). 재고 차감은 조건부 `UPDATE ... WHERE qty >= N`으로 동시성 오버셀 방지.
 - **카테고리 계층**: 레거시의 자릿수 슬라이싱(`SUBSTRING(cate,1,i)`) 대신
   `cate_parent` 체인을 직접 타는 방식으로 재구현 (더 견고함, 영구 개선사항이며 나중에
   되돌릴 필요 없음).
@@ -155,9 +159,9 @@ OAuth2 authorization-code flow(인증 URL 생성/토큰 교환/프로필 조회,
 있어야 의미가 있는데 아직 그 인프라가 없음.
 
 ### 리뷰 (`mallRN_review`)
-아직 테이블 없음. 레거시 `review_post.php`가 `og_uid`(주문상품 고유값)를 필수값으로
-요구 — 실제 구매 이력에 묶인 후기라 Phase 4(주문 엔진)의 `order_goods` 테이블 없이는
-의미 있게 구현할 수 없음. 상품상세 페이지는 항상 카운트 0/빈 상태 텍스트만 표시.
+아직 테이블 없음. `mallRN_order_goods`(Phase 4에서 추가됨)가 있어 `og_uid` 참조는
+이제 가능하지만, 리뷰 테이블/작성 UI 자체는 아직 구현하지 않음 — 상품상세 페이지는
+여전히 카운트 0/빈 상태 텍스트만 표시. 다음 착수 시 차단 요인 없음.
 
 ### 상품문의 — ✅ Phase 3에서 처리
 `mallRN_inquiry` 테이블 추가 + `packages/core/src/inquiry.ts` + 상품상세 페이지의
@@ -167,16 +171,62 @@ OAuth2 authorization-code flow(인증 URL 생성/토큰 교환/프로필 조회,
 비회원 비밀번호 검증 플로우는 구현하지 않음. 답변 작성(관리자/입점사 UI)은 여전히
 Phase 7/8 대기 중이라 `answer`는 항상 빈 값("답변대기중")으로만 보임.
 
-### 카트/주문
-장바구니/바로구매 버튼은 렌더링되지만 클릭해도 "준비 중입니다" 알림만 뜨는 no-op
-(Phase 4에서 실제 구현).
+### 카트/주문 — ✅ Phase 4에서 처리
+`mallRN_cart`/`mallRN_order_info`/`mallRN_order_goods`/`mallRN_order_log`/
+`mallRN_order_delivery`/`mallRN_coupon`/`mallRN_coupon_manager`/`mallRN_mileage`
+테이블 추가 + `packages/core/src/cart.ts`/`coupon.ts`/`mileage.ts`/`order.ts` +
+`/cart`, `/order`, `/order/complete`, `/my_order`, `/my_order/[order_num]`,
+`/my_order/guest` 페이지. 장바구니 담기(옵션 선택 포함)부터 결제, 주문내역 조회,
+취소까지 실사용 가능. **단순화/스코프컷한 부분**:
+- **결제수단은 무통장입금(B)과 마일리지 전액결제(M)만** — 카드/실시간계좌이체/
+  가상계좌/휴대폰은 Phase 5 대기, UI에 비활성 표시만 있음.
+- **무통장입금은 레거시처럼 입금대기(status=0)로 남김** — 관리자 입금확인 화면이
+  Phase 7까지 없어 결제완료 전환 수단이 아직 없음(아래 "나중에 확인할 사항" 참고).
+- **배송상태 진행(배송준비중/배송중/배송완료)과 구매확정은 전부 Phase 7/8 대기** —
+  `orderStatus4`/`orderStatus5` 함수는 포팅되어 있으나 호출하는 UI가 없음.
+- **부분환불(`orderStatus95_partial`)은 스코프아웃** — 호출자가 전역변수를 미리
+  세팅해야 하는 레거시 안티패턴이고, 그 호출부(admin 부분환불 화면)가 Phase 7 스코프.
+  전액취소(`orderStatus9`/`orderStatus95`)만 지원.
+- **쿠폰발급은 상품상세 "다운로드"(`coupon_manager.type=4`)만 연결** — 관리자수동/
+  가입시/첫주문시/생일 자동발급은 각각 admin 화면·훅·배치잡이 필요해 미착수.
+- **게스트 체크아웃 지원** — `mallRN_order_info.passwd`(argon2id 해시, 레거시는
+  MD5)로 게스트 주문조회/취소(`/my_order/guest`). 단, 레거시의 게스트 주문 *목록*
+  화면(`order_list_guest.php`로 추정, 실물 미확인)이 아니라 "주문번호+이름+비밀번호로
+  단건 조회"로 단순화.
+- **`mallRN_order_sales`/`mallRN_order_status_change`/`mallRN_order_related_goods`는
+  추가하지 않음** — 각각 admin 매출리포팅, 교환/반품 승인 큐(취소는 회원이 직접
+  `orderStatus9/95`를 호출하는 것으로 단순화), 동시구매상품(Phase 2에서 이미 다른
+  방식으로 구현됨) 전용이라 불필요.
+- **벤더별/지역별 배송정책 차등 없음** — `mallRN_vendor_configuration`/
+  `mallRN_delivery_configuration` 테이블이 이 저장소에 없어(다른 곳도 동일한 제약)
+  배송비는 상품(`Goods.delivery_type`)과 샵 전역설정(`Configuration`)만으로 계산.
+- **카트는 실시간 재계산, side-effect 없는 조회** — 레거시(`getCartGoodsInfo`)는
+  카트를 "읽기만" 해도 재고초과 항목을 자동 삭제/수량조정하는 안티패턴이 있었는데,
+  이 저장소는 조회(`getCartLine`)와 실제 DB 반영(`validateAndSyncCart`)을 분리함.
+
+**나중에 확인할 사항** (지금은 검증 불가 — 잊지 말고 아래 시점에 확인):
+- **[Phase 7] 무통장입금 → 결제완료 전환 경로 없음.** B 주문은 영원히 입금대기
+  상태에 머무름 — Phase 7에서 관리자 "입금확인" 액션을 만들 때 `order.ts`의
+  `orderStatus1(orderNum, adminId, tx)`를 호출하도록 연결할 것(함수는 이미 있음).
+- **[Phase 7] `orderStatus95`(결제후 취소)가 B 주문 실사용 경로로 검증되지 않음.**
+  Phase 4 시점엔 M(마일리지 전액) 주문만 결제완료에 도달(Playwright로 검증 완료).
+  Phase 7에서 관리자 입금확인 기능이 생긴 뒤 B 주문도 한 번 더 확인할 것.
+- **[Phase 7/8] `orderStatus4`/`orderStatus5`(배송완료/구매확정) 호출 지점 없음.**
+  마일리지 적립 로직(`saveMileage` 경유)이 이때 처음 실사용 검증됨.
+- **[Phase 5] 카드/PG 결제 경로.** `createOrder`는 B/M만 지원 — PG 콜백이 `reals=1`
+  +재고차감+`orderStatus1`으로 이어지도록 확장 시 지금의 트랜잭션 구조를 그대로
+  재사용할 수 있는지 재검토할 것.
+- **[발견 시] 부분환불 재검토.** Phase 7에서 admin 부분환불 화면(legacy
+  `php/admin/*order*cancel*` 계열로 추정, 미확인)을 먼저 찾아 읽고 `orderStatus95_partial`
+  포팅 여부 재판단할 것.
+- **[발견 시] `order_list_guest.php` 실물 미확인.** `/my_order/guest`를 목록형으로
+  확장하려면 그 파일을 먼저 읽고 `guest_where` 쿠키 유도 조건을 확인할 것.
 
 ### 회원등급 할인가 — ✅ Phase 3에서 처리
 `packages/core/src/member.ts`의 `getMemberDiscountPct()` + `pricing.ts`의
 `getGoodsPrice()`가 로그인 회원의 `MemberLevel.discount`를 실제로 적용함(홈/목록/
-검색/베스트/신상/모음전/스토어/상품상세 전부 반영). **쿠폰 적용가는 여전히 미구현** —
-`mallRN_coupon`/`mallRN_coupon_manager` 테이블이 없고, 쿠폰 발급/차감이 카트·주문
-흐름과 묶여 있어 Phase 4 이후 처리.
+검색/베스트/신상/모음전/스토어/상품상세 전부 반영). 쿠폰 적용가는 ✅ Phase 4에서
+`coupon.ts`로 처리됨(위 "카트/주문" 항목 참고).
 
 ### 입점사 사이트 설정 (`mallRN_vendor_configuration`)
 테이블 없음. `/store` 페이지는 항상 쇼핑몰 전체 기본값(CS 시간, 노출순서)으로 폴백.
@@ -195,18 +245,22 @@ Phase 7/8 대기 중이라 `answer`는 항상 빈 값("답변대기중")으로�
   직접 LIKE 매칭해 자동완성을 제공 — 관리자 수동등록 UI가 없는 지금 더 실용적인
   대안. `mallRN_keyword_recent2`(관리자용 로그, 어떤 화면도 읽지 않음)도 생략.
   개별 검색어 삭제 대신 "초기화"(전체삭제)만 제공.
-- 최근본상품 드로어, 퀵메뉴 플로팅 버튼 — 여전히 `cart_id` 게스트 쿠키 인프라 필요.
+- 최근본상품 드로어, 퀵메뉴 플로팅 버튼 — `cart_id` 게스트 쿠키 인프라는 ✅ Phase 4에서
+  마련됨(`packages/core/src/cart-id.ts`, `apps/storefront/lib/cart-id.ts`)이나 이
+  기능들 자체는 아직 미구현.
 - 네이버페이 버튼
 - 상단 네비 JS 폭 균등분배 (CSS padding으로 단순 대체)
 
 ### 상품상세 (Phase 2)
-- 옵션 2개 이상 조합가/조합재고 조회 (첫 번째 옵션만 실제 값 노출) — 레거시도 AJAX
-  팝업으로 카트 엔진과 맞물려 있어 Phase 4와 함께 처리.
+- 옵션 2개 이상 조합가/조합재고 조회 (첫 번째 옵션만 실제 값 노출) — Phase 4에서
+  카트 엔진(단일 옵션 차원)은 완성됐지만 조합 UI 자체는 여전히 미구현(레거시도
+  AJAX 팝업으로 별도 구현됨). 필요해지면 이때 함께 처리.
 - ~~찜하기(즐겨찾기 상품/스토어)~~ — ✅ Phase 3에서 처리. `mallRN_favorite_goods`/
   `mallRN_favorite_store` 테이블 + `packages/core/src/favorite.ts` + 상품상세/
   스토어 페이지의 하트 버튼(토글, 100개 캡 포함) + `/my_favorite_goods`,
   `/my_favorite_store`. 레거시와 동일하게 회원 전용(비회원은 로그인 페이지로 이동).
-- 조회수 증가/최근본상품 기록 (게스트 식별용 `cart_id` 쿠키 인프라 필요)
+- 조회수 증가/최근본상품 기록 — `cart_id` 게스트 쿠키 인프라는 ✅ Phase 4에서
+  마련됨, 기능 자체는 아직 미구현.
 - ~~"이 판매자의 인기상품" 섹션~~ — ✅ Phase 3에서 처리. `detail.ts`의
   `vendorGoods`(`store_display1/2/3` 우선순위 + `order_cnt` 타이브레이커, 현재 상품
   제외, 최대 6개) + 관심스토어 하트 버튼. 상품에 `vendor`가 없으면(직영 상품)
@@ -235,6 +289,29 @@ Phase 6/7/8 — 전체 미착수.
   프로세스를 반드시 재시작해야 함 — 새로 추가된 모델(`prisma.inquiry`,
   `prisma.favoriteStore` 등)이 핫리로드로는 반영되지 않고 "Cannot read properties of
   undefined" 형태의 런타임 에러로 나타남.
+- `apps/storefront`에서 `tsc --noEmit`을 `next dev` 실행 중에 돌리면 Next.js가 계속
+  다시 쓰고 있는 `.next/dev/types/validator.ts`를 중간에 읽어서 깨진 파일로 오탐
+  에러가 남(`TS1109 Expression expected`). `.next` 삭제 후 `next dev`를 한 번
+  재기동해 타입을 새로 생성시키면 해결됨 — 실제 코드 에러가 아님.
+- **`packages/core`에 vitest 도입됨**(Phase 4) — `cd packages/core && pnpm test`
+  (또는 `pnpm exec vitest run`)로 순수 계산 함수(가격/쿠폰할인/배송비) 유닛테스트
+  실행. `@shoppingmall/db`를
+  import하면 모듈 로드 시점에 PrismaClient가 즉시 생성되므로(`packages/db/src/
+  index.ts`), 테스트가 실제 쿼리를 안 날려도 `DATABASE_URL`이 유효한 형식의 문자열
+  이어야 함 — `packages/core/vitest.config.mts`에서 더미 값으로 세팅해둠.
+- **Playwright npm 패키지 자체가 이 레포에 설치돼 있지 않음**(브라우저 바이너리만
+  캐시돼 있음, 위 "빠르게 시작하기" 참고) — `npx --yes playwright@latest --version`
+  으로 즉석 설치 후, `~/.npm/_npx/<hash>/node_modules/playwright`를 스크립트 옆
+  `node_modules/playwright`에 심볼릭 링크해서 `import { chromium } from
+  "playwright"`가 동작하게 만들어야 함(ESM이라 `NODE_PATH`로는 해결 안 됨). 캐시된
+  크로미움의 실제 실행파일 경로는 `chromium-1208/chrome-mac-x64/Google Chrome for
+  Testing.app/Contents/MacOS/Google Chrome for Testing`(버전에 따라 폴더명이
+  `chrome-mac`이 아니라 `chrome-mac-x64`일 수 있음 — 매번 `find`로 확인할 것).
+- 서버 액션이 여러 개의 `<form>`에서 `useActionState`의 같은 `formAction`을 공유하는
+  화면(예: 장바구니담기/바로구매 버튼)에서 Playwright로 특정 버튼을 클릭할 때
+  `button[type="submit"]` 같은 범용 셀렉터는 페이지 상단 검색폼의 제출버튼과 충돌해
+  엉뚱한 곳으로 제출될 수 있음 — 버튼 텍스트(`button:has-text("결제하기")`)처럼
+  구체적으로 지정할 것.
 
 ## 새 테이블 추가 시 체크리스트 (Phase 4부터 그대로 재사용)
 

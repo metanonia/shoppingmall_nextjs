@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createInquiry, getMemberProfile, toggleFavoriteGoods, toggleFavoriteStore } from "@shoppingmall/core";
+import { createInquiry, getMemberProfile, issueCoupon, toggleFavoriteGoods, toggleFavoriteStore } from "@shoppingmall/core";
 import { getSession } from "@/lib/auth";
 
 // Port of php/favorite_goods_json.php's toggle, member-only like legacy
@@ -45,6 +45,26 @@ export async function createInquiryAction(_prevState: InquiryFormState, formData
   if (!profile) return { error: "회원 정보를 확인할 수 없습니다." };
 
   const result = await createInquiry(session.userId, profile.name, { goodsUid, subject, content, secret });
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath(`/goods/${goodsUid}`);
+  return { success: true };
+}
+
+export type DownloadCouponFormState = { error?: string; success?: boolean };
+
+// Port of the coupon_manager type=4 ("상품상세페이지 다운로드") trigger —
+// the only coupon-issuance path Phase 4 wires up, see coupon.ts.
+export async function downloadCouponAction(
+  _prevState: DownloadCouponFormState,
+  formData: FormData,
+): Promise<DownloadCouponFormState> {
+  const session = await getSession();
+  if (!session) return { error: "로그인이 필요합니다." };
+
+  const couponManagerUid = Number(formData.get("couponManagerUid"));
+  const goodsUid = Number(formData.get("goodsUid"));
+  const result = await issueCoupon(session.userId, couponManagerUid, goodsUid);
   if (!result.ok) return { error: result.error };
 
   revalidatePath(`/goods/${goodsUid}`);

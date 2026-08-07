@@ -591,7 +591,7 @@ model Inquiry {
   content  String  @default("") @db.Text
   answer   String  @default("") @db.Text
   secret   Int     @default(0) @db.UnsignedTinyInt
-  files    String? @default("") @db.Text
+  files    String? @db.Text
   acc_ip   String  @default("") @db.VarChar(50)
   signdate Int     @default(0) @db.UnsignedInt
 
@@ -636,6 +636,184 @@ model MobilePopup {
   signdate       Int       @default(0) @db.UnsignedInt
 
   @@map("mallRN_mobile_popup")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Cart {
+  uid             Int    @id @default(autoincrement()) @db.UnsignedInt
+  vendor          String @default("") @db.VarChar(50)
+  vendor_delivery String @default("") @db.VarChar(50)
+  cart_id         String @default("") @db.VarChar(50)
+  g_uid           Int    @default(0) @db.UnsignedInt
+  g_cate          BigInt @default(0) @db.UnsignedBigInt
+  qty             Int    @default(0) @db.UnsignedInt
+  option          Int    @default(0) @db.UnsignedInt
+  direct          Int    @default(0) @db.UnsignedTinyInt
+  selects         Int    @default(0) @db.UnsignedTinyInt
+  contact         Int    @default(0) @db.UnsignedTinyInt
+  signdate        Int    @default(0) @db.UnsignedInt
+
+  @@map("mallRN_cart")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Coupon {
+  uid      Int       @id @default(autoincrement()) @db.UnsignedInt
+  c_uid    Int       @default(0) @db.UnsignedInt
+  g_uid    Int       @default(0) @db.UnsignedInt
+  id       String    @default("") @db.VarChar(50)
+  status   Int       @default(0) @db.UnsignedTinyInt
+  e_date   DateTime? @default(dbgenerated("'1000-01-01 00:00:00'")) @db.DateTime(0)
+  usedate  Int       @default(0) @db.UnsignedInt
+  signdate Int       @default(0) @db.UnsignedInt
+
+  @@map("mallRN_coupon")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model CouponManager {
+  uid            Int                                 @id @default(autoincrement()) @db.UnsignedInt
+  name           String                              @default("") @db.VarChar(100)
+  type           Int                                 @default(0) @db.UnsignedInt
+  discount       Int                                 @default(0) @db.UnsignedInt
+  discount_type  mallRN_coupon_manager_discount_type @default(P)
+  discount_limit Int                                 @default(0) @db.UnsignedInt
+  use_type       Int                                 @default(0) @db.UnsignedInt
+  use_s_date     DateTime?                           @default(dbgenerated("'1000-01-01 00:00:00'")) @db.DateTime(0)
+  use_e_date     DateTime?                           @default(dbgenerated("'1000-01-01 00:00:00'")) @db.DateTime(0)
+  use_day        Int                                 @default(0) @db.UnsignedInt
+  use_limit      Int                                 @default(0) @db.UnsignedInt
+  use_limit2     Int                                 @default(0) @db.UnsignedInt
+  goods_order    String                              @default("") @db.Text
+  signdate       Int                                 @default(0) @db.UnsignedInt
+
+  @@map("mallRN_coupon_manager")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Mileage {
+  uid          Int      @id @default(autoincrement()) @db.UnsignedInt
+  id           String   @default("") @db.VarChar(50)
+  content      String   @default("") @db.VarChar(100)
+  mileage      Int      @default(0) @db.UnsignedInt
+  use_mileage  Int      @default(0) @db.UnsignedInt
+  proc_mileage Int      @default(0) @db.UnsignedInt
+  expired_use  Int      @default(0) @db.TinyInt
+  expired      Int      @default(0) @db.TinyInt
+  expired_date DateTime @default(dbgenerated("'1000-01-01'")) @db.Date
+  order_num    String   @default("") @db.VarChar(50)
+  goods_uid    String   @default("") @db.VarChar(50)
+  proc_id      String   @default("") @db.VarChar(50)
+  proc_acc_ip  String   @default("") @db.VarChar(50)
+  signdate     Int      @default(0) @db.UnsignedInt
+
+  @@map("mallRN_mileage")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model OrderDelivery {
+  uid       Int    @id @default(autoincrement()) @db.UnsignedInt
+  order_num String @default("") @db.VarChar(32)
+  vendor    String @default("") @db.VarChar(50)
+  price     Int    @default(0) @db.UnsignedInt
+  adds      Int    @default(0) @db.UnsignedInt
+  info      String @default("") @db.VarChar(100)
+  signdate  Int    @default(0) @db.UnsignedInt
+
+  @@map("mallRN_order_delivery")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model OrderGoods {
+  uid             Int    @id @default(autoincrement()) @db.UnsignedInt
+  vendor          String @default("") @db.VarChar(50)
+  vendor_delivery String @default("") @db.VarChar(50)
+  commission      Float  @default(0.00) @db.Float
+  order_num       String @default("") @db.VarChar(32)
+  g_uid           Int    @default(0) @db.UnsignedInt
+  g_cate          BigInt @default(0) @db.UnsignedBigInt
+  g_name          String @default("") @db.VarChar(100)
+  g_code          String @default("") @db.VarChar(50)
+  price           Int    @default(0) @db.UnsignedInt
+  orig_price      Int    @default(0) @db.UnsignedInt
+  qty             Int    @default(0) @db.UnsignedInt
+  mileage         Int    @default(0) @db.UnsignedInt
+  option          Int    @default(0) @db.UnsignedInt
+  option_name     String @default("") @db.VarChar(100)
+  delivery_type   Int    @default(0) @db.UnsignedInt
+  delivery_price  Int    @default(0) @db.UnsignedInt
+  delivery_info   String @default("") @db.VarChar(100)
+  use_coupon      Int    @default(0) @db.UnsignedInt
+  coupon_uid      Int    @default(0) @db.UnsignedInt
+  discount        Int    @default(0) @db.UnsignedInt
+  discount_info   String @default("") @db.VarChar(50)
+  status          Int    @default(0) @db.UnsignedTinyInt
+  status2         Int    @default(0) @db.UnsignedTinyInt
+  status_date     Int    @default(0) @db.UnsignedInt
+  reals           Int    @default(0) @db.UnsignedTinyInt
+  signdate        Int    @default(0) @db.UnsignedInt
+
+  @@map("mallRN_order_goods")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model OrderInfo {
+  uid            Int                          @id @default(autoincrement()) @db.UnsignedInt
+  id             String                       @default("") @db.VarChar(50)
+  order_num      String                       @unique(map: "order_num") @default("") @db.VarChar(32)
+  name           String                       @default("") @db.VarChar(50)
+  cell           String                       @default("") @db.VarChar(30)
+  email          String                       @default("") @db.VarChar(80)
+  name2          String                       @default("") @db.VarChar(50)
+  cell2          String                       @default("") @db.VarChar(30)
+  postcode       String                       @default("") @db.VarChar(10)
+  address1       String                       @default("") @db.VarChar(100)
+  address2       String                       @default("") @db.VarChar(100)
+  message        String?                      @db.Text
+  memo           String                       @default("") @db.Text
+  passwd         String                       @default("") @db.VarChar(100)
+  pay_total      Int                          @default(0) @db.UnsignedInt
+  cancel_total   Int                          @default(0) @db.UnsignedInt
+  refund_total   Int                          @default(0) @db.UnsignedInt
+  delivery_total Int                          @default(0) @db.UnsignedInt
+  pay_type       mallRN_order_info_pay_type   @default(B)
+  pay_status     mallRN_order_info_pay_status @default(A)
+  pay_info       String                       @default("") @db.VarChar(255)
+  pay_number     String                       @default("") @db.VarChar(100)
+  escrow         Int                          @default(0) @db.UnsignedTinyInt
+  bank_info      String                       @default("") @db.VarChar(250)
+  use_mileage    Int                          @default(0) @db.UnsignedInt
+  use_coupon     Int                          @default(0) @db.UnsignedInt
+  coupon_uid     Int                          @default(0) @db.UnsignedInt
+  cash_receipts  String                       @default("") @db.VarChar(250)
+  mail_send      Int                          @default(0) @db.UnsignedTinyInt
+  cash_issued    Int                          @default(0) @db.UnsignedTinyInt
+  tax_issued     Int                          @default(0) @db.UnsignedTinyInt
+  mobile         mallRN_order_info_mobile     @default(N)
+  direct         Int                          @default(0) @db.UnsignedTinyInt
+  new            Int                          @default(0) @db.UnsignedTinyInt
+  sales_issued   Int                          @default(0) @db.UnsignedTinyInt
+  mail_ok        Int                          @default(0) @db.UnsignedTinyInt
+  reals          Int                          @default(0) @db.UnsignedTinyInt
+  status_date    Int                          @default(0) @db.UnsignedInt
+  signdate       Int                          @default(0) @db.UnsignedInt
+
+  @@map("mallRN_order_info")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model OrderLog {
+  uid          Int    @id @default(autoincrement()) @db.UnsignedInt
+  order_num    String @default("") @db.VarChar(32)
+  og_uid       Int    @default(0) @db.UnsignedInt
+  id           String @default("") @db.VarChar(50)
+  prev_status  Int    @default(0) @db.UnsignedTinyInt
+  prev_status2 Int    @default(0) @db.UnsignedTinyInt
+  status       Int    @default(0) @db.UnsignedTinyInt
+  status2      Int    @default(0) @db.UnsignedTinyInt
+  signdate     Int    @default(0) @db.UnsignedInt
+
+  @@map("mallRN_order_log")
 }
 
 enum mallRN_exhibition_discount_yn {
@@ -757,6 +935,32 @@ enum mallRN_favorite_store_mobile {
 }
 
 enum mallRN_favorite_goods_mobile {
+  Y
+  N
+}
+
+enum mallRN_coupon_manager_discount_type {
+  P
+  W
+}
+
+enum mallRN_order_info_pay_type {
+  B
+  C
+  R
+  V
+  H
+  M
+}
+
+enum mallRN_order_info_pay_status {
+  A
+  B
+  C
+  D
+}
+
+enum mallRN_order_info_mobile {
   Y
   N
 }

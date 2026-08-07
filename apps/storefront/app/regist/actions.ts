@@ -1,8 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { registerMember } from "@shoppingmall/core";
+import { mergeGuestCartOnLogin, registerMember } from "@shoppingmall/core";
 import { createSession } from "@/lib/auth";
+import { peekGuestCartId } from "@/lib/cart-id";
 
 // Port of php/regist_post.php's mode=new. Welcome mileage/coupon/notification
 // side effects are skipped — see registerMember's comment.
@@ -37,6 +38,8 @@ export async function registerAction(_prevState: { error?: string }, formData: F
 
   if (!result.ok) return { error: result.error };
 
+  const guestCartId = await peekGuestCartId();
   await createSession({ userId: result.profile.id, role: "member", level: result.profile.level });
+  if (guestCartId) await mergeGuestCartOnLogin(guestCartId, result.profile.id);
   redirect("/");
 }

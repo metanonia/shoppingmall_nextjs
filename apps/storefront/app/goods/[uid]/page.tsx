@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import {
+  getDownloadableCoupons,
   getFavoriteGoodsCount,
   getFavoriteStoreCount,
   getGoodsDetail,
@@ -35,6 +36,15 @@ export default async function GoodsDetailPage({ params }: { params: Promise<{ ui
     favoritedStore: member && detail.vendor ? await isFavoriteStore(member.id, detail.vendor) : false,
     favoriteStoreCount: detail.vendor ? await getFavoriteStoreCount(detail.vendor) : 0,
   };
+  const downloadableCoupons = await getDownloadableCoupons(uidNum);
 
-  return <ProductDetail detail={detail} device={device} favorite={favorite} inquiries={inquiries} />;
+  return (
+    <ProductDetail
+      detail={detail}
+      device={device}
+      favorite={favorite}
+      inquiries={inquiries}
+      downloadableCoupons={downloadableCoupons}
+    />
+  );
 }

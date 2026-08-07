@@ -1,12 +1,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { authenticateMember } from "@shoppingmall/core";
+import { authenticateMember, mergeGuestCartOnLogin } from "@shoppingmall/core";
 import { createSession } from "@/lib/auth";
+import { peekGuestCartId } from "@/lib/cart-id";
 
-// Port of php/login_post.php's core flow (cart_id merge / recent-view
-// migration on login are skipped — no cart_id cookie infra yet, see
-// MIGRATION.md).
+// Port of php/login_post.php's core flow. cart_id merge is wired up (Phase
+// 4); recent-view migration is still skipped — that needs the same cart_id
+// cookie infra but for a feature not yet built, see MIGRATION.md.
 //
 // (prevState, formData) signature — see registerAction's comment on why
 // this can't be wrapped in a client-side arrow function.
@@ -20,6 +21,8 @@ export async function loginAction(_prevState: { error?: string }, formData: Form
   const result = await authenticateMember(id, password);
   if (!result.ok) return { error: result.error };
 
+  const guestCartId = await peekGuestCartId();
   await createSession({ userId: result.profile.id, role: "member", level: result.profile.level });
+  if (guestCartId) await mergeGuestCartOnLogin(guestCartId, result.profile.id);
   redirect(redirectTo);
 }

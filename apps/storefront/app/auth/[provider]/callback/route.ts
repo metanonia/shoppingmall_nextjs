@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { exchangeCodeForToken, fetchSocialProfile, SOCIAL_PROVIDERS, type SocialProvider } from "@shoppingmall/auth";
-import { findOrCreateSocialMember, getSocialAppConfig } from "@shoppingmall/core";
+import { findOrCreateSocialMember, getSocialAppConfig, mergeGuestCartOnLogin } from "@shoppingmall/core";
 import { createSession } from "@/lib/auth";
+import { peekGuestCartId } from "@/lib/cart-id";
 
 const STATE_COOKIE = "oauth_state";
 
@@ -37,7 +38,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ prov
   const profile = await fetchSocialProfile(provider as SocialProvider, accessToken);
   const member = await findOrCreateSocialMember(provider, profile.id, { name: profile.name, email: profile.email });
 
+  const guestCartId = await peekGuestCartId();
   await createSession({ userId: member.id, role: "member", level: member.level });
+  if (guestCartId) await mergeGuestCartOnLogin(guestCartId, member.id);
 
   return NextResponse.redirect(new URL("/", request.url));
 }

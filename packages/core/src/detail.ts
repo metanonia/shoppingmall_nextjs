@@ -8,7 +8,7 @@ function formatWon(n: number): string {
   return Math.round(n).toLocaleString("en-US");
 }
 
-export type OptionValue = { value: string; priceLabel: string | null };
+export type OptionValue = { uid: number; value: string; priceLabel: string | null };
 export type OptionGroup = { name: string; values: OptionValue[] };
 
 export type GoodsDetailViewModel = {
@@ -145,6 +145,7 @@ export async function getGoodsDetail(
         if (seen.has(v.value)) continue;
         seen.add(v.value);
         values.push({
+          uid: v.uid,
           value: v.value,
           priceLabel: v.price > 0 ? `(+${formatWon(v.price)}원)` : v.price < 0 ? `(${formatWon(v.price)}원)` : null,
         });

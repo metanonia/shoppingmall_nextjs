@@ -63,6 +63,7 @@ async function main() {
       mobile_yn: "Y",
       goods_price_limit1: 0,
       goods_price_limit2: 1,
+      payment_type_b: 1, // bank transfer — the only payment method Phase 4 wires up (card/etc. wait for Phase 5)
       signdate: now,
     },
   });
