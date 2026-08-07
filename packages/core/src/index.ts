@@ -8,5 +8,7 @@ export * from "./footer";
 export * from "./goods";
 export * from "./home";
 export * from "./listing";
+export * from "./member";
+export * from "./social";
 export * from "./pricing";
 export * from "./store";

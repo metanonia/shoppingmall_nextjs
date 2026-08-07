@@ -3,11 +3,13 @@ import { headers } from "next/headers";
 import {
   type Device,
   getBankAccounts,
+  getMemberProfile,
   getShopConfig,
   getTopBanners,
   getTopLevelCategories,
   getTopMenu,
 } from "@shoppingmall/core";
+import { getSession } from "./auth";
 
 // React.cache memoizes these per request so layout.tsx and page.tsx (both of
 // which need the device + shop config) don't each issue their own query.
@@ -28,9 +30,13 @@ export const getDevice = cache(async (): Promise<Device> => {
 // (bank accounts) data. Cached per request so navigating between pages only
 // re-fetches what each page actually adds (goods lists, product detail, ...).
 export const getSiteChrome = cache(async () => {
-  const [device, config] = await Promise.all([getDevice(), getCachedShopConfig()]);
-  const [topBanners, categories] = await Promise.all([getTopBanners(device), getTopLevelCategories()]);
+  const [device, config, session] = await Promise.all([getDevice(), getCachedShopConfig(), getSession()]);
+  const [topBanners, categories, member] = await Promise.all([
+    getTopBanners(device),
+    getTopLevelCategories(),
+    session ? getMemberProfile(session.userId) : Promise.resolve(null),
+  ]);
   const topMenu = getTopMenu(device === "mobile" ? config.mobileTopMenu : config.designTopMenu);
   const bankAccounts = getBankAccounts(config);
-  return { device, config, topBanners, categories, topMenu, bankAccounts };
+  return { device, config, topBanners, categories, topMenu, bankAccounts, member };
 });

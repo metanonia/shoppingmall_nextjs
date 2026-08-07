@@ -470,6 +470,91 @@ model Vendor {
   @@map("mallRN_vendor")
 }
 
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model ConfigurationSocial {
+  uid     Int    @id @default(autoincrement()) @db.UnsignedInt
+  site    String @default("") @db.VarChar(50)
+  used    Int    @default(0) @db.UnsignedTinyInt
+  api_id  String @default("") @db.VarChar(100)
+  api_key String @default("") @db.VarChar(100)
+
+  @@map("mallRN_configuration_social")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Member {
+  uid            Int                    @id @default(autoincrement()) @db.UnsignedInt
+  id             String                 @unique(map: "id") @default("") @db.VarChar(50)
+  name           String                 @default("") @db.VarChar(50)
+  passwd         String                 @default("") @db.VarChar(100)
+  tel            String                 @default("") @db.VarChar(30)
+  cell           String                 @default("") @db.VarChar(30)
+  postcode       String                 @default("") @db.VarChar(10)
+  address1       String                 @default("") @db.VarChar(100)
+  address2       String                 @default("") @db.VarChar(100)
+  email          String                 @default("") @db.VarChar(80)
+  birth          String                 @default("") @db.VarChar(30)
+  birth_sl       mallRN_member_birth_sl @default(N)
+  gender         mallRN_member_gender   @default(N)
+  marry          mallRN_member_marry    @default(N)
+  hobby          String                 @default("") @db.VarChar(50)
+  job            String                 @default("") @db.VarChar(250)
+  level          Int                    @default(1) @db.UnsignedTinyInt
+  mileage        Int                    @default(0)
+  mailling       mallRN_member_mailling @default(N)
+  mailling_date  Int                    @default(0) @db.UnsignedInt
+  sms            mallRN_member_sms      @default(N)
+  sms_date       Int                    @default(0) @db.UnsignedInt
+  comp           String                 @default("") @db.VarChar(50)
+  comp_owner     String                 @default("") @db.VarChar(50)
+  comp_num       String                 @default("") @db.VarChar(50)
+  comp_postcode  String                 @default("") @db.VarChar(10)
+  comp_address1  String                 @default("") @db.VarChar(100)
+  comp_address2  String                 @default("") @db.VarChar(100)
+  comp_type      String                 @default("") @db.VarChar(100)
+  comp_item      String                 @default("") @db.VarChar(100)
+  add1           String                 @default("") @db.Text
+  add2           String                 @default("") @db.Text
+  add3           String                 @default("") @db.Text
+  add4           String                 @default("") @db.Text
+  add5           String                 @default("") @db.Text
+  memo           String                 @default("") @db.Text
+  sns_type       String                 @default("") @db.VarChar(50)
+  sns_id         String                 @default("") @db.VarChar(50)
+  sns_name       String                 @default("") @db.VarChar(50)
+  dup_info       String                 @default("") @db.VarChar(100)
+  cnts           Int                    @default(0) @db.UnsignedInt
+  fail_cnts      Int                    @default(0) @db.UnsignedInt
+  fail_time      Int                    @default(0) @db.UnsignedInt
+  mobile         mallRN_member_mobile   @default(N)
+  auth           mallRN_member_auth     @default(Y)
+  reference      String                 @default("") @db.VarChar(50)
+  auth_code      String                 @default("") @db.VarChar(10)
+  auth_code_time Int                    @default(0) @db.UnsignedInt
+  login_time     Int                    @default(0) @db.UnsignedInt
+  order_time     Int                    @default(0) @db.UnsignedInt
+  sleep_time     Int                    @default(0) @db.UnsignedInt
+  signdate       Int                    @default(0) @db.UnsignedInt
+
+  @@index([name], map: "name")
+  @@map("mallRN_member")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model MemberLevel {
+  uid           Int    @id @default(autoincrement()) @db.UnsignedInt
+  level         Int    @default(0) @db.UnsignedInt
+  name          String @default("") @db.VarChar(250)
+  discount      Int    @default(0) @db.UnsignedInt
+  mileage       Int    @default(0) @db.UnsignedInt
+  delivery_free Int    @default(0) @db.UnsignedTinyInt
+  price         Int    @default(0) @db.UnsignedInt
+  coupon_uid    Int    @default(0) @db.UnsignedInt
+  signdate      Int    @default(0) @db.UnsignedInt
+
+  @@map("mallRN_member_level")
+}
+
 enum mallRN_exhibition_discount_yn {
   N
   Y
@@ -543,4 +628,42 @@ enum mallRN_vendor_sell {
 enum mallRN_vendor_goods_auth {
   A
   P
+}
+
+enum mallRN_member_birth_sl {
+  S
+  L
+  N
+}
+
+enum mallRN_member_gender {
+  M
+  F
+  N
+}
+
+enum mallRN_member_marry {
+  M
+  S
+  N
+}
+
+enum mallRN_member_mailling {
+  Y
+  N
+}
+
+enum mallRN_member_sms {
+  Y
+  N
+}
+
+enum mallRN_member_mobile {
+  Y
+  N
+}
+
+enum mallRN_member_auth {
+  Y
+  N
 }

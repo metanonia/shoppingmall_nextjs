@@ -9,6 +9,7 @@
     "./device": "./src/device.ts"
   },
   "dependencies": {
+    "@shoppingmall/auth": "workspace:*",
     "@shoppingmall/db": "workspace:*"
   },
   "devDependencies": {

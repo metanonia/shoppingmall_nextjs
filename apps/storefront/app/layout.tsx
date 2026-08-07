@@ -10,7 +10,7 @@ import { Footer } from "@/components/Footer";
 // page (home, list, goods detail, ...) only needs to render its own
 // `<div id="contents">` content.
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const { device, config, topBanners, categories, topMenu, bankAccounts } = await getSiteChrome();
+  const { device, config, topBanners, categories, topMenu, bankAccounts, member } = await getSiteChrome();
   const styleHref = device === "mobile" ? "/skin/css/mobile_style.css" : "/skin/css/style.css";
 
   return (
@@ -54,9 +54,21 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body>
         {device === "mobile" ? (
-          <TopNavMobile logo={topBanners.LOGO ?? []} topMenu={topMenu} categories={categories} compTel={config.compTel} />
+          <TopNavMobile
+            logo={topBanners.LOGO ?? []}
+            topMenu={topMenu}
+            categories={categories}
+            compTel={config.compTel}
+            member={member}
+          />
         ) : (
-          <TopNavPC logo={topBanners.LOGO ?? []} topBanner={topBanners.TOPL ?? []} topMenu={topMenu} categories={categories} />
+          <TopNavPC
+            logo={topBanners.LOGO ?? []}
+            topBanner={topBanners.TOPL ?? []}
+            topMenu={topMenu}
+            categories={categories}
+            member={member}
+          />
         )}
 
         {children}

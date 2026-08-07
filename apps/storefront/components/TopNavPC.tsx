@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { BannerItem, CategoryNavItem, TopMenuItem } from "@shoppingmall/core";
+import type { BannerItem, CategoryNavItem, MemberProfile, TopMenuItem } from "@shoppingmall/core";
 
 // Port of skin/seriesWhite/top.html. Hover-driven dropdowns (topNaviSub,
 // mypageBox, cateAll) are reimplemented as React state instead of the
@@ -14,11 +14,13 @@ export function TopNavPC({
   topBanner,
   topMenu,
   categories,
+  member,
 }: {
   logo: BannerItem[];
   topBanner: BannerItem[];
   topMenu: TopMenuItem[];
   categories: CategoryNavItem[];
+  member: MemberProfile | null;
 }) {
   const [cateAllOpen, setCateAllOpen] = useState(false);
   const [hoverSub, setHoverSub] = useState<number | null>(null);
@@ -37,12 +39,23 @@ export function TopNavPC({
         </div>
         <div id="homeMenu">
           <ul>
-            <li className="first line">
-              <a href="/login">LOGIN</a>
-            </li>
-            <li>
-              <a href="/regist">JOIN</a>
-            </li>
+            {member ? (
+              <>
+                <li className="first line">{member.name}님</li>
+                <li>
+                  <a href="/logout">LOGOUT</a>
+                </li>
+              </>
+            ) : (
+              <>
+                <li className="first line">
+                  <a href="/login">LOGIN</a>
+                </li>
+                <li>
+                  <a href="/regist">JOIN</a>
+                </li>
+              </>
+            )}
             <li className="line">
               <a href="/order_list">ORDER LIST</a>
             </li>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { FreeMode } from "swiper/modules";
-import type { BannerItem, CategoryNavItem, TopMenuItem } from "@shoppingmall/core";
+import type { BannerItem, CategoryNavItem, MemberProfile, TopMenuItem } from "@shoppingmall/core";
 import "swiper/css";
 
 // Port of skin/seriesWhite/mobile_top.html. Legacy drives the #topMenu /
@@ -16,11 +16,13 @@ export function TopNavMobile({
   topMenu,
   categories,
   compTel,
+  member,
 }: {
   logo: BannerItem[];
   topMenu: TopMenuItem[];
   categories: CategoryNavItem[];
   compTel: string;
+  member: MemberProfile | null;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -97,9 +99,13 @@ export function TopNavMobile({
         <div id="topMenu" style={{ display: "block" }}>
           <div className="header">
             <div className="title">
-              <a href="/login">
-                <b className="underLineThinSelectedW">로그인</b>을 해 주세요.
-              </a>
+              {member ? (
+                <span>{member.name}님, 안녕하세요!</span>
+              ) : (
+                <a href="/login">
+                  <b className="underLineThinSelectedW">로그인</b>을 해 주세요.
+                </a>
+              )}
               <span className="topMenuClose" onClick={() => setMenuOpen(false)}>
                 <i className="xi-close-thin xi-x" />
               </span>
@@ -179,11 +185,19 @@ export function TopNavMobile({
                     <i className="xi-border-color xi-x" /> 1:1 문의
                   </a>
                 </li>
-                <li>
-                  <a href="/regist">
-                    <i className="xi-user-plus-o xi-x" /> 회원가입
-                  </a>
-                </li>
+                {member ? (
+                  <li>
+                    <a href="/logout">
+                      <i className="xi-log-out xi-x" /> 로그아웃
+                    </a>
+                  </li>
+                ) : (
+                  <li>
+                    <a href="/regist">
+                      <i className="xi-user-plus-o xi-x" /> 회원가입
+                    </a>
+                  </li>
+                )}
               </ul>
             </div>
           </div>

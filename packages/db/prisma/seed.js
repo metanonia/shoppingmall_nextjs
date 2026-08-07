@@ -24,6 +24,8 @@ async function main() {
     prisma.exhibition.deleteMany(),
     prisma.configuration.deleteMany(),
     prisma.vendor.deleteMany(),
+    prisma.memberLevel.deleteMany(),
+    prisma.member.deleteMany(),
   ]);
 
   await prisma.configuration.create({
@@ -62,6 +64,28 @@ async function main() {
       goods_price_limit2: 1,
       signdate: now,
     },
+  });
+
+  // uid=2: member/agreement settings — legacy reuses the same wide
+  // mallRN_configuration table for this, not a separate table (php/init.php:90).
+  await prisma.configuration.create({
+    data: {
+      uid: 2,
+      member_auth: "A", // A = 가입시 자동승인
+      member_mileage_yn: "N",
+      member_limit_count: 5,
+      member_limit_minute: 10,
+      agreement_info1: "<p>이용약관 내용 (샘플)</p>",
+      agreement_info3: "<p>개인정보 수집 및 이용에 동의합니다. 수집 항목: {JOINFORM}</p>",
+      signdate: now,
+    },
+  });
+
+  await prisma.memberLevel.createMany({
+    data: [
+      { uid: 1, level: 100, name: "관리자", signdate: now },
+      { uid: 2, level: 1, name: "일반회원", signdate: now },
+    ],
   });
 
   await prisma.cate.createMany({

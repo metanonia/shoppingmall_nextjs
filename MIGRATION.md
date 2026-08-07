@@ -34,7 +34,7 @@ packages/
 |---|---|---|
 | 1 | 기반 구축 + 홈 화면 | ✅ 완료 |
 | 2 | 상품 탐색 (목록/검색/베스트/신상/상세/입점사스토어/모음전) | ✅ 완료 |
-| 3 | 회원/인증/소셜로그인 | 🚧 진행 중 |
+| 3 | 회원/인증/소셜로그인 | ✅ 완료 (소셜로그인은 구조만, 아래 참고) |
 | 4 | 카트/주문 엔진 | ⬜ 미착수 |
 | 5 | 결제/알림 | ⬜ 미착수 |
 | 6 | 게시판/CMS | ⬜ 미착수 |
@@ -59,13 +59,28 @@ packages/
 - **카테고리 계층**: 레거시의 자릿수 슬라이싱(`SUBSTRING(cate,1,i)`) 대신
   `cate_parent` 체인을 직접 타는 방식으로 재구현 (더 견고함, 영구 개선사항이며 나중에
   되돌릴 필요 없음).
+- **비밀번호 해시**: `@node-rs/argon2` (argon2id). 로그인 실패 잠금(`fail_cnts`/
+  `fail_time`)은 `Configuration.member_limit_count/minute`를 그대로 읽어 레거시와
+  동일한 정책 적용.
+- **React 19 서버 액션 패턴**: `useActionState(action, initialState)`에 서버 액션을
+  래핑 없이 직접 넘겨야 함. 클라이언트 쪽 래퍼 화살표 함수로 감싸면 `redirect()`의
+  `NEXT_REDIRECT` 시그널이 서버 액션 RPC 경계를 못 넘어서 리다이렉트가 조용히 무시됨
+  (세션 쿠키는 정상 설정되지만 브라우저가 이동하지 않는 형태로 나타남). 이 저장소의
+  모든 폼 액션은 `(prevState, formData) => result` 시그니처로 통일하고 항상
+  직접 전달한다.
 
 ## 미뤄둔 것 (버그 아님 — 아래는 의도적 스코프 컷)
 
 ### 소셜로그인 (naver/kakao/google/payco)
-아직 실제 OAuth 앱 키가 없음. 사용자 결정: 키 없이도 리다이렉트/콜백 라우트 구조는
-먼저 만들어둠. `mallRN_configuration_social.used=1` + 실키가 설정되기 전까지는 로그인
-버튼 자체가 안 보임(레거시와 동일한 동작).
+**구조는 완성, 실제 키는 없음.** `packages/auth/src/social.ts`에 4개 프로바이더의
+OAuth2 authorization-code flow(인증 URL 생성/토큰 교환/프로필 조회, 프로바이더별 응답
+정규화)가 구현되어 있고, `apps/storefront/app/auth/[provider]/route.ts`(리다이렉트) +
+`app/auth/[provider]/callback/route.ts`(콜백, 회원 조회/생성 + 세션 발급)가 연결되어
+있음. `mallRN_configuration_social.used=1` + client_id/secret이 실제로 설정되기 전까지는
+해당 프로바이더가 404("설정되지 않았습니다")를 반환하고 로그인 버튼 자체가 안 보임
+(레거시와 동일한 게이팅 동작, `getSocialAppConfig()`/`getEnabledSocialProviders()`로
+확인). 나중에 실제 앱 키가 생기면 `ConfigurationSocial` 테이블에 값만 채우면 바로
+동작함 — 코드 변경 불필요.
 
 ### KCP 결제
 컴파일 바이너리+SOAP라 Node로 직접 포팅 불가. `PaymentGateway` 인터페이스 뒤에 스텁만
