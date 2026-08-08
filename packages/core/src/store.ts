@@ -1,5 +1,5 @@
 import { prisma } from "@shoppingmall/db";
-import { getDescendantCateIds, keywordWhere, runGoodsQuery, VISIBLE_GOODS_WHERE, type GoodsListResult, type SortOption } from "./listing";
+import { getDescendantCateIds, getGoodsSoldoutMode, goodsWhereForSoldout, keywordWhere, runGoodsQuery, VISIBLE_GOODS_WHERE, type GoodsListResult, type SortOption } from "./listing";
 import type { EventDiscountMap, PriceLimitConfig } from "./pricing";
 import { getFavoriteStoreCount } from "./favorite";
 import { displayType, type GoodsSection } from "./home";
@@ -27,14 +27,12 @@ export type StoreInfo = {
 // Port of php/store.php. CS hours use this vendor's mallRN_vendor_configuration
 // row (Phase 8's /vendor/store settings screen) when they've set one up;
 // falls back to shop-wide-looking defaults otherwise, same as legacy does for
-// a vendor who never configured their own settings. Review stars are still
-// hardcoded to zero: mallRN_review needs an order to point at (see
-// detail.ts) — favorite-store count is now real (mallRN_favorite_store,
-// added alongside member auth).
+// a vendor who never configured their own settings.
 export async function getStoreInfo(vendorId: string): Promise<StoreInfo | null> {
-  const [vendor, config] = await Promise.all([
+  const [vendor, config, reviewSummary] = await Promise.all([
     prisma.vendor.findFirst({ where: { id: vendorId, sell: { not: "N" } } }),
     prisma.vendorConfiguration.findFirst({ where: { vendor: vendorId } }),
+    prisma.review.aggregate({ where: { vendor: vendorId }, _count: { _all: true }, _avg: { stars: true } }),
   ]);
   if (!vendor) return null;
 
@@ -53,8 +51,8 @@ export async function getStoreInfo(vendorId: string): Promise<StoreInfo | null> 
     csTime3: config?.basic_cs_time3 || "휴무",
     csTime4: config?.basic_cs_time4 || "12:00 ~ 13:00",
     favoriteCount: await getFavoriteStoreCount(vendorId),
-    reviewCount: 0,
-    starsAvg: "0.0",
+    reviewCount: reviewSummary._count._all,
+    starsAvg: (reviewSummary._avg.stars ?? 0).toFixed(1),
   };
 }
 
@@ -64,11 +62,12 @@ export type StoreCategoryCount = { cate: string; name: string; count: number; ch
 // scoped to this vendor's own products.
 export async function getStoreCategories(vendorId: string): Promise<StoreCategoryCount[]> {
   const topRows = await prisma.cate.findMany({ where: { cate_dep: 1, used: 1 }, orderBy: { sequence: "asc" } });
+  const soldoutMode = await getGoodsSoldoutMode();
 
   async function countFor(cate: bigint): Promise<number> {
     const cateIds = await getDescendantCateIds(cate);
     return prisma.goods.count({
-      where: { ...VISIBLE_GOODS_WHERE, vendor: vendorId, cate: { in: cateIds } },
+      where: goodsWhereForSoldout({ ...VISIBLE_GOODS_WHERE, vendor: vendorId, cate: { in: cateIds } }, soldoutMode),
     });
   }
 

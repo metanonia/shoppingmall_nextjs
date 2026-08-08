@@ -1,7 +1,9 @@
 import { prisma } from "@shoppingmall/db";
 import { hashPassword, verifyPassword } from "@shoppingmall/auth";
+import { sendPushNotification } from "./push";
 
-export type BoardId = "notice" | "faq" | "counsel" | "gallery";
+export type BoardId = "notice" | "faq" | "counsel" | "gallery" | "vnotice" | "vcounsel";
+export type CustomerBoardId = Exclude<BoardId, "vnotice" | "vcounsel">;
 
 export type BoardConfigEntry = {
   name: string;
@@ -20,10 +22,9 @@ export type BoardConfigEntry = {
 };
 
 // Port of board/board.php's per-board access config (mallRN_board_manager),
-// hardcoded since there's no admin UI to manage it yet — same principle as
-// popup.ts / mailer.ts's hardcoded templates. Only the 4 customer-facing
-// boards that don't need a vendor login are in scope (vnotice/vcounsel need
-// Phase 8's vendor session).
+// hardcoded since there's no admin UI to manage it yet. Customer routes
+// explicitly accept only CustomerBoardId; vnotice/vcounsel are exposed only
+// through the role-protected admin/vendor backoffice routes.
 export const BOARD_CONFIG: Record<BoardId, BoardConfigEntry> = {
   notice: {
     name: "공지사항",
@@ -65,10 +66,34 @@ export const BOARD_CONFIG: Record<BoardId, BoardConfigEntry> = {
     hasFiles: true,
     hasContact: false,
   },
+  vnotice: {
+    name: "판매사 공지사항",
+    writable: false,
+    secretType: "none",
+    categories: null,
+    comments: false,
+    commentAuthor: null,
+    hasFiles: false,
+    hasContact: false,
+  },
+  vcounsel: {
+    name: "판매사 1:1문의",
+    writable: true,
+    secretType: "always",
+    categories: null,
+    comments: true,
+    commentAuthor: "admin",
+    hasFiles: false,
+    hasContact: false,
+  },
 };
 
 export function isBoardId(value: string): value is BoardId {
   return value in BOARD_CONFIG;
+}
+
+export function isCustomerBoardId(value: string): value is CustomerBoardId {
+  return isBoardId(value) && value !== "vnotice" && value !== "vcounsel";
 }
 
 // Extracted so vitest can exercise the secretType decision without a DB.
@@ -138,21 +163,27 @@ export async function createPost(
       signdate: now(),
     },
   });
+  if ((boardId === "counsel" || boardId === "vcounsel") && !opts.actingAsAdmin) {
+    await sendPushNotification(boardId === "vcounsel" ? "신규 판매사 1:1문의 알림!" : "신규 1:1문의 알림!", `${name}님의 문의가 접수되었습니다.`).catch(() => {});
+  }
   return { ok: true, uid: post.uid };
 }
 
-export type UpdatePostInput = { subject: string; content: string; category?: number; notice?: boolean };
+export type UpdatePostInput = { subject: string; content: string; category?: number; contact?: string; secret?: boolean; notice?: boolean };
 export type UpdatePostResult = { ok: true } | { ok: false; error: string };
 
-// Admin-only edit/delete (Phase 7) — customer-side edit/delete stays
-// scoped out per Phase 6's decision (inquiry.ts has the same restriction).
-// No `writable` gate here: the admin backend edits notice/faq (customer
-// writable=false) same as it creates them.
 export async function updatePost(uid: number, input: UpdatePostInput): Promise<UpdatePostResult> {
   if (!input.subject.trim() || !input.content.trim()) return { ok: false, error: "제목과 내용을 입력해 주세요." };
   const updated = await prisma.boardPost.updateMany({
     where: { uid },
-    data: { subject: input.subject, content: input.content, category: input.category ?? 0, notice: input.notice ? 1 : 0 },
+    data: {
+      subject: input.subject,
+      content: input.content,
+      category: input.category ?? 0,
+      ...(input.contact !== undefined ? { contact: input.contact } : {}),
+      ...(input.secret !== undefined ? { secret: input.secret ? 1 : 0 } : {}),
+      notice: input.notice ? 1 : 0,
+    },
   });
   if (updated.count === 0) return { ok: false, error: "존재하지 않는 게시물입니다." };
   return { ok: true };
@@ -160,6 +191,48 @@ export async function updatePost(uid: number, input: UpdatePostInput): Promise<U
 
 export async function deletePost(uid: number): Promise<void> {
   await prisma.$transaction([prisma.boardComment.deleteMany({ where: { post_uid: uid } }), prisma.boardPost.delete({ where: { uid } })]);
+}
+
+export type PostOwnerAuth = { memberId: string } | { guestPasswordPlain: string };
+
+async function verifyPostOwner(boardId: BoardId, uid: number, auth: PostOwnerAuth) {
+  const post = await prisma.boardPost.findFirst({ where: { uid, board: boardId } });
+  if (!post) return { ok: false as const, error: "존재하지 않는 게시물입니다." };
+  if ("memberId" in auth) {
+    return post.id && post.id === auth.memberId
+      ? { ok: true as const, post }
+      : { ok: false as const, error: "작성자만 처리할 수 있습니다." };
+  }
+  if (post.id || !(await verifyPassword(post.passwd, auth.guestPasswordPlain))) {
+    return { ok: false as const, error: "비밀번호가 일치하지 않습니다." };
+  }
+  return { ok: true as const, post };
+}
+
+// Port of board/board_post.php's customer modify/delete ownership checks.
+export async function updateOwnPost(
+  boardId: BoardId,
+  uid: number,
+  auth: PostOwnerAuth,
+  input: UpdatePostInput,
+): Promise<UpdatePostResult> {
+  const ownership = await verifyPostOwner(boardId, uid, auth);
+  if (!ownership.ok) return ownership;
+  const config = BOARD_CONFIG[boardId];
+  if (!config.writable) return { ok: false, error: "수정할 수 없는 게시판입니다." };
+  if (config.hasContact && !input.contact?.trim()) return { ok: false, error: "연락처를 입력해 주세요." };
+  return updatePost(uid, {
+    ...input,
+    secret: resolveSecretFlag(config.secretType, input.secret),
+  });
+}
+
+export async function deleteOwnPost(boardId: BoardId, uid: number, auth: PostOwnerAuth): Promise<UpdatePostResult> {
+  const ownership = await verifyPostOwner(boardId, uid, auth);
+  if (!ownership.ok) return ownership;
+  if (!BOARD_CONFIG[boardId].writable) return { ok: false, error: "삭제할 수 없는 게시판입니다." };
+  await deletePost(uid);
+  return { ok: true };
 }
 
 // Called after the caller has saved attachment files to disk under the
@@ -200,19 +273,19 @@ function isPostOwner(
   return Boolean(post.id) && post.id === viewerId;
 }
 
-// Port of board/list.php. Search is a single-keyword OR over subject/content
-// (this repo's established simplification vs. legacy's multi-keyword AND
-// narrowing — see listing.ts's keywordWhere).
+// Port of board/list.php's successive result-within-result search: every
+// whitespace-delimited term must occur in either subject or content.
 export async function getPostList(
   boardId: BoardId,
   options: { page?: number; keyword?: string; category?: number; viewerId?: string | null; authorId?: string } = {},
 ): Promise<PostListResult> {
+  const terms = (options.keyword ?? "").trim().split(/\s+/).filter(Boolean);
   const where = {
     board: boardId,
     ...(options.category !== undefined ? { category: options.category } : {}),
     ...(options.authorId ? { id: options.authorId } : {}),
-    ...(options.keyword
-      ? { OR: [{ subject: { contains: options.keyword } }, { content: { contains: options.keyword } }] }
+    ...(terms.length
+      ? { AND: terms.map((term) => ({ OR: [{ subject: { contains: term } }, { content: { contains: term } }] })) }
       : {}),
   };
 
@@ -272,9 +345,12 @@ export type PostDetail = {
 
 export type PostComment = {
   uid: number;
+  authorId: string;
   authorName: string;
   content: string;
   signdate: number;
+  parentUid: number;
+  depth: number;
 };
 
 // Port of board/view.php's secret gate (same shape as inquiry.ts's
@@ -331,7 +407,7 @@ export async function getPostDetail(
 
 export async function getPostComments(postUid: number): Promise<PostComment[]> {
   const rows = await prisma.boardComment.findMany({ where: { post_uid: postUid }, orderBy: { uid: "asc" } });
-  return rows.map((row) => ({ uid: row.uid, authorName: row.name, content: row.content, signdate: row.signdate }));
+  return rows.map((row) => ({ uid: row.uid, authorId: row.id, authorName: row.name, content: row.content, signdate: row.signdate, parentUid: row.parent_uid, depth: row.depth }));
 }
 
 export type CreateCommentResult = { ok: true } | { ok: false; error: string };
@@ -347,7 +423,7 @@ export async function createComment(
   postUid: number,
   author: PostAuthor,
   content: string,
-  opts: { actingAsAdmin?: boolean } = {},
+  opts: { actingAsAdmin?: boolean; parentUid?: number } = {},
 ): Promise<CreateCommentResult> {
   const config = BOARD_CONFIG[boardId];
   if (!config.comments) return { ok: false, error: "댓글을 작성할 수 없는 게시판입니다." };
@@ -362,10 +438,38 @@ export async function createComment(
   const id = "memberId" in author ? author.memberId : "";
   const name = "memberId" in author ? author.memberName : author.guestName;
   const passwd = "memberId" in author ? "" : await hashPassword(author.guestPasswordPlain);
+  const parent = opts.parentUid
+    ? await prisma.boardComment.findFirst({ where: { uid: opts.parentUid, post_uid: postUid }, select: { uid: true, depth: true } })
+    : null;
+  if (opts.parentUid && !parent) return { ok: false, error: "답글을 작성할 댓글이 없습니다." };
 
   await prisma.$transaction([
-    prisma.boardComment.create({ data: { post_uid: postUid, id, name, content, passwd, signdate: now() } }),
+    prisma.boardComment.create({ data: { post_uid: postUid, id, name, content, passwd, parent_uid: parent?.uid ?? 0, depth: Math.min((parent?.depth ?? -1) + 1, 10), signdate: now() } }),
     prisma.boardPost.update({ where: { uid: postUid }, data: { comment_count: { increment: 1 } } }),
+  ]);
+  return { ok: true };
+}
+
+// Port of board/board_post.php's comment_delete ownership and counter update.
+export async function deleteOwnComment(
+  boardId: BoardId,
+  postUid: number,
+  commentUid: number,
+  auth: PostOwnerAuth,
+): Promise<CreateCommentResult> {
+  const [post, comment] = await Promise.all([
+    prisma.boardPost.findFirst({ where: { uid: postUid, board: boardId }, select: { uid: true } }),
+    prisma.boardComment.findFirst({ where: { uid: commentUid, post_uid: postUid } }),
+  ]);
+  if (!post || !comment) return { ok: false, error: "등록된 댓글이 없거나 삭제되었습니다." };
+  if ("memberId" in auth) {
+    if (!comment.id || comment.id !== auth.memberId) return { ok: false, error: "작성자만 삭제할 수 있습니다." };
+  } else if (comment.id || !(await verifyPassword(comment.passwd, auth.guestPasswordPlain))) {
+    return { ok: false, error: "비밀번호가 일치하지 않습니다." };
+  }
+  await prisma.$transaction([
+    prisma.boardComment.delete({ where: { uid: commentUid } }),
+    prisma.boardPost.update({ where: { uid: postUid }, data: { comment_count: { decrement: 1 } } }),
   ]);
   return { ok: true };
 }

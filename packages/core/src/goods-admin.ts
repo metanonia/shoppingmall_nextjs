@@ -39,6 +39,7 @@ export type GoodsFormInput = {
   origin: string;
   brand: string;
   makingInfo: { name: string; value: string }[]; // -> making_info, "|*|"/"|" joined (detail.ts's read format)
+  requireInfo: { name: string; value: string }[];
   qty_type: number;
   qty: number;
   limit_qty: number;
@@ -47,8 +48,9 @@ export type GoodsFormInput = {
   sale_use: boolean;
   order_priority: number;
   icons: string[]; // -> icon, "|"-joined
-  mileage_type: 0 | 4;
+  mileage_type: 1 | 2 | 3 | 4;
   mileage_common: number;
+  mileage_level: string;
   delivery_type: number;
   delivery_price: number;
   delivery_info: string;
@@ -91,6 +93,7 @@ function toGoodsData(input: GoodsFormInput) {
       .filter((m) => m.name)
       .map((m) => `${m.name}|${m.value}`)
       .join("|*|"),
+    require_info: input.requireInfo.filter((item) => item.name).map((item) => `${item.name}|${item.value}`).join("|*|"),
     qty_type: input.qty_type,
     qty: input.qty,
     limit_qty: input.limit_qty,
@@ -101,6 +104,7 @@ function toGoodsData(input: GoodsFormInput) {
     icon: input.icons.filter(Boolean).join("|"),
     mileage_type: input.mileage_type,
     mileage_common: input.mileage_common,
+    mileage_level: input.mileage_level,
     delivery_type: input.delivery_type,
     delivery_price: input.delivery_price,
     delivery_info: sanitizeRichText(input.delivery_info),
@@ -264,6 +268,9 @@ export async function getAdminGoodsDetail(uid: number): Promise<AdminGoodsDetail
           .filter((p) => p[0])
           .map(([name, value]) => ({ name, value: value ?? "" }))
       : [],
+    requireInfo: row.require_info
+      ? row.require_info.split("|*|").map((value) => value.split("|")).filter(([name]) => name).map(([name, value]) => ({ name, value: value ?? "" }))
+      : [],
     qty_type: row.qty_type,
     qty: row.qty,
     limit_qty: row.limit_qty,
@@ -272,8 +279,9 @@ export async function getAdminGoodsDetail(uid: number): Promise<AdminGoodsDetail
     sale_use: row.sale_use === 1,
     order_priority: row.order_priority,
     icons: row.icon.split("|").filter(Boolean),
-    mileage_type: row.mileage_type === 4 ? 4 : 0,
+    mileage_type: ([1, 2, 3, 4].includes(row.mileage_type) ? row.mileage_type : 2) as 1 | 2 | 3 | 4,
     mileage_common: row.mileage_common,
+    mileage_level: row.mileage_level,
     delivery_type: row.delivery_type,
     delivery_price: row.delivery_price,
     delivery_info: row.delivery_info,

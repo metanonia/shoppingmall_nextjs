@@ -1,13 +1,12 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { authenticateMember, mergeGuestCartOnLogin } from "@shoppingmall/core";
+import { authenticateMember, mergeGuestCartOnLogin, mergeGuestRecentViewsOnLogin } from "@shoppingmall/core";
 import { createSession } from "@/lib/auth";
 import { peekGuestCartId } from "@/lib/cart-id";
 
-// Port of php/login_post.php's core flow. cart_id merge is wired up (Phase
-// 4); recent-view migration is still skipped — that needs the same cart_id
-// cookie infra but for a feature not yet built, see MIGRATION.md.
+// Port of php/login_post.php's core flow. Guest cart and recent-view history
+// are both merged into the authenticated member scope.
 //
 // (prevState, formData) signature — see registerAction's comment on why
 // this can't be wrapped in a client-side arrow function.
@@ -23,6 +22,12 @@ export async function loginAction(_prevState: { error?: string }, formData: Form
 
   const guestCartId = await peekGuestCartId();
   await createSession({ userId: result.profile.id, role: "member", level: result.profile.level });
-  if (guestCartId) await mergeGuestCartOnLogin(guestCartId, result.profile.id);
+  if (guestCartId) {
+    await Promise.all([
+      mergeGuestCartOnLogin(guestCartId, result.profile.id),
+      mergeGuestRecentViewsOnLogin(guestCartId, result.profile.id),
+    ]);
+  }
+  if (result.reactivated) redirect("/member_sleep");
   redirect(redirectTo);
 }

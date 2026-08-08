@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getAdminVendorByUid, getVendorSalesCalculateList, getVendorSalesPreview } from "@shoppingmall/core";
 import { ConfirmSettlementForm } from "@/components/SettlementForm";
+import { updateSettlementStatusAction } from "./actions";
 
 function formatWon(n: number): string {
   return Math.round(n).toLocaleString("en-US");
@@ -71,6 +72,7 @@ export default async function VendorSettlementPage({
             <th>정산액</th>
             <th>입금계좌</th>
             <th>확정일</th>
+            <th>세금계산서/정산상태</th>
           </tr>
         </thead>
         <tbody>
@@ -82,6 +84,7 @@ export default async function VendorSettlementPage({
               <td>{formatWon(h.payoutTotal)}원</td>
               <td>{h.bankName} {h.bankNum} ({h.bankOwner})</td>
               <td>{new Date(h.signdate * 1000).toLocaleDateString("ko-KR")}</td>
+              <td><form action={updateSettlementStatusAction}><input type="hidden" name="vendorUid" value={vendor.uid} /><input type="hidden" name="uid" value={h.uid} /><label><input type="checkbox" name="taxBill" defaultChecked={h.taxBill} /> 세금계산서 발행</label><label><input type="checkbox" name="status" defaultChecked={h.status} /> 정산완료</label><button>저장</button></form></td>
             </tr>
           ))}
         </tbody>

@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { href: "/vendor/goods/bulk-edit", label: "상품 일괄수정" },
   { href: "/vendor/goods/import", label: "엑셀 일괄등록" },
   { href: "/vendor/orders", label: "주문관리" },
+  { href: "/vendor/order-changes", label: "교환·반품 접수" },
   { href: "/vendor/settlement", label: "정산" },
   { href: "/vendor/stats/sales", label: "매출통계" },
   { href: "/vendor/stats/sales-detail", label: "매출상세" },
@@ -14,6 +15,11 @@ const NAV_ITEMS = [
   { href: "/vendor/stats/settlement-detail", label: "정산상세" },
   { href: "/vendor/store", label: "스토어설정" },
   { href: "/vendor/profile", label: "업체정보관리" },
+  { href: "/vendor/board/vnotice", label: "본사 공지사항" },
+  { href: "/vendor/board/vcounsel", label: "본사 1:1문의" },
+  { href: "/vendor/inquiries", label: "상품문의" },
+  { href: "/vendor/reviews", label: "구매후기" },
+  { href: "/vendor/push-settings", label: "푸시 알림" },
 ];
 
 export function VendorSidebar({ vendorId }: { vendorId: string }) {

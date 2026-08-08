@@ -3,6 +3,7 @@
 import { useActionState, useMemo, useRef, useState } from "react";
 import { submitOrderAction, type SubmitOrderFormState } from "@/app/order/actions";
 import { PostcodeSearchButton } from "./PostcodeSearchButton";
+import type { BankAccount } from "@shoppingmall/core";
 
 function formatWon(n: number): string {
   return Math.round(n).toLocaleString("en-US");
@@ -29,9 +30,14 @@ export function OrderForm({
   defaultAddress1,
   defaultAddress2,
   bankTransferEnabled,
+  bankAccounts,
   cardEnabled,
   phoneEnabled,
+  realtimeTransferEnabled,
+  virtualAccountEnabled,
   mileageOnlyEnabled,
+  cashReceiptsEnabled,
+  cashReceiptsRequired,
 }: {
   direct: boolean;
   subtotal: number;
@@ -46,9 +52,14 @@ export function OrderForm({
   defaultAddress1: string;
   defaultAddress2: string;
   bankTransferEnabled: boolean;
+  bankAccounts: BankAccount[];
   cardEnabled: boolean;
   phoneEnabled: boolean;
+  realtimeTransferEnabled: boolean;
+  virtualAccountEnabled: boolean;
   mileageOnlyEnabled: boolean;
+  cashReceiptsEnabled: boolean;
+  cashReceiptsRequired: boolean;
 }) {
   const [state, formAction, pending] = useActionState<SubmitOrderFormState, FormData>(submitOrderAction, {});
   const [couponUid, setCouponUid] = useState(0);
@@ -69,13 +80,15 @@ export function OrderForm({
       { value: "B" as const, label: "무통장입금", enabled: bankTransferEnabled },
       { value: "C" as const, label: "신용카드", enabled: cardEnabled },
       { value: "H" as const, label: "휴대폰", enabled: phoneEnabled },
+      { value: "R" as const, label: "실시간계좌이체", enabled: realtimeTransferEnabled },
+      { value: "V" as const, label: "가상계좌", enabled: virtualAccountEnabled },
       { value: "M" as const, label: "마일리지 전액결제", enabled: canPayEntirelyByMileage },
     ],
-    [bankTransferEnabled, cardEnabled, phoneEnabled, canPayEntirelyByMileage],
+    [bankTransferEnabled, cardEnabled, phoneEnabled, realtimeTransferEnabled, virtualAccountEnabled, canPayEntirelyByMileage],
   );
   const noPaymentMethodAvailable = payOptions.every((opt) => !opt.enabled);
 
-  const [payType, setPayType] = useState<"B" | "C" | "H" | "M">(
+  const [payType, setPayType] = useState<"B" | "C" | "H" | "R" | "V" | "M">(
     () => payOptions.find((opt) => opt.enabled)?.value ?? "M",
   );
 
@@ -152,9 +165,28 @@ export function OrderForm({
           {opt.label}
         </label>
       ))}
-      <label style={{ marginLeft: 12 }}>
-        <input type="radio" disabled /> 실시간계좌이체/가상계좌 (미지원 결제대행사)
-      </label>
+      {payType === "B" && bankTransferEnabled && (
+        <div style={{ marginTop: 12 }}>
+          <select name="remittanceBank" required defaultValue="">
+            <option value="" disabled>입금계좌를 선택하세요.</option>
+            {bankAccounts.map((bank) => {
+              const value = `${bank.bankName} ${bank.bankNum} ${bank.bankOwner}`;
+              return <option key={`${bank.bankName}-${bank.bankNum}`} value={value}>{value}</option>;
+            })}
+          </select>
+          <input type="text" name="remittanceName" placeholder="입금자명" required style={{ marginLeft: 8 }} />
+        </div>
+      )}
+      {cashReceiptsEnabled && ["B", "R", "V"].includes(payType) && (
+        <div style={{ marginTop: 12 }}>
+          <select name="cashReceiptType" required={cashReceiptsRequired} defaultValue="">
+            <option value="">현금영수증 신청 안함</option>
+            <option value="1">소득공제용</option>
+            <option value="2">지출증빙용</option>
+          </select>
+          <input name="cashReceiptNumber" required={cashReceiptsRequired} placeholder="휴대폰번호 또는 사업자등록번호" />
+        </div>
+      )}
       {noPaymentMethodAvailable && (
         <div className="colorRed size12">현재 이용 가능한 결제수단이 없습니다. 관리자에게 문의해주세요.</div>
       )}

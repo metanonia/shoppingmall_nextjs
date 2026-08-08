@@ -1,14 +1,15 @@
 import { notFound } from "next/navigation";
-import { BOARD_CONFIG, getPostComments, getPostDetail, isBoardId } from "@shoppingmall/core";
+import { BOARD_CONFIG, getPostComments, getPostDetail, isCustomerBoardId } from "@shoppingmall/core";
 import { getSession } from "@/lib/auth";
 import { BoardPostBody } from "@/components/BoardPostBody";
 import { SecretPostUnlock } from "@/components/SecretPostUnlock";
 import { BoardCommentSection } from "@/components/BoardCommentSection";
+import { BoardPostManage } from "@/components/BoardPostManage";
 
 // Port of board/view.php.
 export default async function BoardDetailPage({ params }: { params: Promise<{ boardId: string; uid: string }> }) {
   const { boardId, uid: uidParam } = await params;
-  if (!isBoardId(boardId)) notFound();
+  if (!isCustomerBoardId(boardId)) notFound();
 
   const uid = Number(uidParam);
   if (!Number.isInteger(uid)) notFound();
@@ -26,9 +27,12 @@ export default async function BoardDetailPage({ params }: { params: Promise<{ bo
       <div className="empty30" />
 
       {detail.viewable ? (
-        <BoardPostBody boardId={boardId} detail={detail} />
+        <>
+          <BoardPostBody boardId={boardId} detail={detail} />
+          <BoardPostManage boardId={boardId} detail={detail} config={config} isMemberOwner={Boolean(session && detail.authorId === session.userId)} />
+        </>
       ) : (
-        <SecretPostUnlock boardId={boardId} uid={uid} showComments={config.comments} canWriteComment={config.commentAuthor !== "admin"} />
+        <SecretPostUnlock boardId={boardId} uid={uid} config={config} showComments={config.comments} canWriteComment={config.commentAuthor !== "admin"} />
       )}
 
       {config.comments && detail.viewable && (
@@ -36,7 +40,7 @@ export default async function BoardDetailPage({ params }: { params: Promise<{ bo
           boardId={boardId}
           postUid={uid}
           comments={comments}
-          isMember={Boolean(session)}
+          memberId={session?.userId ?? null}
           canWrite={config.commentAuthor !== "admin"}
         />
       )}

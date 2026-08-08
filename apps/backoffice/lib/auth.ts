@@ -11,8 +11,13 @@ import { signSession, verifySession, type SessionPayload } from "@shoppingmall/a
 // an admin login silently clobber a member session in the same browser.
 const ADMIN_SESSION_COOKIE_NAME = "shoppingmall_admin_session";
 
-const SECRET = process.env.AUTH_SECRET;
-if (!SECRET) throw new Error("AUTH_SECRET is not set");
+function requireAuthSecret(): string {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) throw new Error("AUTH_SECRET is not set");
+  return secret;
+}
+
+const SECRET = requireAuthSecret();
 
 export async function createSession(payload: SessionPayload): Promise<void> {
   const token = await signSession(payload, SECRET);
@@ -49,6 +54,12 @@ export const getSession = cache(async (): Promise<SessionPayload | null> => {
 export async function requireAdmin(): Promise<SessionPayload> {
   const session = await getSession();
   if (!session || session.role !== "admin") redirect("/login");
+  return session;
+}
+
+export async function requireBackofficeUser(): Promise<SessionPayload> {
+  const session = await getSession();
+  if (!session) redirect("/login");
   return session;
 }
 

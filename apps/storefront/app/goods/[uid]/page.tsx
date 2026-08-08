@@ -5,15 +5,17 @@ import {
   getFavoriteStoreCount,
   getGoodsDetail,
   getGoodsInquiries,
+  getGoodsReviews,
   isFavoriteGoods,
   isFavoriteStore,
 } from "@shoppingmall/core";
 import { getCachedMemberDiscountPct, getCachedShopConfig, getDevice, getSiteChrome } from "@/lib/request";
 import { ProductDetail } from "@/components/ProductDetail";
+import { getCartId } from "@/lib/cart-id";
+import { GoodsViewTracker } from "@/components/GoodsViewTracker";
 
-// Port of php/view.php. View-count increment and recent-view tracking need a
-// cart_id guest cookie (php/init.php's getCartId()) — deferred alongside the
-// cart engine (Phase 4).
+// Port of php/view.php, including cart-id-scoped recent-view and daily view
+// counting through GoodsViewTracker.
 export default async function GoodsDetailPage({ params }: { params: Promise<{ uid: string }> }) {
   const { uid } = await params;
   const uidNum = Number(uid);
@@ -25,10 +27,14 @@ export default async function GoodsDetailPage({ params }: { params: Promise<{ ui
     getCachedMemberDiscountPct(),
     getSiteChrome(),
   ]);
-  const detail = await getGoodsDetail(uidNum, config, memberDiscountPct);
+  const cartId = await getCartId(member?.id ?? null);
+  const detail = await getGoodsDetail(uidNum, config, memberDiscountPct, { memberId: member?.id ?? null, cartId });
   if (!detail) notFound();
 
-  const inquiries = await getGoodsInquiries(uidNum, member?.id ?? null);
+  const [inquiries, reviews] = await Promise.all([
+    getGoodsInquiries(uidNum, member?.id ?? null),
+    getGoodsReviews(uidNum),
+  ]);
   const favorite = {
     isMember: Boolean(member),
     favoritedGoods: member ? await isFavoriteGoods(member.id, uidNum) : false,
@@ -39,12 +45,24 @@ export default async function GoodsDetailPage({ params }: { params: Promise<{ ui
   const downloadableCoupons = await getDownloadableCoupons(uidNum);
 
   return (
-    <ProductDetail
-      detail={detail}
-      device={device}
-      favorite={favorite}
-      inquiries={inquiries}
-      downloadableCoupons={downloadableCoupons}
-    />
+    <>
+      <GoodsViewTracker goodsUid={detail.uid} vendor={detail.vendor} />
+      <ProductDetail
+        detail={detail}
+        device={device}
+        favorite={favorite}
+        inquiries={inquiries}
+        reviews={reviews}
+        downloadableCoupons={downloadableCoupons}
+        inquiryConfig={{
+          allowGuest: config.inquiryAccessWrite === 0,
+          secretType: config.inquirySecretType,
+          privacy: config.inquiryPrivacyType === 1,
+          categoryInfo: config.inquiryCategoryInfo,
+          guestAgreement: config.inquiryGuestAgreement,
+        }}
+        naverPayEnabled={config.naverPayUsed && Boolean(config.naverPayShopId && config.naverPayCertKey)}
+      />
+    </>
   );
 }

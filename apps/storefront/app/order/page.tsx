@@ -2,6 +2,7 @@ import {
   calcCouponDiscount,
   getActiveEventDiscounts,
   getCartSummary,
+  getBankAccounts,
   getMemberProfile,
   getMileageBalance,
   getMyCoupons,
@@ -31,6 +32,7 @@ export default async function OrderPage({ searchParams }: { searchParams: Promis
   const [config, memberDiscountPct] = await Promise.all([getCachedShopConfig(), getCachedMemberDiscountPct()]);
   const eventDiscounts = await getActiveEventDiscounts();
   const priceLimitConfig = priceLimitConfigFrom(config);
+  const bankAccounts = getBankAccounts(config);
 
   const summary = await getCartSummary(cartId, direct, config, eventDiscounts, priceLimitConfig, memberDiscountPct);
 
@@ -88,10 +90,15 @@ export default async function OrderPage({ searchParams }: { searchParams: Promis
             defaultPostcode={profile?.postcode ?? ""}
             defaultAddress1={profile?.address1 ?? ""}
             defaultAddress2={profile?.address2 ?? ""}
-            bankTransferEnabled={config.paymentTypeB === 1}
+            bankTransferEnabled={config.paymentTypeB === 1 && bankAccounts.length > 0}
+            bankAccounts={bankAccounts}
             cardEnabled={config.paymentTypeC === 1}
             phoneEnabled={config.paymentTypeH === 1}
+            realtimeTransferEnabled={config.paymentTypeR === 1}
+            virtualAccountEnabled={config.paymentTypeV === 1}
             mileageOnlyEnabled={Boolean(session)}
+            cashReceiptsEnabled={config.cashReceiptsUsed}
+            cashReceiptsRequired={config.cashReceiptsRequired}
           />
         </>
       )}

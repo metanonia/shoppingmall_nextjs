@@ -3,6 +3,11 @@ import { getSiteChrome } from "@/lib/request";
 import { TopNavPC } from "@/components/TopNavPC";
 import { TopNavMobile } from "@/components/TopNavMobile";
 import { Footer } from "@/components/Footer";
+import { VisitTracker } from "@/components/VisitTracker";
+import { Suspense } from "react";
+import { getRecentViewedGoods } from "@shoppingmall/core";
+import { getCartId } from "@/lib/cart-id";
+import { RecentQuickMenu } from "@/components/RecentQuickMenu";
 
 // Port of header.html's <head> block plus php/top.php / php/bottom.php, which
 // legacy renders around every channel's content the same way. Layout is the
@@ -11,6 +16,7 @@ import { Footer } from "@/components/Footer";
 // `<div id="contents">` content.
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const { device, config, topBanners, categories, topMenu, bankAccounts, member } = await getSiteChrome();
+  const recentGoods = await getRecentViewedGoods(await getCartId(member?.id ?? null), config);
   const styleHref = device === "mobile" ? "/skin/css/mobile_style.css" : "/skin/css/style.css";
 
   return (
@@ -53,6 +59,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         )}
       </head>
       <body>
+        <Suspense fallback={null}><VisitTracker /></Suspense>
         {device === "mobile" ? (
           <TopNavMobile
             logo={topBanners.LOGO ?? []}
@@ -75,6 +82,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
 
         <div className="empty40" />
         <Footer config={config} bankAccounts={bankAccounts} device={device} />
+        <RecentQuickMenu goods={recentGoods} />
       </body>
     </html>
   );

@@ -33,7 +33,7 @@ export function GoodsForm({
   // Vendor's own brand/제조사/원산지 suggestion lists (settings/store, H5) —
   // <datalist> only, not an enforced picker, so admin (no masterValues
   // passed) keeps the plain free-text fields it's always had.
-  masterValues?: { brands: string[]; makes: string[]; origins: string[] };
+  masterValues?: { brands: string[]; makes: string[]; origins: string[]; requireInfo?: string; icons?: string[] };
 }) {
   const action = initial ? (actions?.update ?? updateGoodsAction) : (actions?.create ?? createGoodsAction);
   const [state, formAction, pending] = useActionState<ActionState, FormData>(action, {});
@@ -151,6 +151,11 @@ export function GoodsForm({
       </fieldset>
 
       <fieldset>
+        <legend>상품정보제공고시</legend>
+        <textarea name="require_info" defaultValue={initial?.requireInfo.map((item) => `${item.name}|${item.value}`).join("\n") ?? masterValues?.requireInfo} placeholder="항목명|내용 (한 줄에 하나)" rows={6} style={{ width: "100%" }} />
+      </fieldset>
+
+      <fieldset>
         <legend>재고/판매</legend>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <label>
@@ -186,9 +191,10 @@ export function GoodsForm({
       <fieldset>
         <legend>마일리지/배송</legend>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label>
-            <input type="radio" name="mileage_type" value={0} defaultChecked={(initial?.mileage_type ?? 0) === 0} /> 마일리지 없음
-          </label>
+          <label><input type="radio" name="mileage_type" value={1} defaultChecked={(initial?.mileage_type ?? 1) === 1} /> 환경설정 사용</label>
+          <label><input type="radio" name="mileage_type" value={2} defaultChecked={initial?.mileage_type === 2} /> 마일리지 없음</label>
+          <label><input type="radio" name="mileage_type" value={3} defaultChecked={initial?.mileage_type === 3} /> 회원등급별</label>
+          <textarea name="mileage_level" defaultValue={initial?.mileage_level.split("|*|").join("\n")} placeholder="등급별 적립률: 등급번호|적립률 (한 줄에 하나)" rows={3} />
           <label>
             <input type="radio" name="mileage_type" value={4} defaultChecked={initial?.mileage_type === 4} /> 공통 적립률(%)
             <input type="number" name="mileage_common" defaultValue={initial?.mileage_common} style={{ marginLeft: 8, width: 80 }} />
@@ -212,6 +218,7 @@ export function GoodsForm({
         <legend>기타</legend>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <input type="text" name="icons" placeholder="아이콘 코드(쉼표로 구분, 예: new,best)" defaultValue={initial?.icons.join(",")} />
+          {masterValues?.icons && masterValues.icons.length > 0 && <small>등록 아이콘: {masterValues.icons.join(", ")}</small>}
           <input type="text" name="keyword" placeholder="검색 키워드(쉼표로 구분)" defaultValue={initial?.keyword} />
           <div>
             <div style={{ fontSize: 12, color: "#999", marginBottom: 4 }}>제작정보 (최대 5개)</div>

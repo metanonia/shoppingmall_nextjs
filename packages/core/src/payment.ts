@@ -1,7 +1,7 @@
 import type { ShopConfig } from "./config";
 import { AronhubPaymentGateway } from "./payment-aronhub";
 
-export type PgPayType = "C" | "H";
+export type PgPayType = "C" | "H" | "R" | "V";
 
 export type PaymentRequestInput = {
   orderNum: string;
@@ -70,6 +70,7 @@ export function getPaymentGateway(
   config: Pick<ShopConfig, "paymentCp" | "paymentShopId" | "paymentShopKey">,
 ): PaymentGateway {
   if (config.paymentCp !== "ARONHUB") return MockPaymentGateway;
+  if (payType === "R" || payType === "V") return MockPaymentGateway;
   const sid = payType === "C" ? config.paymentShopId : config.paymentShopKey;
   if (!sid) return MockPaymentGateway;
   return new AronhubPaymentGateway(config);

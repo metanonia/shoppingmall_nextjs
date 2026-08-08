@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { BOARD_CONFIG, getPostList, getShopConfig } from "@shoppingmall/core";
 
 function formatDate(signdate: number): string {
@@ -47,9 +48,9 @@ export default async function CsCenterPage() {
       <div className="sub_title">자주 찾는 질문</div>
       <div>
         {faqCategories.map((name, i) => (
-          <a key={name} href={`/board/faq?category=${i}`} style={{ marginRight: 12 }}>
+          <Link key={name} href={`/board/faq?category=${i}`} style={{ marginRight: 12 }}>
             {name}
-          </a>
+          </Link>
         ))}
       </div>
 
@@ -58,14 +59,14 @@ export default async function CsCenterPage() {
       <ul>
         {latestNotices.map((n) => (
           <li key={n.uid}>
-            <a href={`/board/notice/${n.uid}`}>{n.subject}</a> <span style={{ color: "#999" }}>{formatDate(n.signdate)}</span>
+            <Link href={`/board/notice/${n.uid}`}>{n.subject}</Link> <span style={{ color: "#999" }}>{formatDate(n.signdate)}</span>
           </li>
         ))}
       </ul>
 
       <div className="empty30" />
       <div>
-        <a href="/board/counsel">1:1 문의하기</a>
+        <Link href="/board/counsel">1:1 문의하기</Link>
       </div>
     </div>
   );

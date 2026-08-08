@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
-import { BOARD_CONFIG, isBoardId } from "@shoppingmall/core";
+import { BOARD_CONFIG, isCustomerBoardId } from "@shoppingmall/core";
 import { getSession } from "@/lib/auth";
 import { BoardWriteForm } from "@/components/BoardWriteForm";
 
 // Port of board/board_post.php's write form (board_id=0, mode=write path).
 export default async function BoardWritePage({ params }: { params: Promise<{ boardId: string }> }) {
   const { boardId } = await params;
-  if (!isBoardId(boardId)) notFound();
+  if (!isCustomerBoardId(boardId)) notFound();
 
   const config = BOARD_CONFIG[boardId];
   if (!config.writable) notFound();

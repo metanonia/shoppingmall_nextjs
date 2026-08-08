@@ -4,7 +4,7 @@ import { BoardPostForm } from "@/components/BoardPostForm";
 
 export default async function NewBoardPostPage({ params }: { params: Promise<{ boardId: string }> }) {
   const { boardId } = await params;
-  if (!isBoardId(boardId) || (boardId !== "notice" && boardId !== "faq")) notFound();
+  if (!isBoardId(boardId) || !["notice", "faq", "vnotice"].includes(boardId)) notFound();
   const config = BOARD_CONFIG[boardId];
 
   return (

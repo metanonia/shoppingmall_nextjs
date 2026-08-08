@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { createOrder, getActiveEventDiscounts, priceLimitConfigFrom } from "@shoppingmall/core";
+import { createOrder, getActiveEventDiscounts, getBankAccounts, priceLimitConfigFrom } from "@shoppingmall/core";
 import { hashPassword, signPaymentToken } from "@shoppingmall/auth";
 import { getSession } from "@/lib/auth";
 import { ensureCartId } from "@/lib/cart-id";
@@ -29,7 +29,7 @@ export async function submitOrderAction(
 
   const direct = formData.get("direct") === "1";
   const payTypeRaw = String(formData.get("payType") ?? "B");
-  const payType = payTypeRaw === "M" || payTypeRaw === "C" || payTypeRaw === "H" ? payTypeRaw : "B";
+  const payType = (["M", "C", "H", "R", "V"].includes(payTypeRaw) ? payTypeRaw : "B") as "B" | "M" | "C" | "H" | "R" | "V";
   const couponUidRaw = Number(formData.get("couponUid") ?? 0);
   const couponUid = couponUidRaw > 0 ? couponUidRaw : null;
   const useMileageAmount = Math.max(0, Number(formData.get("useMileage") ?? 0));
@@ -44,6 +44,22 @@ export async function submitOrderAction(
   const address1 = String(formData.get("address1") ?? "").trim();
   const address2 = String(formData.get("address2") ?? "").trim();
   const message = String(formData.get("message") ?? "").trim();
+  let bankInfo = "";
+  const cashReceiptType = String(formData.get("cashReceiptType") ?? "");
+  const cashReceiptNumber = String(formData.get("cashReceiptNumber") ?? "").trim();
+  if (config.cashReceiptsRequired && (!cashReceiptType || !cashReceiptNumber)) return { error: "현금영수증 발급 정보를 입력해주세요." };
+  const cashReceipt = config.cashReceiptsUsed && ["1", "2"].includes(cashReceiptType) && cashReceiptNumber
+    ? `${cashReceiptType}|${cashReceiptNumber}`
+    : "";
+
+  if (payType === "B") {
+    const remittanceBank = String(formData.get("remittanceBank") ?? "").trim();
+    const remittanceName = String(formData.get("remittanceName") ?? "").trim();
+    const validBankAccounts = getBankAccounts(config).map((bank) => `${bank.bankName} ${bank.bankNum} ${bank.bankOwner}`);
+    if (!remittanceBank || !validBankAccounts.includes(remittanceBank)) return { error: "입금계좌를 선택해주세요." };
+    if (!remittanceName) return { error: "입금자명을 입력해주세요." };
+    bankInfo = `${remittanceBank}|${remittanceName}`;
+  }
 
   if (!name || !cell || !address1) return { error: "주문자 정보와 배송지를 입력해주세요." };
 
@@ -68,6 +84,8 @@ export async function submitOrderAction(
     address1,
     address2,
     message,
+    bankInfo,
+    cashReceipt,
     guestPasswordHash,
     payType,
     couponUid,
@@ -81,7 +99,7 @@ export async function submitOrderAction(
 
   if (!result.ok) return { error: result.error };
 
-  if (payType === "C" || payType === "H") {
+  if (["C", "H", "R", "V"].includes(payType)) {
     const secret = process.env.AUTH_SECRET;
     if (!secret) throw new Error("AUTH_SECRET is not set");
     const token = await signPaymentToken({ purpose: "pg_pending", orderNum: result.orderNum }, secret);

@@ -18,6 +18,15 @@ export function VendorStoreConfigForm({ config }: { config: VendorConfigurationV
       </fieldset>
 
       <fieldset style={{ border: "1px solid #eee", padding: 12, borderRadius: 6 }}>
+        <legend>판매사 배송비 정책</legend>
+        <label>기본 정책 <select name="deliveryType" defaultValue={config?.deliveryType ?? "P"}><option value="F">무료배송</option><option value="D">착불</option><option value="P">조건부 배송비</option></select></label>
+        <label style={{ display: "block", marginTop: 6 }}>착불 배송비 <input type="number" min={0} name="deliveryDPrice" defaultValue={config?.deliveryDPrice ?? 0} />원</label>
+        <label style={{ display: "block", marginTop: 6 }}>조건 기준 <select name="deliveryPType" defaultValue={config?.deliveryPType ?? "order"}><option value="order">주문금액</option><option value="pay">결제금액</option></select></label>
+        <label style={{ display: "block", marginTop: 6 }}><input type="number" min={0} name="deliveryPPrice1" defaultValue={config?.deliveryPPrice1 ?? 0} />원 미만이면</label>
+        <label style={{ display: "block", marginTop: 6 }}><input type="number" min={0} name="deliveryPPrice2" defaultValue={config?.deliveryPPrice2 ?? 0} />원 부과</label>
+      </fieldset>
+
+      <fieldset style={{ border: "1px solid #eee", padding: 12, borderRadius: 6 }}>
         <legend>반품지 주소</legend>
         <input type="text" name="rtnPostcode" placeholder="우편번호" defaultValue={config?.rtnPostcode} />
         <input type="text" name="rtnAddress1" placeholder="주소" defaultValue={config?.rtnAddress1} style={{ marginTop: 6 }} />
@@ -63,7 +72,8 @@ export function VendorStoreConfigForm({ config }: { config: VendorConfigurationV
           한 줄에 하나씩 입력하면 상품등록 화면의 브랜드/제조사/원산지 입력창에서 자동완성으로
           제안됩니다(자유 입력은 그대로 가능).
         </div>
-        <textarea name="brandInfo" placeholder="브랜드(줄바꿈으로 구분)" defaultValue={config?.brandInfo.join("\n")} rows={3} style={{ width: "100%" }} />
+        <textarea name="optionInfo" placeholder="옵션명(줄바꿈으로 구분)" defaultValue={config?.optionInfo.join("\n")} rows={3} style={{ width: "100%" }} />
+        <textarea name="brandInfo" placeholder="브랜드(줄바꿈으로 구분)" defaultValue={config?.brandInfo.join("\n")} rows={3} style={{ width: "100%", marginTop: 6 }} />
         <textarea name="makeInfo" placeholder="제조사(줄바꿈으로 구분)" defaultValue={config?.makeInfo.join("\n")} rows={3} style={{ width: "100%", marginTop: 6 }} />
         <textarea
           name="originInfo"

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getCouponManagerList } from "@shoppingmall/core";
 
 function formatDate(d: Date | null): string {
@@ -12,9 +13,7 @@ export default async function CouponsPage() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
         <h1 style={{ fontSize: 20 }}>쿠폰관리</h1>
-        <a href="/coupons/new">
-          <button type="button">쿠폰 등록</button>
-        </a>
+        <Link href="/coupons/new" className="button-link">쿠폰 등록</Link>
       </div>
       <table style={{ width: "100%" }}>
         <thead>

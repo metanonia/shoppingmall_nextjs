@@ -8,7 +8,10 @@ import path from "node:path";
 // app's own untracked private-uploads/ dir and are only ever served through
 // app/vendor-docs/[...path]/route.ts, which re-checks the requester's own
 // session before streaming bytes.
-const PRIVATE_UPLOAD_ROOT = path.join(process.cwd(), "private-uploads", "vendor");
+function workspaceRoot(): string {
+  return path.basename(process.cwd()) === "backoffice" ? path.resolve(process.cwd(), "../..") : process.cwd();
+}
+const PRIVATE_UPLOAD_ROOT = process.env.VENDOR_DOC_UPLOAD_ROOT || path.join(workspaceRoot(), "private-uploads", "vendor");
 
 const ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "pdf"]);
 const MAX_FILE_SIZE = 5 * 1024 * 1024;

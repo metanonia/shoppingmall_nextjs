@@ -6,6 +6,10 @@
 
 다른 작업자가 이 저장소를 이어서 작업하게 될 경우, 아래 내용을 먼저 확인하세요.
 
+결제사는 신규 쇼핑몰 설치 후 선정한다. 선정 이후의 어댑터 구현 위치, callback/return,
+취소·부분취소, 현금영수증 및 테스트 절차는 [`PAYMENT_ADAPTER_GUIDE.md`](PAYMENT_ADAPTER_GUIDE.md)를
+기준으로 한다.
+
 ## 구조
 
 ```
@@ -34,10 +38,15 @@ packages/
 ```bash
 docker compose up -d                        # MySQL 기동 (호스트 3307)
 pnpm install
-cd packages/db && node prisma/seed.js       # 개발용 시드 데이터 (기존 데이터 삭제 후 재삽입)
-cd ../../apps/storefront && pnpm dev        # http://localhost:3000
+pnpm db:setup                               # SQL 순차 적용 + Prisma 생성 + 개발 시드
+cd apps/storefront && pnpm dev              # http://localhost:3000
 cd ../backoffice && pnpm dev                # http://localhost:3001 (관리자, PC 전용)
 ```
+
+과거처럼 SQL 파일을 수동 적용해 이미 모든 테이블이 존재하는 DB는 최초 1회에 한해
+`pnpm db:migrate:baseline`으로 현재 SQL 체크섬을 이력에 등록한 뒤 `pnpm db:migrate`를
+사용합니다. 일부 SQL만 적용된 DB에는 baseline을 사용하지 말고 누락 상태를 먼저
+확인해야 합니다.
 
 - `apps/storefront/.env.local`, `apps/backoffice/.env.local` 둘 다 `DATABASE_URL`,
   `AUTH_SECRET`가 필요합니다(레포에는 커밋되어 있지 않음 — 없으면 각자 새로 생성:
@@ -48,6 +57,8 @@ cd ../backoffice && pnpm dev                # http://localhost:3001 (관리자, 
   `public/`에 저장되므로 관리자 화면의 미리보기 이미지가 storefront 쪽 절대 URL을
   가리켜야 합니다. `apps/backoffice/.env.local`에는 Phase 9부터 `CRON_SECRET`도
   필요합니다(임의의 문자열) — 아래 "cron 작업" 참고.
+- `apps/storefront/.env.local`에는 입점사 로그인 링크용
+  `NEXT_PUBLIC_BACKOFFICE_URL`을 설정합니다(로컬 기본값 `http://localhost:3001`).
 - **cron 작업(Phase 9)**: `packages/core/src/scheduled-jobs.ts`(쿠폰/마일리지
   만료, 전시 상태전환, 휴면회원 전환, 로그 정리)와 `delivery-tracker.ts`(배송추적
   폴링)는 상시 프로세스가 아니라 `apps/backoffice`의 HTTP 엔드포인트로 노출되어
@@ -227,9 +238,10 @@ CRUD, 레거시의 `cate_info` 서브그룹 기능은 미지원 — 플랫 상�
 **회원관리**: `member-admin.ts`(목록/등급 일괄변경/쿠폰 대량발급/마일리지
 수동조정). `saveMileage`/`useMileage`(mileage.ts)에 `procId` 파라미터를
 추가해 관리자 수동 조정 시 처리자 id가 `mallRN_mileage.proc_id`에 남도록
-했습니다(기존 호출부 전부 `""` 전달로 하위호환 유지). **탈퇴회원 목록은
-스코프아웃** — `withdrawMember()`가 하드 delete라 감사(audit) 테이블 자체가
-없어 보여줄 데이터가 없습니다.
+했습니다(기존 호출부 전부 `""` 전달로 하위호환 유지). 회원탈퇴는 후속 PHP 대조에서
+`mallRN_member_withdrawal` 감사 테이블과 주문 ID 익명화, 쿠폰·마일리지·최근검색·
+리뷰·문의·찜 삭제, 게시글 익명화를 트랜잭션으로 이식했습니다. 관리자 탈퇴회원 목록
+화면은 아직 없지만 감사 데이터는 보존됩니다.
 
 **게시판 관리자 답변**: `BOARD_CONFIG`에 `commentAuthor: "customer"|"admin"|null`
 추가 — gallery는 기존대로 고객 댓글, **counsel은 댓글을 관리자 전용으로 켜서
@@ -260,10 +272,9 @@ counsel에서는 답변만 읽고 쓰기 폼은 숨기도록 했고, 게스트�
 `mallRN_sales_calculate` 등 정산 전용 테이블이 없어 Phase 8 스코프로 유지 —
 ✅ Phase 8에서 처리(아래 "Phase 8 완료 요약" 참고).
 
-**스코프 제외 항목**(범위 논의 시 이미 문서화, 재검토 불필요): 방문자/키워드
-통계(추적 인프라 자체가 없음), 배송 송장 엑셀 일괄업로드(단건 입력만 지원),
-관리자 대시보드 위젯 20종(핵심 지표 3개로 축소), 게시글 삭제는 admin 전용(고객
-편집/삭제는 계속 스코프아웃, Phase 6 결정 유지).
+과거 스코프 제외로 기록했던 방문자/키워드 통계, 배송 송장 Excel, 관리자 대시보드
+위젯, 고객 게시글 편집·삭제는 후속 PHP 대조에서 모두 복원했다. 송장 업로드는
+`.xls`와 `.xlsx`를 모두 지원하고 게시판 댓글 답글도 포함한다.
 
 **이번 Phase는 새 테이블이 없습니다** — 주문/상품/카테고리/회원/쿠폰/마일리지/
 게시판/배너/팝업/add_page/입점사 테이블이 전부 Phase 1~6에서 이미 스키마에
@@ -634,8 +645,8 @@ Phase 9까지 끝낸 뒤 "레거시 기준으로 정말 빠진 게 없는지"를
   대응하는 관리자 조회 화면 포함.
 - ~~`mallRN_admin_configuration`(관리자별 대시보드 위젯 배치)~~ ✅ 그룹I:
   `AdminConfiguration.widget_info`(JSON) + 대시보드의 표시/숨김+순서 UI.
-  FCM 웹푸시 토큰 컬럼(`push_yn`/`token_pc`/`token_mobile`)은 계속 스코프아웃
-  유지(이미 문서화됨).
+  FCM 웹푸시 토큰 컬럼(`push_yn`/`token_pc`/`token_mobile`)과 HTTP v1 발송을
+  후속 PHP 대조에서 복원했다(`025_admin_push_tokens.sql`, `push.ts`).
 - **의도적 스코프컷**: `mallRN_list_show_config`(관리자 목록 화면 노출 컬럼
   커스터마이징) — 계획 수립 단계에서부터 "레거시 `varchar(250)` 직렬화가
   이미 한계에 근접해 그대로 포팅할 가치가 낮다"고 판단한 항목. 구현하려면
@@ -648,8 +659,8 @@ Phase 9까지 끝낸 뒤 "레거시 기준으로 정말 빠진 게 없는지"를
 
 ### 이번 감사에서 재확인해 "정상"으로 결론 내린 것
 
-리뷰, 소셜로그인 미설정(구조만 존재), 방문자/키워드 통계, KCP/나이스페이/
-이니시스, 세금계산서/정산상태 토글, 휴면회원 재활성화, 게시판 정규화,
+리뷰, 소셜로그인 미설정(구조만 존재), 방문자/키워드 통계, 세금계산서/정산상태 토글,
+휴면회원 재활성화, 게시판 정규화,
 대시보드 위젯 20종, 탈퇴회원 목록, `async_*.php` 4개 전수 확인(누락 없음) —
 전부 기존 "미뤄둔 것" 섹션 서술과 일치함을 재확인.
 
@@ -670,11 +681,11 @@ Phase 9까지 끝낸 뒤 "레거시 기준으로 정말 빠진 게 없는지"를
   분리된 컴포넌트 트리를 렌더링 (`proxy.ts` = 구 middleware, `x-device` 헤더).
 - **관리자/입점사**: 레거시의 `managers/`+`vendor/` 중복 구조를 그대로 복제하지 않고,
   하나의 backoffice 앱에서 role(admin/vendor)로 분기.
-- **결제**: KCP(컴파일 바이너리+SOAP)는 스텁, aronhub→nicepay→inicis 순으로 실제 구현
-  (Phase 5에서 aronhub 완료 — 카드/휴대폰만 지원, 가상계좌/실시간계좌이체는 nicepay
-  단계에서). `PaymentGateway` 인터페이스(`packages/core/src/payment.ts`) 뒤에 실제
-  자격증명 없으면 `MockPaymentGateway`로 자동 폴백하는 게이팅 패턴 확립 — 이후
-  nicepay/inicis도 동일 패턴으로 추가.
+- **결제**: 신규 쇼핑몰 설치 후 결제사를 선정한다. 현재는 `PaymentGateway` 인터페이스,
+  Mock 회귀 흐름, Aronhub 구현 예시가 있으며, 특정 PG를 미리 정해 포팅하지 않는다.
+  선정 후 [`PAYMENT_ADAPTER_GUIDE.md`](PAYMENT_ADAPTER_GUIDE.md)에 따라 승인·callback,
+  전액/부분취소, 현금영수증을 연결한다. 운영에서는 자격증명 누락 시 Mock 자동 폴백을
+  반드시 차단한다.
 - **카트/주문 트랜잭션**: 레거시는 DB 트랜잭션이 전혀 없지만(순차 호출+수동 보상으로
   "롤백" 흉내), 이 저장소는 `createOrder`/`orderStatus9`/`orderStatus95`를
   `prisma.$transaction`으로 감싸 실제 원자성 보장(Phase 4, 상세는 아래 "Phase 4 완료
@@ -705,32 +716,31 @@ OAuth2 authorization-code flow(인증 URL 생성/토큰 교환/프로필 조회,
 확인). 나중에 실제 앱 키가 생기면 `ConfigurationSocial` 테이블에 값만 채우면 바로
 동작함 — 코드 변경 불필요.
 
-### KCP 결제
-컴파일 바이너리+SOAP라 Node로 직접 포팅 불가. `PaymentGateway` 인터페이스 뒤에 스텁만
-있음. ✅ aronhub는 Phase 5에서 구현됨(카드/휴대폰만) — nicepay/inicis(가상계좌/
-실시간계좌이체 포함)는 아래 "결제(PG)/알림" 항목 참고.
+### 결제사 선정 후 PG 연결
+
+KCP를 포함한 레거시 결제사를 그대로 채택한다는 전제는 폐기했다. 신규 설치 후 선정한
+PG를 `PaymentGateway` 뒤에 구현한다. 상세 구현 순서와 운영 전 검증 항목은
+[`PAYMENT_ADAPTER_GUIDE.md`](PAYMENT_ADAPTER_GUIDE.md)를 따른다.
 
 ### 휴면회원 (`mallRN_member_sleep`) — ✅ Phase 9에서 처리
-전환/경고메일까지 완료, 상세는 위 "Phase 9 완료 요약" 참고. **휴면 해제
-(재로그인 복구) 플로우는 스코프아웃** — 레거시가 `nondormant_time` 컬럼과
-별도 재활성화 화면을 갖춘 완전히 다른 기능이라 이번 범위에 넣지 않음.
+전환/경고메일까지 완료, 상세는 위 "Phase 9 완료 요약" 참고. 후속 PHP 대조에서
+`nondormant_time` 컬럼, 로그인 시 자동 복구, 관리자 수동 복구와 고객 안내 화면까지
+추가했습니다(`020_member_nondormant.sql`, `/member_sleep`, 관리자 `/member-sleep`).
 
-### 리뷰 (`mallRN_review`)
-아직 테이블 없음. `mallRN_order_goods`(Phase 4에서 추가됨)가 있어 `og_uid` 참조는
-이제 가능하지만, 리뷰 테이블/작성 UI 자체는 아직 구현하지 않음 — 상품상세 페이지는
-여전히 카운트 0/빈 상태 텍스트만 표시. 다음 착수 시 차단 요인 없음.
+### 리뷰 (`mallRN_review`) — ✅ 후속 감사에서 처리
+`018_review.sql`/Prisma 모델과 `review.ts`를 추가했습니다. 로그인 회원이 자신의
+배송완료·구매확정 주문상품에 한 번만 작성할 수 있으며, 상품상세/전체후기/내후기와
+주문상세 작성 폼, 관리자 베스트 선정·삭제 화면을 연결했습니다. PHP의 첨부파일 경로는
+후속 감사에서 최대 5개/파일당 5MB 업로드와 상품상세·전체후기·내후기 표시까지
+연결했습니다. 현재 로컬 public 저장 방식이므로 운영 배포 전 공유 object storage
+전환은 별도 필요합니다.
 
 ### 상품문의 — ✅ Phase 3에서 처리
 `mallRN_inquiry` 테이블 추가 + `packages/core/src/inquiry.ts` + 상품상세 페이지의
-문의 탭(작성/목록, 비밀글 게이팅) + `/my_inquiry`(내 문의내역). **회원 전용으로
-단순화**: 레거시는 비회원도 비밀번호 입력으로 작성 가능(`mallRN_inquiry.passwd`,
-`popup_passwd.php`)하지만, 이 저장소는 이미 완성된 회원 인증(Phase 3)만 사용 —
-비회원 비밀번호 검증 플로우는 구현하지 않음. 답변 작성(관리자/입점사 UI)은 여전히
-미착수라 `answer`는 항상 빈 값("답변대기중")으로만 보임 — Phase 7은 게시판 엔진의
-counsel(1:1문의 게시판, `board.ts`)만 admin 답변 기능을 추가했고, 이 `mallRN_inquiry`
-(상품문의, 게시판과 무관한 별도 테이블)는 범위에 포함되지 않았음. Phase 8도
-입점신청/상품/주문/정산/스토어설정만 승인된 스코프라 상품문의 답변 UI는 여전히
-미착수 — 9단계 계획 완료 이후 별도 스코프로 재검토 필요.
+문의 탭(작성/목록, 비밀글 게이팅) + `/my_inquiry`(내 문의내역). 후속 감사에서
+비회원 이름/비밀번호 작성·비밀번호 확인 열람, 설정 기반 작성권한/비밀글/작성자보호,
+문의분류·개인정보 동의·첨부파일 5개, `/inquiries` 관리자 답변·삭제를 추가했습니다.
+모든 변경 액션은 역할을 재검증합니다. 입점사 전용 답변 UI는 아직 없습니다.
 
 ### 카트/주문 — ✅ Phase 4에서 처리
 `mallRN_cart`/`mallRN_order_info`/`mallRN_order_goods`/`mallRN_order_log`/
@@ -781,7 +791,7 @@ counsel(1:1문의 게시판, `board.ts`)만 admin 답변 기능을 추가했고,
 - **[발견 시] `order_list_guest.php` 실물 미확인.** `/my_order/guest`를 목록형으로
   확장하려면 그 파일을 먼저 읽고 `guest_where` 쿠키 유도 조건을 확인할 것.
 
-### 결제(PG)/알림 — ✅ Phase 5에서 처리
+### 결제(PG)/알림 — ✅ 현재 인수 기준 완료
 `PaymentGateway` 인터페이스(`packages/core/src/payment.ts`) + `MockPaymentGateway`
 (로컬 개발/테스트 기본값) + `AronhubPaymentGateway`(`payment-aronhub.ts`, 카드/휴대폰만
 — 아론허브 자체가 가상계좌/실시간계좌이체 미지원) + `confirmPgPayment`/PG 취소 호출
@@ -790,22 +800,22 @@ counsel(1:1문의 게시판, `board.ts`)만 admin 답변 기능을 추가했고,
 (`components/PaymentWidget.tsx`). 알림은 `sms.ts`(coolSMS HMAC 서명 포팅, 키 없으면
 `mallRN_sms_list`에 `SKIPPED_NO_CREDENTIALS`로 기록 후 스킵)와 `mailer.ts`
 (nodemailer, `SMTP_HOST` 없으면 JSON transport로 폴백해 콘솔에만 로그) +
-`notification.ts`(오케스트레이션). **단순화/스코프컷한 부분**:
-- **나이스페이/이니시스는 아직 미구현** — 가상계좌(V)/실시간계좌이체(R)는 이 두
-  PG가 있어야 지원 가능. `getPaymentGateway()`가 `payment_cp`별로 분기하도록
-  설계되어 있어 추가 시 기존 코드 변경 없이 새 어댑터만 추가하면 됨.
-- **현금영수증(`cashReceiptsApply`) 완전 스코프아웃** — 레거시에서도 B/V/R 전용
-  기능이라 이번에 구현한 C/H와 무관.
+`notification.ts`(오케스트레이션). 결제수단 C/H/R/V는 Mock 회귀 경로에서 검증한다.
+특정 PG사는 신규 쇼핑몰 설치 후 선정하므로 현재 미구현 결함으로 보지 않는다.
+선정 후에는 [`PAYMENT_ADAPTER_GUIDE.md`](PAYMENT_ADAPTER_GUIDE.md)에 따라
+`getPaymentGateway()` 분기와 provider route를 추가하고 운영 Mock fallback을 차단한다.
+- ~~**현금영수증(`cashReceiptsApply`) 완전 스코프아웃**~~ — 후속 PHP 대조에서
+  B/V/R 신청·요청 생성·관리자 상태처리를 구현했다. 실제 PG 발급/취소 연결 방법은
+  결제 어댑터 가이드에 포함했다.
 - ~~배송완료/구매확정 알림 없음~~ — Phase 7에서 `orderStatus4/5`에 admin UI가
   연결됐지만, 이 두 전환 자체에 대한 별도 SMS/이메일 알림은 레거시에도 없어
   추가하지 않음(주문접수/결제완료 알림만 유지, 배송 시작 시점 SMS는 Phase 7의
   `updateDeliveryProgress`가 새로 추가함 — 아래 Phase 7 완료 요약 참고).
-- **관리자 알림 on/off 토글 하드코딩** — 레거시 `mallRN_sms_auto.ck_message1/2`,
-  `mallRN_auto_mail.send` 같은 관리자 설정 UI가 없어 "항상 시도"로 단순화.
-  SMS/이메일 템플릿도 DB 테이블(`mallRN_sms_auto`/`mallRN_auto_mail`) 대신 TS
-  함수로 하드코딩(관리 UI 없는 admin 전용 테이블은 스킵하는 기존 원칙과 동일).
-- **푸시(FCM) 완전 스코프아웃** — 레거시가 쓰는 FCM Legacy HTTP API가 2024년 6월
-  구글에 의해 이미 폐기되어 재구축이 필요함(OAuth2 기반 HTTP v1로 이전해야 함).
+- ~~**관리자 알림 on/off 토글·템플릿 하드코딩**~~ — 후속 PHP 대조에서
+  `mallRN_sms_auto` 7종, `mallRN_auto_mail`의 common/vjoin/delivery를 포함한 관리자
+  설정 UI와 실제 발송 게이팅을 복원했다(`026`, `027` SQL).
+- ~~**푸시(FCM) 완전 스코프아웃**~~ — 폐기된 Legacy API 대신 OAuth2 기반 HTTP v1로
+  재구현했다. 운영 서비스계정과 브라우저 토큰 발급은 배포 환경 검증이 필요하다.
 
 **나중에 확인할 사항**:
 - **[아론허브 실키 확보 시] 실사용 검증 필요.** 지금까지는 전부 `MockPaymentGateway`로
@@ -867,32 +877,27 @@ CS시간/반품지주소/상품 기본 안내문구(배송·환불·교환·AS)�
 - "결과 내 검색": 다중 키워드 AND 좁히기 대신 단일 키워드로 단순화
 
 ### 게시판/CMS — ✅ Phase 6에서 처리, 관리자 답변/작성은 ✅ Phase 7에서 처리
-notice/faq/counsel/gallery 4개만 구현. 판매사 전용 게시판(vnotice/vcounsel)은
-Phase 8에서 벤더 로그인이 생겼지만 승인된 스코프에 없어 여전히 미착수(9단계
-계획 완료 이후 별도 스코프로 재검토 필요). ~~게시글
+notice/faq/counsel/gallery와 후속 감사에서 판매사 전용 vnotice/vcounsel을 구현했습니다.
+판매사는 본사 공지를 조회하고 자기 1:1문의만 작성·조회하며, 관리자는 판매사 공지
+CRUD와 판매사 문의 답변을 처리합니다. 고객몰은 두 판매사 게시판 ID를 차단합니다. ~~게시글
 수정/삭제 기능은 스코프아웃(v1)~~ — ✅ Phase 7에서 admin 전용으로 추가
-(`updatePost`/`deletePost`); **고객 쪽 수정/삭제는 여전히 스코프아웃**
-(`inquiry.ts`도 없다는 기존 전례를 따름). 게시판별 관리 권한
+(`updatePost`/`deletePost`); 후속 감사에서 고객 회원 ID/비회원 비밀번호 소유권
+검증을 적용한 게시글 수정·삭제와 댓글 삭제도 추가했습니다. 게시판별 관리 권한
 (`mallRN_board_manager`)도 테이블 없이 `BOARD_CONFIG` TS 상수로 하드코딩(관리
 UI 자체가 없다는 원칙은 유지 — `commentAuthor` 필드로 counsel 답변만 admin
 전용으로 게이팅). 상세는 위 "Phase 6/7 완료 요약" 참고.
 
-**[나중에 확인]** `/agreement`·`/privacy`의 `{JOINFORM}`/`{DELIVERYNAME}`/
-`{PGNAME}` 플레이스홀더는 각각 `member_config`의 회원가입 항목 토글, 배송사
-목록, PG사명에 의존하는데 아직 포팅되지 않아 빈 문자열(JOINFORM/DELIVERYNAME)
-또는 하드코딩된 상수(PGNAME="NHN한국사이버결제 주식회사")로 대체함 — 해당
-테이블/설정 UI가 생기면 다시 확인할 것.
+`/agreement`·`/privacy`의 `{JOINFORM}`/`{DELIVERYNAME}`/`{PGNAME}` 플레이스홀더는
+회원가입 항목 설정, 사용 배송사, 현재 PG 설정값으로 동적 치환한다.
 
 ### 관리자 백엔드 — ✅ Phase 7에서 처리
-상세는 위 "Phase 7 완료 요약" 참고. 방문자/키워드 통계, 배송송장 엑셀
-일괄업로드, 대시보드 위젯 20종, 탈퇴회원 목록(감사 테이블 없음)은 스코프아웃
-— 각 항목의 이유는 Phase 7 완료 요약 하단 참고.
+상세는 위 "Phase 7 완료 요약" 참고. 방문자/키워드 통계, 배송송장 Excel,
+PHP 계열 대시보드 위젯, 탈퇴회원 목록 UI는 후속 감사에서 구현했다.
 
 ### 입점사 백엔드 — ✅ Phase 8에서 처리
 상세는 위 "Phase 8 완료 요약" 참고. 세금계산서 발행여부/정산상태 수동토글,
 정산유형(현금/계좌) 구분, 판매사 전용 게시판(vnotice/vcounsel), 입점사
-대시보드 위젯(admin 위젯의 vendor 필터판), 상품 승인대기 알림(admin에게
-푸시/이메일 알림 없이 `/goods?pending=1` 필터로만 확인)은 스코프아웃.
+대시보드 위젯과 상품 승인대기 알림도 후속 감사에서 구현했다.
 
 ## 검증 방법
 

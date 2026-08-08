@@ -43,6 +43,13 @@ export async function getShopConfig() {
     mobileYn: row.mobile_yn,
     goodsPriceLimit1: row.goods_price_limit1,
     goodsPriceLimit2: row.goods_price_limit2,
+    goodsSoldout: row.goods_soldout,
+    goodsOptionInfo: row.goods_option_info.split("|*|").map((value) => value.trim()).filter(Boolean),
+    goodsBrandInfo: row.goods_brand_info.split("|*|").map((value) => value.trim()).filter(Boolean),
+    goodsMakeInfo: row.goods_make_info.split("|*|").map((value) => value.trim()).filter(Boolean),
+    goodsOriginInfo: row.goods_origin_info.split("|*|").map((value) => value.trim()).filter(Boolean),
+    goodsRequireInfo: row.goods_require_info,
+    goodsIconInfo: row.goods_icon_info.split("|").map((value) => value.trim()).filter(Boolean),
     goodsEngineNaver: row.goods_engine_naver === 1,
     goodsEngineDaum: row.goods_engine_daum === 1,
     goodsDeliveryInfo: row.goods_delivery_info,
@@ -52,12 +59,25 @@ export async function getShopConfig() {
     paymentBankInfo: row.payment_bank_info,
     paymentTypeB: row.payment_type_b,
     paymentTypeC: row.payment_type_c,
+    paymentTypeR: row.payment_type_r,
+    paymentTypeV: row.payment_type_v,
     paymentTypeH: row.payment_type_h,
     paymentCp: row.payment_cp,
     paymentShopId: row.payment_shop_id,
     paymentShopKey: row.payment_shop_key,
     paymentCommissionC: row.payment_commission_c,
     paymentCommissionH: row.payment_commission_h,
+    cashReceiptsUsed: row.cash_receipts_used === 1,
+    cashReceiptsRequired: row.cash_receipts_require === 1,
+    cashReceiptsMethod: row.cash_receipts_method,
+    cashReceiptsType: row.cash_receipts_type,
+    naverPayUsed: row.naverpay_used === 1,
+    naverPayMode: row.naverpay_mode,
+    naverPayTestId: row.naverpay_test_id,
+    naverPayShopId: row.naverpay_shop_id,
+    naverPayCertKey: row.naverpay_key1,
+    naverPayButtonKey: row.naverpay_key2,
+    naverPayCommonKey: row.naverpay_key3,
     smsYn: row.sms_yn,
     smsKey: row.sms_key,
     smsSecret: row.sms_secret,
@@ -70,9 +90,22 @@ export async function getShopConfig() {
     deliveryPType: row.delivery_p_type,
     deliveryPPrice1: row.delivery_p_price1,
     deliveryPPrice2: row.delivery_p_price2,
+    deliveryCompanies: row.delivery_info.split("|*|").slice(1).map((value) => value.split("|")).filter((value) => value[1] && value[3] === "1").map((value) => value[1]),
+    orderCancelInfo: row.order_cancel_info,
+    orderMessageInfo: row.order_message_info,
+    orderAutoCompleted1: row.order_auto_completed1,
+    orderAutoCompleted2: row.order_auto_completed2,
+    orderAutoCompleted3: row.order_auto_completed3,
+    orderTrackerEnabled: row.order_tracker_yn === "Y",
+    orderTrackerKey: row.order_tracker_key,
     memberMileageValidityYn: row.member_mileage_validity_yn,
     memberMileageValidity: row.member_mileage_validity,
     memberMileageValidityType: row.member_mileage_validity_type,
+    inquiryAccessWrite: row.inquiry_access_write,
+    inquirySecretType: row.inquiry_secret_type,
+    inquiryPrivacyType: row.inquiry_privacy_type,
+    inquiryCategoryInfo: row.inquiry_cate_info,
+    inquiryGuestAgreement: row.agreement_info5,
     naverTag: row.script_naver_tag,
     googleAnalytics: row.script_google_analytics,
     signDate: row.signdate,
@@ -131,6 +164,13 @@ export type UpdateDeliveryConfigInput = {
   deliveryDPrice: number;
   deliveryPPrice1: number;
   deliveryPPrice2: number;
+  orderCancelInfo: string;
+  orderMessageInfo: string;
+  orderAutoCompleted1: number;
+  orderAutoCompleted2: number;
+  orderAutoCompleted3: number;
+  orderTrackerEnabled: boolean;
+  orderTrackerKey: string;
 };
 
 export async function updateDeliveryConfig(input: UpdateDeliveryConfigInput): Promise<void> {
@@ -141,23 +181,38 @@ export async function updateDeliveryConfig(input: UpdateDeliveryConfigInput): Pr
       delivery_d_price: input.deliveryDPrice,
       delivery_p_price1: input.deliveryPPrice1,
       delivery_p_price2: input.deliveryPPrice2,
+      order_cancel_info: input.orderCancelInfo,
+      order_message_info: input.orderMessageInfo,
+      order_auto_completed1: input.orderAutoCompleted1,
+      order_auto_completed2: input.orderAutoCompleted2,
+      order_auto_completed3: input.orderAutoCompleted3,
+      order_tracker_yn: input.orderTrackerEnabled ? "Y" : "N",
+      order_tracker_key: input.orderTrackerKey,
     },
   });
 }
 
-// Port of managers/conf/payment_info.php, trimmed to the fields this repo's
-// PaymentGateway abstraction actually reads (payment_cp/payment_shop_id/
-// payment_shop_key gate which gateway getPaymentGateway() selects — see
-// payment.ts). Legacy's cash-receipts/nicepay-specific fields aren't ported
-// (out of scope, see MIGRATION.md).
 export type UpdatePaymentConfigInput = {
   paymentTypeB: boolean;
   paymentTypeC: boolean;
+  paymentTypeR: boolean;
+  paymentTypeV: boolean;
   paymentTypeH: boolean;
   paymentCp: string;
   paymentShopId: string;
   paymentShopKey: string;
   paymentBankInfo: string;
+  cashReceiptsUsed: boolean;
+  cashReceiptsRequired: boolean;
+  cashReceiptsMethod: number;
+  cashReceiptsType: number;
+  naverPayUsed: boolean;
+  naverPayMode: number;
+  naverPayTestId: string;
+  naverPayShopId: string;
+  naverPayCertKey: string;
+  naverPayButtonKey: string;
+  naverPayCommonKey: string;
 };
 
 export async function updatePaymentConfig(input: UpdatePaymentConfigInput): Promise<void> {
@@ -166,33 +221,40 @@ export async function updatePaymentConfig(input: UpdatePaymentConfigInput): Prom
     data: {
       payment_type_b: input.paymentTypeB ? 1 : 0,
       payment_type_c: input.paymentTypeC ? 1 : 0,
+      payment_type_r: input.paymentTypeR ? 1 : 0,
+      payment_type_v: input.paymentTypeV ? 1 : 0,
       payment_type_h: input.paymentTypeH ? 1 : 0,
       payment_cp: input.paymentCp,
       payment_shop_id: input.paymentShopId,
       payment_shop_key: input.paymentShopKey,
       payment_bank_info: input.paymentBankInfo,
+      cash_receipts_used: input.cashReceiptsUsed ? 1 : 0,
+      cash_receipts_require: input.cashReceiptsRequired ? 1 : 0,
+      cash_receipts_method: input.cashReceiptsMethod,
+      cash_receipts_type: input.cashReceiptsType,
+      naverpay_used: input.naverPayUsed ? 1 : 0,
+      naverpay_mode: input.naverPayMode === 1 ? 1 : 0,
+      naverpay_test_id: input.naverPayTestId,
+      naverpay_shop_id: input.naverPayShopId,
+      naverpay_key1: input.naverPayCertKey,
+      naverpay_key2: input.naverPayButtonKey,
+      naverpay_key3: input.naverPayCommonKey,
     },
   });
 }
 
-// Port of managers/config/goods_info.php, scoped down to the fields with a
-// real consumer in this migration: price limits (already read via
-// getShopConfig/priceLimitConfigFrom), the 4 shop-wide policy guide texts
-// (detail.ts falls back to these for direct/직영 products — vendor.ts's
-// VendorConfiguration already has the per-vendor equivalent), and the
-// naver/daum shopping-feed toggles (app/feed/{naver,daum}/route.ts, added
-// alongside this screen in Group I — these two were dead config until now).
-// Left out: goods_soldout (no listing query in this repo branches on it —
-// wiring it would mean threading a config value through every
-// VISIBLE_GOODS_WHERE call site for a display toggle nothing currently
-// reads, out of proportion to the value), the option/brand/make/origin
-// master lists (GoodsForm's brand/origin stay free text, same reasoning as
-// vendor.ts's H5 comment), and goods_require_info/goods_icon_info (neither
-// has any admin/vendor form field that could consume them — see
-// goods-excel-import.ts's comment on the same gap for require_info).
+// Port of managers/config/goods_info.php. The listing consumer applies the
+// same three-way sold-out policy as php/list.php, search.php and store.php.
 export type UpdateGoodsConfigInput = {
   priceLimit1: number;
   priceLimit2: number;
+  goodsSoldout: 0 | 1 | 2;
+  optionInfo: string[];
+  brandInfo: string[];
+  makeInfo: string[];
+  originInfo: string[];
+  requireInfo: string;
+  iconInfo: string[];
   engineNaver: boolean;
   engineDaum: boolean;
   deliveryInfo: string;
@@ -211,6 +273,13 @@ export async function updateGoodsConfig(input: UpdateGoodsConfigInput): Promise<
     data: {
       goods_price_limit1: input.priceLimit1,
       goods_price_limit2: input.priceLimit2,
+      goods_soldout: input.goodsSoldout,
+      goods_option_info: input.optionInfo.join("|*|"),
+      goods_brand_info: input.brandInfo.join("|*|"),
+      goods_make_info: input.makeInfo.join("|*|"),
+      goods_origin_info: input.originInfo.join("|*|"),
+      goods_require_info: input.requireInfo,
+      goods_icon_info: input.iconInfo.join("|"),
       goods_engine_naver: input.engineNaver ? 1 : 0,
       goods_engine_daum: input.engineDaum ? 1 : 0,
       goods_delivery_info: sanitizeRichText(input.deliveryInfo),
@@ -219,4 +288,9 @@ export async function updateGoodsConfig(input: UpdateGoodsConfigInput): Promise<
       goods_as_info: sanitizeRichText(input.asInfo),
     },
   });
+}
+
+export async function updateGoodsIconInfo(iconInfo: string[]): Promise<void> {
+  const unique = Array.from(new Set(iconInfo.map((name) => name.trim()).filter(Boolean)));
+  await prisma.configuration.update({ where: { uid: 1 }, data: { goods_icon_info: unique.join("|") } });
 }

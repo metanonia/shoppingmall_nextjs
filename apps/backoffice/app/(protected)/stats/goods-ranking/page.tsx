@@ -11,7 +11,7 @@ function daysAgoStr(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-const TYPE_LABELS: Record<GoodsRankingType, string> = { sales: "판매금액", qty: "판매수량", favorite: "관심상품저장수" };
+const TYPE_LABELS: Record<GoodsRankingType, string> = { sales: "판매금액", qty: "판매수량", favorite: "관심상품저장수", view: "상품조회수" };
 
 export default async function GoodsRankingPage({
   searchParams,
@@ -21,7 +21,7 @@ export default async function GoodsRankingPage({
   const { dateFrom: dateFromParam, dateTo: dateToParam, type: typeParam } = await searchParams;
   const dateFrom = dateFromParam || daysAgoStr(30);
   const dateTo = dateToParam || todayStr();
-  const type = (typeParam === "qty" || typeParam === "favorite" ? typeParam : "sales") as GoodsRankingType;
+  const type = (typeParam === "qty" || typeParam === "favorite" || typeParam === "view" ? typeParam : "sales") as GoodsRankingType;
 
   const items = await getGoodsRanking(dateFrom, dateTo, type);
 

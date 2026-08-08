@@ -33,9 +33,7 @@ export default async function CartPage() {
       </div>
       <div className="empty20" />
       {selectedCount > 0 ? (
-        <a className="shineButtonBlack" href="/order">
-          선택상품 주문하기 ({selectedCount})
-        </a>
+        <><a className="shineButtonBlack" href="/order">선택상품 주문하기 ({selectedCount})</a>{config.naverPayUsed && config.naverPayShopId && config.naverPayCertKey && <a href="/api/naverpay/cart" target="_blank" rel="noreferrer" style={{ display: "inline-block", marginLeft: 8, background: "#03c75a", color: "white", padding: "12px 20px" }}>N Pay 구매</a>}</>
       ) : (
         <button className="shineButtonBlack" type="button" disabled>
           선택상품 주문하기

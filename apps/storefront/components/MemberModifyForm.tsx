@@ -1,12 +1,13 @@
 "use client";
 
 import { useActionState, useRef } from "react";
-import type { MemberProfile } from "@shoppingmall/core";
+import type { MemberFormConfig, MemberProfile } from "@shoppingmall/core";
 import { updateProfileAction } from "@/app/member_modify/actions";
 import { PostcodeSearchButton } from "./PostcodeSearchButton";
+import { MemberExtraFields } from "./MemberExtraFields";
 
 // Port of member_modify.html.
-export function MemberModifyForm({ profile }: { profile: MemberProfile }) {
+export function MemberModifyForm({ profile, config }: { profile: MemberProfile; config: MemberFormConfig }) {
   const [state, formAction, pending] = useActionState(updateProfileAction, {});
   const postcodeRef = useRef<HTMLInputElement>(null);
   const address1Ref = useRef<HTMLInputElement>(null);
@@ -23,6 +24,7 @@ export function MemberModifyForm({ profile }: { profile: MemberProfile }) {
             <li>
               <input type="text" name="name" defaultValue={profile.name} required placeholder="이름" />
             </li>
+            <MemberExtraFields config={config} profile={profile} />
             <li>
               <input type="text" name="email" defaultValue={profile.email} required placeholder="이메일" />
             </li>

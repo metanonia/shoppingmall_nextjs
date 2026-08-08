@@ -12,8 +12,10 @@ import {
   type GoodsFormInput,
 } from "@shoppingmall/core";
 import { saveImage } from "@/lib/image-upload";
+import { requireAdmin, requireBackofficeUser } from "@/lib/auth";
 
 export async function approveGoodsAuthAction(formData: FormData): Promise<void> {
+  await requireAdmin();
   const uid = Number(formData.get("uid"));
   const authCk = String(formData.get("authCk") ?? "Y") as "Y" | "N";
   await approveGoodsAuth(uid, authCk);
@@ -60,6 +62,7 @@ export async function buildGoodsInput(
   formData: FormData,
   existing: { image1: string; image2: string; image3: string; otherImages: string[]; detailImages: string[] },
 ): Promise<{ ok: true; input: GoodsFormInput } | { ok: false; error: string }> {
+  await requireBackofficeUser();
   const image1 = await uploadIfPresent(formData, "image1", existing.image1);
   if (!image1.ok) return image1;
   const image2 = await uploadIfPresent(formData, "image2", existing.image2);
@@ -78,6 +81,7 @@ export async function buildGoodsInput(
   const makingInfo = [0, 1, 2, 3, 4]
     .map((i) => ({ name: str(formData, `makingName${i}`), value: str(formData, `makingValue${i}`) }))
     .filter((m) => m.name);
+  const requireInfo = str(formData, "require_info").split("\n").map((value) => value.split("|")).filter(([name]) => name?.trim()).map(([name, value]) => ({ name: name.trim(), value: (value ?? "").trim() }));
 
   const input: GoodsFormInput = {
     name: str(formData, "name"),
@@ -106,6 +110,7 @@ export async function buildGoodsInput(
     origin: str(formData, "origin"),
     brand: str(formData, "brand"),
     makingInfo,
+    requireInfo,
     qty_type: num(formData, "qty_type"),
     qty: num(formData, "qty"),
     limit_qty: num(formData, "limit_qty"),
@@ -117,8 +122,9 @@ export async function buildGoodsInput(
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean),
-    mileage_type: num(formData, "mileage_type") === 4 ? 4 : 0,
+    mileage_type: ([1, 2, 3, 4].includes(num(formData, "mileage_type")) ? num(formData, "mileage_type") : 2) as 1 | 2 | 3 | 4,
     mileage_common: num(formData, "mileage_common"),
+    mileage_level: str(formData, "mileage_level").split("\n").map((value) => value.trim()).filter(Boolean).join("|*|"),
     delivery_type: num(formData, "delivery_type") || 1,
     delivery_price: num(formData, "delivery_price"),
     delivery_info: str(formData, "delivery_info"),
@@ -135,6 +141,7 @@ export async function buildGoodsInput(
 }
 
 export async function createGoodsAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
   const built = await buildGoodsInput(formData, { image1: "", image2: "", image3: "", otherImages: [], detailImages: [] });
   if (!built.ok) return { error: built.error };
 
@@ -144,6 +151,7 @@ export async function createGoodsAction(_prevState: ActionState, formData: FormD
 }
 
 export async function updateGoodsAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
   const uid = Number(formData.get("uid"));
   const existing = {
     image1: str(formData, "existingImage1"),
@@ -163,6 +171,7 @@ export async function updateGoodsAction(_prevState: ActionState, formData: FormD
 export type OptionActionState = { error?: string };
 
 export async function createGoodsOptionsAction(_prevState: OptionActionState, formData: FormData): Promise<OptionActionState> {
+  await requireAdmin();
   const guid = Number(formData.get("guid"));
   const dimensions = [0, 1, 2]
     .map((i) => ({
@@ -182,6 +191,7 @@ export async function createGoodsOptionsAction(_prevState: OptionActionState, fo
 }
 
 export async function updateGoodsOptionAction(_prevState: OptionActionState, formData: FormData): Promise<OptionActionState> {
+  await requireAdmin();
   const uid = Number(formData.get("uid"));
   const guid = Number(formData.get("guid"));
   const result = await updateGoodsOption(uid, {
@@ -196,6 +206,7 @@ export async function updateGoodsOptionAction(_prevState: OptionActionState, for
 }
 
 export async function deleteGoodsOptionAction(formData: FormData): Promise<void> {
+  await requireAdmin();
   const uid = Number(formData.get("uid"));
   const guid = Number(formData.get("guid"));
   await deleteGoodsOption(uid);

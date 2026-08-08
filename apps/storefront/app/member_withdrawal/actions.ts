@@ -13,8 +13,9 @@ export async function withdrawAction(_prevState: { error?: string }, formData: F
 
   const passwd = String(formData.get("passwd") ?? "");
   const reason = String(formData.get("reason") ?? "");
+  const message = String(formData.get("message") ?? "");
 
-  const result = await withdrawMember(session.userId, passwd, reason);
+  const result = await withdrawMember(session.userId, passwd, reason, message);
   if (!result.ok) return { error: result.error };
 
   await destroySession();

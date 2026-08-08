@@ -1,10 +1,11 @@
 "use client";
 
 import { useActionState } from "react";
-import type { BoardId } from "@shoppingmall/core";
+import type { BoardConfigEntry, BoardId } from "@shoppingmall/core";
 import { unlockSecretPostAction, type UnlockPostFormState } from "@/app/board/[boardId]/actions";
 import { BoardPostBody } from "@/components/BoardPostBody";
 import { BoardCommentSection } from "@/components/BoardCommentSection";
+import { BoardPostManage } from "@/components/BoardPostManage";
 
 // Guest-side counterpart to a member's automatic ownership unlock (handled
 // server-side in getPostDetail) — same password-gate pattern as
@@ -14,11 +15,13 @@ export function SecretPostUnlock({
   uid,
   showComments,
   canWriteComment,
+  config,
 }: {
   boardId: BoardId;
   uid: number;
   showComments: boolean;
   canWriteComment: boolean;
+  config: BoardConfigEntry;
 }) {
   const [state, formAction, pending] = useActionState<UnlockPostFormState, FormData>(unlockSecretPostAction, {});
 
@@ -26,8 +29,9 @@ export function SecretPostUnlock({
     return (
       <>
         <BoardPostBody boardId={boardId} detail={state.detail} />
+        <BoardPostManage boardId={boardId} detail={state.detail} config={config} isMemberOwner={false} />
         {showComments && (
-          <BoardCommentSection boardId={boardId} postUid={uid} comments={state.comments ?? []} isMember={false} canWrite={canWriteComment} />
+          <BoardCommentSection boardId={boardId} postUid={uid} comments={state.comments ?? []} memberId={null} canWrite={canWriteComment} />
         )}
       </>
     );

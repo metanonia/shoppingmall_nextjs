@@ -3,10 +3,13 @@
 import { useActionState, useState } from "react";
 import {
   cancelGuestOrderAction,
+  cancelGuestOrderChangeAction,
   lookupGuestOrderAction,
   type CancelGuestOrderState,
   type GuestOrderLookupState,
+  type GuestOrderChangeState,
 } from "@/app/my_order/guest/actions";
+import { GuestOrderChangeForm } from "./GuestOrderChangeForm";
 
 function formatWon(n: number): string {
   return Math.round(n).toLocaleString("en-US");
@@ -23,6 +26,7 @@ export function GuestOrderLookup() {
     cancelGuestOrderAction,
     {},
   );
+  const [changeCancelState, changeCancelAction, changeCancelPending] = useActionState<GuestOrderChangeState, FormData>(cancelGuestOrderChangeAction, {});
   const [orderNum, setOrderNum] = useState("");
   const [guestName, setGuestName] = useState("");
   const [guestPasswd, setGuestPasswd] = useState("");
@@ -64,10 +68,14 @@ export function GuestOrderLookup() {
                   </td>
                   <td>{formatWon(line.lineTotal)}원</td>
                   <td>{line.statusLabel}</td>
+                  <td><GuestOrderChangeForm orderNum={detail.orderNum} ogUid={line.ogUid} status={line.status} guestName={guestName} guestPasswd={guestPasswd} /></td>
+                  <td>{lookupState.changes?.filter((item) => item.og_uid === line.ogUid).map((item) => <div key={item.uid}>{item.status === 7 ? "교환" : item.status === 8 ? "반품" : "취소"} 요청 (단계 {item.status2}){item.status2 === 1 && <form action={changeCancelAction}><input type="hidden" name="uid" value={item.uid} /><input type="hidden" name="orderNum" value={detail.orderNum} /><input type="hidden" name="guestName" value={guestName} /><input type="hidden" name="guestPasswd" value={guestPasswd} /><button disabled={changeCancelPending}>철회</button></form>}</div>)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {changeCancelState.error && <div className="colorRed size12">{changeCancelState.error}</div>}
+          {changeCancelState.success && <div className="size12">요청이 철회되었습니다. 다시 조회해 주세요.</div>}
           <div className="totalPrice">
             결제금액 <span className="total_price">{formatWon(detail.payTotal)}</span>원
           </div>

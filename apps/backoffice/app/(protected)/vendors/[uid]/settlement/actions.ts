@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { confirmSettlement, getAdminVendorByUid } from "@shoppingmall/core";
+import { confirmSettlement, getAdminVendorByUid, updateSettlementStatus } from "@shoppingmall/core";
 import { requireAdmin } from "@/lib/auth";
 
 export type ActionState = { error?: string; success?: boolean };
@@ -25,4 +25,11 @@ export async function confirmSettlementAction(_prevState: ActionState, formData:
 
   revalidatePath(`/vendors/${vendorUid}/settlement`);
   return { success: true };
+}
+
+export async function updateSettlementStatusAction(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const vendorUid = Number(formData.get("vendorUid"));
+  await updateSettlementStatus(Number(formData.get("uid")), { taxBill: formData.get("taxBill") === "on", status: formData.get("status") === "on" });
+  revalidatePath(`/vendors/${vendorUid}/settlement`);
 }

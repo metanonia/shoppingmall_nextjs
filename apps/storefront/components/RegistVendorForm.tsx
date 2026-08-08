@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useRef } from "react";
+import Link from "next/link";
 import { registerVendorAction, type RegisterVendorFormState } from "@/app/regist_vendor/actions";
 import { PostcodeSearchButton } from "./PostcodeSearchButton";
 
@@ -14,7 +15,7 @@ export function RegistVendorForm() {
     return (
       <div>
         <p>입점신청이 접수되었습니다. 관리자 승인 후 로그인하실 수 있습니다.</p>
-        <a href="/">홈으로</a>
+        <Link href="/">홈으로</Link>
       </div>
     );
   }
@@ -31,6 +32,12 @@ export function RegistVendorForm() {
           </li>
         </ul>
       </div>
+
+      <fieldset>
+        <legend>입점 제출서류</legend>
+        <label>사업자등록증 <input type="file" name="image1" accept="image/*,.pdf" /></label>
+        <label style={{ display: "block", marginTop: 6 }}>통장사본 <input type="file" name="image2" accept="image/*,.pdf" /></label>
+      </fieldset>
 
       <div className="inputBox">
         <ul>

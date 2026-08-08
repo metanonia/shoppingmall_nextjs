@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createMemberLevel, deleteMemberLevel, recalculateMemberLevels, updateMemberLevel } from "@shoppingmall/core";
+import { requireAdmin } from "@/lib/auth";
 
 export type ActionState = { error?: string; success?: boolean };
 
@@ -17,6 +18,7 @@ function levelInput(formData: FormData) {
 }
 
 export async function createMemberLevelAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
   const result = await createMemberLevel(levelInput(formData));
   if (!result.ok) return { error: result.error };
   revalidatePath("/settings/member-levels");
@@ -24,6 +26,7 @@ export async function createMemberLevelAction(_prevState: ActionState, formData:
 }
 
 export async function updateMemberLevelAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
   const uid = Number(formData.get("uid"));
   const result = await updateMemberLevel(uid, levelInput(formData));
   if (!result.ok) return { error: result.error };
@@ -32,6 +35,7 @@ export async function updateMemberLevelAction(_prevState: ActionState, formData:
 }
 
 export async function deleteMemberLevelAction(formData: FormData): Promise<void> {
+  await requireAdmin();
   const uid = Number(formData.get("uid"));
   await deleteMemberLevel(uid);
   revalidatePath("/settings/member-levels");
@@ -40,6 +44,7 @@ export async function deleteMemberLevelAction(formData: FormData): Promise<void>
 export type RecalculateState = { error?: string; result?: { evaluatedCount: number; changedCount: number; couponsIssued: number } };
 
 export async function recalculateMemberLevelsAction(_prevState: RecalculateState, formData: FormData): Promise<RecalculateState> {
+  await requireAdmin();
   const dateFrom = String(formData.get("dateFrom") ?? "");
   const dateTo = String(formData.get("dateTo") ?? "");
   if (!dateFrom || !dateTo) return { error: "기간을 입력해 주세요." };

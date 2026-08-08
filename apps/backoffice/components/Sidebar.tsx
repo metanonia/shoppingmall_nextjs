@@ -6,8 +6,11 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string }[] }[
     title: "주문",
     items: [
       { href: "/orders", label: "주문관리" },
+      { href: "/order-changes", label: "교환·반품·취소 접수" },
+      { href: "/orders/delivery-excel", label: "송장 엑셀 일괄등록" },
       { href: "/order-cancel-log", label: "PG 취소 로그" },
       { href: "/delivery-api-log", label: "배송추적 로그" },
+      { href: "/cash-receipts", label: "현금영수증 관리" },
     ],
   },
   {
@@ -29,8 +32,11 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string }[] }[
       { href: "/coupons", label: "쿠폰관리" },
       { href: "/mileage-log", label: "마일리지 내역" },
       { href: "/member-sleep", label: "휴면회원" },
+      { href: "/member-withdrawals", label: "탈퇴회원 내역" },
       { href: "/sms-log", label: "SMS 발송이력" },
+      { href: "/sms-templates", label: "문자 알림설정" },
       { href: "/access-log", label: "접속 로그" },
+      { href: "/push-settings", label: "푸시 알림" },
     ],
   },
   {
@@ -39,6 +45,10 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string }[] }[
       { href: "/board/notice", label: "공지사항" },
       { href: "/board/faq", label: "FAQ" },
       { href: "/board/counsel", label: "1:1문의" },
+      { href: "/board/vnotice", label: "판매사 공지사항" },
+      { href: "/board/vcounsel", label: "판매사 1:1문의" },
+      { href: "/reviews", label: "구매후기" },
+      { href: "/inquiries", label: "상품문의" },
     ],
   },
   {
@@ -70,6 +80,8 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string }[] }[
       { href: "/stats/members", label: "회원통계" },
       { href: "/stats/goods-ranking", label: "상품랭킹" },
       { href: "/stats/mileage", label: "마일리지통계" },
+      { href: "/stats/keywords", label: "검색어통계" },
+      { href: "/stats/visitors", label: "방문자·유입통계" },
     ],
   },
   { title: "개발자", items: [{ href: "/db-error-log", label: "오류 로그" }] },

@@ -13,8 +13,8 @@ import { Pagination } from "@/components/Pagination";
 
 const VALID_SORTS: SortOption[] = ["best", "new", "price_asc", "price_desc"];
 
-// Port of php/search.php. Multi-term "결과 내 검색" narrowing (successive
-// ANDed keywords) is simplified to a single search phrase — see listing.ts.
+// Port of php/search.php. Whitespace-delimited terms reproduce the legacy
+// successive "결과 내 검색" AND narrowing in listing.ts.
 export default async function SearchPage({
   searchParams,
 }: {

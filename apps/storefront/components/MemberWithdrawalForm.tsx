@@ -19,7 +19,19 @@ export function MemberWithdrawalForm() {
               <input type="password" name="passwd" required placeholder="비밀번호 확인" autoComplete="current-password" />
             </li>
             <li>
-              <textarea name="reason" placeholder="탈퇴 이유 (선택)" />
+              <p className="inputTitle">탈퇴사유</p>
+              <div className="clearfix">
+                {["상품품질 불만", "배송지연", "교환/환불/반품 불만", "개인정보유출방지", "기타"].map(
+                  (reason) => (
+                    <label className="min" key={reason} style={{ marginRight: 16 }}>
+                      <input type="radio" name="reason" value={reason} required /> {reason}
+                    </label>
+                  ),
+                )}
+              </div>
+            </li>
+            <li>
+              <textarea name="message" placeholder="하고 싶은 말을 남겨 주세요" />
             </li>
           </ul>
         </div>

@@ -270,11 +270,6 @@ export async function importGoodsExcelRow(
   const price = parsePrice(row.price);
   if (price <= 0) return { ok: false, error: "판매가가 올바르지 않습니다." };
 
-  // row.requireInfo(상품정보제공고시) is parsed but intentionally dropped —
-  // GoodsFormInput (goods-admin.ts) has no field for `Goods.require_info` at
-  // all (it's a pre-existing gap: detail.ts already reads/renders it, but no
-  // admin/vendor form can write it), so there's nothing for the importer to
-  // plug it into without reaching around createGoods() with a raw update.
   const isUnlimited = row.qty.trim() === "무제한";
   const [deliveryTypeRaw, deliveryPriceRaw] = row.deliveryType.split("|");
   const deliveryType = Number(deliveryTypeRaw) || 1;
@@ -306,6 +301,7 @@ export async function importGoodsExcelRow(
     origin: row.origin,
     brand: row.brand,
     makingInfo: [],
+    requireInfo: row.requireInfo.split(/\r?\n|\|\*\|/).map((value) => value.split("|")).filter(([name]) => name).map(([name, value]) => ({ name: name.trim(), value: (value ?? "").trim() })),
     qty_type: isUnlimited ? 1 : 0,
     qty: isUnlimited ? 0 : Math.max(0, Math.round(Number(row.qty.replace(/[^0-9]/g, "")) || 0)),
     limit_qty: 0,
@@ -314,8 +310,9 @@ export async function importGoodsExcelRow(
     sale_use: row.saleUse.trim().toUpperCase() === "Y",
     order_priority: 5,
     icons: [],
-    mileage_type: 0,
+    mileage_type: 2,
     mileage_common: 0,
+    mileage_level: "",
     delivery_type: deliveryType,
     delivery_price: Number((deliveryPriceRaw ?? "").replace(/[^0-9]/g, "")) || 0,
     delivery_info: "",

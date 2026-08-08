@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { BOARD_CONFIG, getPostList, isBoardId } from "@shoppingmall/core";
+import { BOARD_CONFIG, getPostList, isCustomerBoardId } from "@shoppingmall/core";
 import { getSession } from "@/lib/auth";
 
 function formatDate(signdate: number): string {
@@ -15,7 +15,7 @@ export default async function BoardListPage({
   searchParams: Promise<{ page?: string; keyword?: string; category?: string }>;
 }) {
   const { boardId } = await params;
-  if (!isBoardId(boardId)) notFound();
+  if (!isCustomerBoardId(boardId)) notFound();
 
   const config = BOARD_CONFIG[boardId];
   const { page: pageParam, keyword, category: categoryParam } = await searchParams;

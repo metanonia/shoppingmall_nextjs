@@ -14,6 +14,7 @@ export type PopupItem = {
   imageUrl: string | null;
   link: string | null;
   contentHtml: string | null;
+  slides: { uid: number; name: string; imageUrl: string; link: string | null; dismissForToday: boolean }[];
 };
 
 function toPopupItem(
@@ -34,7 +35,7 @@ function toPopupItem(
   const [posTop, posLeft] = row.input_position.split("|");
   const [width, height] = row.input_size.split("|");
   const folder = device === "mobile" ? "mobile_popup" : "popup";
-  return {
+  const item = {
     uid: row.uid,
     name: row.name,
     type: row.type,
@@ -47,15 +48,15 @@ function toPopupItem(
     imageUrl: row.image_only === 1 && row.image1 ? `/image/${folder}/${row.uid}/${row.image1}` : null,
     link: row.link1 || null,
     contentHtml: row.image_only === 1 ? null : row.content,
+    slides: [] as PopupItem["slides"],
   };
+  if (item.imageOnly && item.imageUrl) item.slides.push({ uid: item.uid, name: item.name, imageUrl: item.imageUrl, link: item.link, dismissForToday: item.type === 1 });
+  return item;
 }
 
-// Port of php/bottom.php:116-206's popup-selection loop, only shown on the
-// home page (`channel=="main"`) in legacy. Simplifications (documented in
-// MIGRATION.md): the "merge every other active image-only popup sharing this
-// position into one slider" behavior isn't reproduced — each active popup
-// renders as its own independent box; legacy also only renders the *first*
-// popup per distinct `position` value (`$position_ck`), which this keeps.
+// Port of php/bottom.php:116-206's popup-selection loop. Image-only popups
+// sharing a position are merged into one slider; HTML popups keep the first
+// box at that position, matching the legacy position grouping.
 export async function getActivePopups(device: Device, dismissedUids: number[]): Promise<PopupItem[]> {
   // prisma.popup / prisma.mobilePopup are structurally identical but
   // distinct delegate types — TS can't unify a variable holding either, so
@@ -81,10 +82,14 @@ export async function getActivePopups(device: Device, dismissedUids: number[]): 
       }
     }
     if (row.type === 1 && dismissedUids.includes(row.uid)) continue;
-    if (seenPositions.has(row.position)) continue;
+    const item = toPopupItem(row, device);
+    if (seenPositions.has(row.position)) {
+      const group = active.find((popup) => popup.position === row.position);
+      if (group?.imageOnly && item.imageOnly) group.slides.push(...item.slides);
+      continue;
+    }
     seenPositions.add(row.position);
-
-    active.push(toPopupItem(row, device));
+    active.push(item);
   }
   return active;
 }

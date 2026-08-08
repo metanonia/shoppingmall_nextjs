@@ -8,11 +8,14 @@ import {
   type PostDetail,
   createComment,
   createPost,
+  deleteOwnPost,
+  deleteOwnComment,
   getMemberProfile,
   getPostComments,
   getPostDetail,
-  isBoardId,
+  isCustomerBoardId,
   setPostFiles,
+  updateOwnPost,
 } from "@shoppingmall/core";
 import { getSession } from "@/lib/auth";
 import { saveBoardFiles } from "@/lib/board-upload";
@@ -25,7 +28,7 @@ export type CreatePostFormState = { error?: string };
 // attaches the resulting filenames once they're on disk.
 export async function createPostAction(_prevState: CreatePostFormState, formData: FormData): Promise<CreatePostFormState> {
   const boardId = String(formData.get("boardId") ?? "");
-  if (!isBoardId(boardId)) return { error: "존재하지 않는 게시판입니다." };
+  if (!isCustomerBoardId(boardId)) return { error: "존재하지 않는 게시판입니다." };
 
   const config = BOARD_CONFIG[boardId];
   const subject = String(formData.get("subject") ?? "").trim();
@@ -74,7 +77,7 @@ export type UnlockPostFormState = { error?: string; detail?: PostDetail; comment
 // case and never sees this client-side unlock.
 export async function unlockSecretPostAction(_prevState: UnlockPostFormState, formData: FormData): Promise<UnlockPostFormState> {
   const boardId = String(formData.get("boardId") ?? "");
-  if (!isBoardId(boardId)) return { error: "존재하지 않는 게시판입니다." };
+  if (!isCustomerBoardId(boardId)) return { error: "존재하지 않는 게시판입니다." };
 
   const uid = Number(formData.get("uid"));
   const guestPasswordPlain = String(formData.get("guestPasswd") ?? "");
@@ -91,7 +94,7 @@ export type CreateCommentFormState = { error?: string; success?: boolean };
 
 export async function createCommentAction(_prevState: CreateCommentFormState, formData: FormData): Promise<CreateCommentFormState> {
   const boardId = String(formData.get("boardId") ?? "");
-  if (!isBoardId(boardId)) return { error: "존재하지 않는 게시판입니다." };
+  if (!isCustomerBoardId(boardId)) return { error: "존재하지 않는 게시판입니다." };
 
   const postUid = Number(formData.get("postUid"));
   const content = String(formData.get("content") ?? "").trim();
@@ -109,9 +112,69 @@ export async function createCommentAction(_prevState: CreateCommentFormState, fo
     author = { guestName, guestPasswordPlain };
   }
 
-  const result = await createComment(boardId, postUid, author, content);
+  const parentUid = Number(formData.get("parentUid") ?? 0);
+  const result = await createComment(boardId, postUid, author, content, { parentUid: parentUid > 0 ? parentUid : undefined });
   if (!result.ok) return { error: result.error };
 
+  revalidatePath(`/board/${boardId}/${postUid}`);
+  return { success: true };
+}
+
+export type ManagePostFormState = { error?: string; success?: boolean };
+
+async function ownerAuth(formData: FormData) {
+  const session = await getSession();
+  return session
+    ? { memberId: session.userId }
+    : { guestPasswordPlain: String(formData.get("guestPasswd") ?? "") };
+}
+
+export async function updateOwnPostAction(
+  _prevState: ManagePostFormState,
+  formData: FormData,
+): Promise<ManagePostFormState> {
+  const boardId = String(formData.get("boardId") ?? "");
+  if (!isCustomerBoardId(boardId)) return { error: "존재하지 않는 게시판입니다." };
+  const uid = Number(formData.get("uid"));
+  const result = await updateOwnPost(boardId, uid, await ownerAuth(formData), {
+    subject: String(formData.get("subject") ?? "").trim(),
+    content: String(formData.get("content") ?? "").trim(),
+    contact: String(formData.get("contact") ?? "").trim(),
+    category: formData.get("category") ? Number(formData.get("category")) : undefined,
+    secret: formData.get("secret") === "on",
+  });
+  if (!result.ok) return { error: result.error };
+  revalidatePath(`/board/${boardId}/${uid}`);
+  redirect(`/board/${boardId}/${uid}`);
+}
+
+export async function deleteOwnPostAction(
+  _prevState: ManagePostFormState,
+  formData: FormData,
+): Promise<ManagePostFormState> {
+  const boardId = String(formData.get("boardId") ?? "");
+  if (!isCustomerBoardId(boardId)) return { error: "존재하지 않는 게시판입니다." };
+  const uid = Number(formData.get("uid"));
+  const result = await deleteOwnPost(boardId, uid, await ownerAuth(formData));
+  if (!result.ok) return { error: result.error };
+  revalidatePath(`/board/${boardId}`);
+  redirect(`/board/${boardId}`);
+}
+
+export async function deleteOwnCommentAction(
+  _prevState: ManagePostFormState,
+  formData: FormData,
+): Promise<ManagePostFormState> {
+  const boardId = String(formData.get("boardId") ?? "");
+  if (!isCustomerBoardId(boardId)) return { error: "존재하지 않는 게시판입니다." };
+  const postUid = Number(formData.get("postUid"));
+  const result = await deleteOwnComment(
+    boardId,
+    postUid,
+    Number(formData.get("commentUid")),
+    await ownerAuth(formData),
+  );
+  if (!result.ok) return { error: result.error };
   revalidatePath(`/board/${boardId}/${postUid}`);
   return { success: true };
 }

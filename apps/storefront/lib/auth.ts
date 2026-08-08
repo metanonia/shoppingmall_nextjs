@@ -6,8 +6,13 @@ import { SESSION_COOKIE_NAME, signSession, verifySession, type SessionPayload } 
 // cookie — see packages/auth/src/session.ts for why. This file is the
 // Next.js-specific half (cookies() access); packages/auth stays
 // framework-agnostic so apps/backoffice can reuse it later.
-const SECRET = process.env.AUTH_SECRET;
-if (!SECRET) throw new Error("AUTH_SECRET is not set");
+function requireAuthSecret(): string {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) throw new Error("AUTH_SECRET is not set");
+  return secret;
+}
+
+const SECRET = requireAuthSecret();
 
 export async function createSession(payload: SessionPayload): Promise<void> {
   const token = await signSession(payload, SECRET);

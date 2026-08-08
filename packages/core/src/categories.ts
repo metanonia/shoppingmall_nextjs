@@ -60,7 +60,7 @@ export async function checkCateAccess(cate: bigint): Promise<boolean> {
 export async function getCateBreadcrumb(cate: bigint): Promise<string> {
   const names: string[] = [];
   let current: bigint | null = cate;
-  for (let depth = 0; depth < 4 && current !== null && current !== 0n; depth++) {
+  for (let depth = 0; depth < 4 && current !== null && current !== BigInt(0); depth++) {
     const row: { cate_name: string; cate_parent: bigint } | null = await prisma.cate.findFirst({
       where: { cate: current },
       select: { cate_name: true, cate_parent: true },

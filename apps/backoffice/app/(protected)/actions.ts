@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { updateWidgetLayout, type DashboardWidgetKey } from "@shoppingmall/core";
 import { requireAdmin } from "@/lib/auth";
 
-const WIDGET_KEYS: DashboardWidgetKey[] = ["todayOrderCount", "todaySalesTotal", "unansweredCounselCount"];
+const WIDGET_KEYS: DashboardWidgetKey[] = ["todayOrderCount", "todaySalesTotal", "unansweredCounselCount", "unansweredInquiryCount", "unansweredVendorCounselCount", "activeOrderChangeCount", "pendingCashReceiptCount", "pendingGoodsCount", "pendingVendorCount", "memberCount", "shippingCount", "errorCount"];
 
 export async function updateWidgetLayoutAction(formData: FormData): Promise<void> {
   const session = await requireAdmin();

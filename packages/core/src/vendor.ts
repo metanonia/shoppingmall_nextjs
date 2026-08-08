@@ -1,6 +1,8 @@
 import { prisma } from "@shoppingmall/db";
 import { hashPassword, verifyPassword } from "@shoppingmall/auth";
 import { sanitizeRichText } from "./sanitize";
+import { getShopConfig } from "./config";
+import { renderVendorWelcomeEmail, sendMail } from "./mailer";
 
 export type VendorProfile = {
   id: string;
@@ -58,6 +60,8 @@ export type RegisterVendorInput = {
   bankName: string;
   bankNum: string;
   bankOwner: string;
+  image1: string;
+  image2: string;
 };
 
 export type RegisterVendorResult = { ok: true; profile: VendorProfile } | { ok: false; error: string };
@@ -69,7 +73,7 @@ export type RegisterVendorResult = { ok: true; profile: VendorProfile } | { ok: 
 // same "no blocking dependency, revisit if needed" precedent used for other
 // skipped upload flows). Server-forced fields match legacy exactly: new
 // vendors always start pending (auth='R'/sell='R') with auto-approved
-// product listing (goods_auth='A') — admin approval is Phase 7's existing
+// product listing (goods_auth='A') — admin approval is the existing
 // `/vendors` screen (`updateVendorAuth`), not new work here.
 export async function registerVendor(input: RegisterVendorInput): Promise<RegisterVendorResult> {
   if (!input.id || !input.password || !input.compName || !input.compOwner) {
@@ -106,6 +110,8 @@ export async function registerVendor(input: RegisterVendorInput): Promise<Regist
       bank_name: input.bankName,
       bank_num: input.bankNum,
       bank_owner: input.bankOwner,
+      image1: input.image1,
+      image2: input.image2,
       auth: "R",
       sell: "R",
       goods_auth: "A",
@@ -113,6 +119,12 @@ export async function registerVendor(input: RegisterVendorInput): Promise<Regist
       signdate: now,
     },
   });
+
+  if (row.comp_email) {
+    const config = await getShopConfig();
+    const rendered = await renderVendorWelcomeEmail({ shopName: config.basicName, vendorId: row.id, vendorName: row.comp_name });
+    if (rendered) await sendMail({ to: row.comp_email, subject: rendered.subject, html: rendered.html });
+  }
 
   return { ok: true, profile: toProfile(row) };
 }
@@ -287,6 +299,11 @@ export type VendorConfigurationInput = {
   rtnPostcode: string;
   rtnAddress1: string;
   rtnAddress2: string;
+  deliveryType: "F" | "D" | "P";
+  deliveryDPrice: number;
+  deliveryPType: string;
+  deliveryPPrice1: number;
+  deliveryPPrice2: number;
   deliveryInfo: string;
   refundInfo: string;
   exchangeInfo: string;
@@ -300,6 +317,7 @@ export type VendorConfigurationInput = {
   brandInfo: string[];
   makeInfo: string[];
   originInfo: string[];
+  optionInfo: string[];
 };
 
 export type VendorConfigurationView = VendorConfigurationInput;
@@ -316,11 +334,8 @@ function splitMultiValue(raw: string): string[] {
 // default when creating a new product, see goods-admin.ts), the 3
 // store_display section toggles (store.ts's getStoreSections, added once
 // store_display was un-scoped-out — see goods-display.ts's header comment),
-// and the brand/manufacturer/origin suggestion lists (goods_option_info is
-// still left out — nothing in this repo's simplified GoodsOptionBuilder
-// consumes an option-name suggestion list the way brand/make/origin's plain
-// text inputs now do). Delivery pricing overrides and push tokens stay
-// admin-only-unused, same precedent as Configuration's leftover columns.
+// and the option/brand/manufacturer/origin suggestion lists. Delivery pricing is consumed by cart.ts for each
+// vendor_delivery group; push tokens are managed on the separate page.
 export async function getVendorConfiguration(vendorId: string): Promise<VendorConfigurationView | null> {
   const row = await prisma.vendorConfiguration.findFirst({ where: { vendor: vendorId } });
   if (!row) return null;
@@ -332,6 +347,11 @@ export async function getVendorConfiguration(vendorId: string): Promise<VendorCo
     rtnPostcode: row.comp_rtn_postcode,
     rtnAddress1: row.comp_rtn_address1,
     rtnAddress2: row.comp_rtn_address2,
+    deliveryType: row.delivery_type,
+    deliveryDPrice: row.delivery_d_price,
+    deliveryPType: row.delivery_p_type,
+    deliveryPPrice1: row.delivery_p_price1,
+    deliveryPPrice2: row.delivery_p_price2,
     deliveryInfo: row.goods_delivery_info,
     refundInfo: row.goods_refund_info,
     exchangeInfo: row.goods_exchange_info,
@@ -342,17 +362,18 @@ export async function getVendorConfiguration(vendorId: string): Promise<VendorCo
     brandInfo: splitMultiValue(row.goods_brand_info),
     makeInfo: splitMultiValue(row.goods_make_info),
     originInfo: splitMultiValue(row.goods_origin_info),
+    optionInfo: splitMultiValue(row.goods_option_info),
   };
 }
 
-export type VendorGoodsMasterValues = { brands: string[]; makes: string[]; origins: string[] };
+export type VendorGoodsMasterValues = { brands: string[]; makes: string[]; origins: string[]; options: string[] };
 
 // Convenience read used by the vendor goods-form pages (new/edit) — same
 // data as getVendorConfiguration, narrowed to what GoodsForm's masterValues
 // prop needs.
 export async function getVendorGoodsMasterValues(vendorId: string): Promise<VendorGoodsMasterValues> {
   const config = await getVendorConfiguration(vendorId);
-  return { brands: config?.brandInfo ?? [], makes: config?.makeInfo ?? [], origins: config?.originInfo ?? [] };
+  return { brands: config?.brandInfo ?? [], makes: config?.makeInfo ?? [], origins: config?.originInfo ?? [], options: config?.optionInfo ?? [] };
 }
 
 export type VendorConfigResult = { ok: true } | { ok: false; error: string };
@@ -366,6 +387,11 @@ export async function updateVendorConfiguration(vendorId: string, input: VendorC
     comp_rtn_postcode: input.rtnPostcode,
     comp_rtn_address1: input.rtnAddress1,
     comp_rtn_address2: input.rtnAddress2,
+    delivery_type: input.deliveryType,
+    delivery_d_price: Math.max(0, input.deliveryDPrice),
+    delivery_p_type: input.deliveryPType,
+    delivery_p_price1: Math.max(0, input.deliveryPPrice1),
+    delivery_p_price2: Math.max(0, input.deliveryPPrice2),
     goods_delivery_info: sanitizeRichText(input.deliveryInfo),
     goods_refund_info: sanitizeRichText(input.refundInfo),
     goods_exchange_info: sanitizeRichText(input.exchangeInfo),
@@ -376,6 +402,7 @@ export async function updateVendorConfiguration(vendorId: string, input: VendorC
     goods_brand_info: input.brandInfo.join("|*|"),
     goods_make_info: input.makeInfo.join("|*|"),
     goods_origin_info: input.originInfo.join("|*|"),
+    goods_option_info: input.optionInfo.join("|*|"),
   };
 
   const existing = await prisma.vendorConfiguration.findFirst({ where: { vendor: vendorId } });
@@ -387,7 +414,7 @@ export async function updateVendorConfiguration(vendorId: string, input: VendorC
   return { ok: true };
 }
 
-export type VendorDashboardStats = { todayOrderCount: number; todaySalesTotal: number; pendingGoodsCount: number };
+export type VendorDashboardStats = { todayOrderCount: number; todaySalesTotal: number; todayGoodsCount: number; todayVisitorCount: number; pendingGoodsCount: number; unansweredInquiryCount: number; activeOrderChangeCount: number; shippingCount: number; reviewCount: number; settlementPendingCount: number; boardTodayCount: number; boardTotalCount: number; orderStepCounts: { status: number; today: number; total: number }[]; recentOrders: { id: string; label: string }[]; recentInquiries: { id: string; label: string }[]; recentReviews: { id: string; label: string }[]; recentNotices: { id: string; label: string }[]; recentSettlements: { id: string; label: string }[] };
 
 function todayStartUnix(): number {
   const now = new Date();
@@ -395,18 +422,48 @@ function todayStartUnix(): number {
   return Math.floor(now.getTime() / 1000);
 }
 
-// Scoped-down vendor twin of admin-dashboard.ts's getAdminDashboardStats.
+// Vendor counterpart of managers/vendor/widget/*.
 export async function getVendorDashboardStats(vendorId: string): Promise<VendorDashboardStats> {
   const since = todayStartUnix();
 
-  const [lines, pendingGoodsCount] = await Promise.all([
+  const [lines, pendingGoodsCount, unansweredInquiryCount, activeOrderChangeCount, shippingCount, reviewCount, settlementPendingCount, todayGoodsCount, visitors, boardTodayCount, boardTotalCount, allOrderLines, recentOrders, recentInquiries, recentReviews, recentNotices, recentSettlements] = await Promise.all([
     prisma.orderGoods.findMany({ where: { vendor: vendorId, reals: 1, signdate: { gte: since } }, select: { price: true, qty: true } }),
     prisma.goods.count({ where: { vendor: vendorId, auth_ck: "N" } }),
+    prisma.inquiry.count({ where: { vendor: vendorId, answer: "" } }),
+    prisma.orderStatusChange.count({ where: { vendor: vendorId, status2: { in: [1, 2, 3, 4] } } }),
+    prisma.orderGoods.count({ where: { vendor: vendorId, reals: 1, status: { in: [2, 3] } } }),
+    prisma.review.count({ where: { vendor: vendorId } }),
+    prisma.salesCalculate.count({ where: { vendor: vendorId, status: 0 } }),
+    prisma.goods.count({ where: { vendor: vendorId, signdate: { gte: since } } }),
+    prisma.visitorEvent.findMany({ where: { vendor: vendorId, signdate: { gte: since } }, distinct: ["visitor_key"], select: { visitor_key: true } }),
+    prisma.boardPost.count({ where: { board: "vcounsel", id: vendorId, signdate: { gte: since } } }),
+    prisma.boardPost.count({ where: { board: "vcounsel", id: vendorId } }),
+    prisma.orderGoods.findMany({ where: { vendor: vendorId, reals: 1 }, select: { status: true, signdate: true } }),
+    prisma.orderGoods.findMany({ where: { vendor: vendorId, reals: 1 }, orderBy: { uid: "desc" }, take: 4, select: { uid: true, order_num: true, g_name: true } }),
+    prisma.inquiry.findMany({ where: { vendor: vendorId }, orderBy: { uid: "desc" }, take: 4, select: { uid: true, subject: true } }),
+    prisma.review.findMany({ where: { vendor: vendorId }, orderBy: { uid: "desc" }, take: 4, select: { uid: true, g_name: true, name: true } }),
+    prisma.boardPost.findMany({ where: { board: "vnotice" }, orderBy: { uid: "desc" }, take: 4, select: { uid: true, subject: true } }),
+    prisma.salesCalculate.findMany({ where: { vendor: vendorId }, orderBy: { uid: "desc" }, take: 4, select: { uid: true, date_from: true, date_to: true, payout_total: true } }),
   ]);
 
   return {
     todayOrderCount: lines.length,
     todaySalesTotal: lines.reduce((sum, l) => sum + l.price * l.qty, 0),
+    todayGoodsCount,
+    todayVisitorCount: visitors.length,
     pendingGoodsCount,
+    unansweredInquiryCount,
+    activeOrderChangeCount,
+    shippingCount,
+    reviewCount,
+    settlementPendingCount,
+    boardTodayCount,
+    boardTotalCount,
+    orderStepCounts: Array.from({ length: 7 }, (_, status) => ({ status, today: allOrderLines.filter((line) => line.status === status && line.signdate >= since).length, total: allOrderLines.filter((line) => line.status === status).length })),
+    recentOrders: recentOrders.map((row) => ({ id: String(row.uid), label: `${row.order_num} · ${row.g_name}` })),
+    recentInquiries: recentInquiries.map((row) => ({ id: String(row.uid), label: row.subject })),
+    recentReviews: recentReviews.map((row) => ({ id: String(row.uid), label: `${row.g_name} · ${row.name}` })),
+    recentNotices: recentNotices.map((row) => ({ id: String(row.uid), label: row.subject })),
+    recentSettlements: recentSettlements.map((row) => ({ id: String(row.uid), label: `${row.date_from}~${row.date_to} · ${row.payout_total.toLocaleString("ko-KR")}원` })),
   };
 }

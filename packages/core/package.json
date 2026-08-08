@@ -16,7 +16,8 @@
     "@shoppingmall/db": "workspace:*",
     "exceljs": "^4.4.0",
     "nodemailer": "^9.0.5",
-    "sanitize-html": "^2.17.6"
+    "sanitize-html": "^2.17.6",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^22",

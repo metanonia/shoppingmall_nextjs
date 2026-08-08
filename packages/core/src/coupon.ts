@@ -7,12 +7,16 @@ function now(): number {
 }
 
 // Port of lib/lib.Shop.php:2648 couponIssuance(). Legacy has no dedupe
-// guard — any trigger (admin/signup/first-order/birthday/PDP download) can
-// issue the same member the same coupon repeatedly. Phase 4 only wires up
-// the PDP "download" trigger (type=4, self-service, no admin screen to gate
-// abuse), so a duplicate-issue check is added here as a deliberate
-// safety net the legacy trigger set didn't need.
+// guard — admin/level/signup/birthday triggers can issue the same template
+// again. Only PDP download coupons (type=4) enforce use_limit2 here.
 export type IssueCouponResult = { ok: true } | { ok: false; error: string };
+
+export function couponIssuanceLimitError(templateType: number, useLimit2: number, issuedCount: number): string | null {
+  if (templateType === 4) {
+    return useLimit2 > 0 && issuedCount >= useLimit2 ? "쿠폰 발급 가능 수량을 초과했습니다." : null;
+  }
+  return null;
+}
 
 export async function issueCoupon(memberId: string, couponManagerUid: number, goodsUid = 0): Promise<IssueCouponResult> {
   const template = await prisma.couponManager.findFirst({ where: { uid: couponManagerUid } });
@@ -21,10 +25,11 @@ export async function issueCoupon(memberId: string, couponManagerUid: number, go
   const eDate = template.use_type === 0 ? template.use_e_date : addDays(new Date(), template.use_day);
   if (eDate && eDate.getTime() < Date.now()) return { ok: false, error: "발급 기간이 종료된 쿠폰입니다." };
 
-  const existing = await prisma.coupon.findFirst({
+  const issuedCount = await prisma.coupon.count({
     where: { id: memberId, c_uid: couponManagerUid, g_uid: goodsUid },
   });
-  if (existing) return { ok: false, error: "이미 발급받은 쿠폰입니다." };
+  const limitError = couponIssuanceLimitError(template.type, template.use_limit2, issuedCount);
+  if (limitError) return { ok: false, error: limitError };
 
   await prisma.coupon.create({
     data: {

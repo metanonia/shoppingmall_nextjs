@@ -43,12 +43,16 @@ export default async function SalesStatsPage({ searchParams }: { searchParams: P
         </div>
       </div>
 
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>{stats.payTypeTotals.map((row) => <div key={row.payType} style={{ border: "1px solid #eee", padding: 10 }}>{row.payType}: {row.count}건 / {formatWon(row.total)}원</div>)}</div>
+
       <table style={{ width: "100%" }}>
         <thead>
           <tr>
             <th>날짜</th>
             <th>주문건수</th>
             <th>매출액</th>
+            <th>PC</th>
+            <th>모바일</th>
           </tr>
         </thead>
         <tbody>
@@ -57,6 +61,8 @@ export default async function SalesStatsPage({ searchParams }: { searchParams: P
               <td>{p.date}</td>
               <td>{p.orderCount}건</td>
               <td>{formatWon(p.salesTotal)}원</td>
+              <td>{p.pcOrderCount}건 / {formatWon(p.pcSalesTotal)}원</td>
+              <td>{p.mobileOrderCount}건 / {formatWon(p.mobileSalesTotal)}원</td>
             </tr>
           ))}
         </tbody>

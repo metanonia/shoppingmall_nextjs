@@ -75,4 +75,18 @@ describe("getDeliveryFee", () => {
     expect(perVendor.get("v2")).toBe(2500);
     expect(total).toBe(2500);
   });
+
+  it("uses each seller's delivery policy for seller-shipped default items", () => {
+    const vendorConfigs = new Map([
+      ["v1", { deliveryType: "F" as const, deliveryDPrice: 0, deliveryPType: "order", deliveryPPrice1: 0, deliveryPPrice2: 0 }],
+      ["v2", { deliveryType: "P" as const, deliveryDPrice: 0, deliveryPType: "order", deliveryPPrice1: 50000, deliveryPPrice2: 5000 }],
+    ]);
+    const { total, perVendor } = getDeliveryFee([
+      { vendorDelivery: "v1", deliveryType: 1, deliveryPrice: 0, lineTotal: 10000 },
+      { vendorDelivery: "v2", deliveryType: 1, deliveryPrice: 0, lineTotal: 10000 },
+    ], CONFIG_CONDITIONAL_FREE, vendorConfigs);
+    expect(perVendor.get("v1")).toBe(0);
+    expect(perVendor.get("v2")).toBe(5000);
+    expect(total).toBe(5000);
+  });
 });

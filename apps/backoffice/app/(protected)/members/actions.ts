@@ -19,6 +19,7 @@ export async function changeMemberLevelAction(_prevState: ActionState, formData:
 }
 
 export async function issueCouponAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
   const memberId = String(formData.get("memberId") ?? "");
   const couponManagerUid = Number(formData.get("couponManagerUid"));
 

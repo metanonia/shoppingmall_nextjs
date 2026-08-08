@@ -20,19 +20,14 @@ export type AdminMemberListResult = { items: AdminMemberListItem[]; total: numbe
 
 const ADMIN_MEMBERS_PAGE_SIZE = 20;
 
-// Port of managers/member/member_list.php, keyword-only search across
-// id/name/email/cell (this repo's established single-field simplification
-// vs legacy's field/field2/field3/field4 multi-keyword search).
+// Port of managers/member/member_list.php. Multiple whitespace-delimited
+// terms are ANDed while each term can match id/name/email/cell.
 export async function getAdminMemberList(filters: { keyword?: string; level?: number }, page = 1): Promise<AdminMemberListResult> {
+  const terms = (filters.keyword ?? "").trim().split(/\s+/).filter(Boolean);
   const where = {
-    ...(filters.keyword
+    ...(terms.length
       ? {
-          OR: [
-            { id: { contains: filters.keyword } },
-            { name: { contains: filters.keyword } },
-            { email: { contains: filters.keyword } },
-            { cell: { contains: filters.keyword } },
-          ],
+          AND: terms.map((term) => ({ OR: [{ id: { contains: term } }, { name: { contains: term } }, { email: { contains: term } }, { cell: { contains: term } }] })),
         }
       : {}),
     ...(filters.level !== undefined ? { level: filters.level } : {}),
@@ -325,10 +320,8 @@ export type MemberSleepListResult = { items: MemberSleepListItem[]; total: numbe
 const MEMBER_SLEEP_PAGE_SIZE = 30;
 
 // Port of managers/member/member_sleep_list.php's read side — Phase 9 built
-// the cron conversion (scheduled-jobs.ts's processDormantMembers) but never
-// an admin screen to see who got converted. Reactivation (legacy's
-// nondormant_time + separate unlock flow) is still out of scope — see
-// MIGRATION.md.
+// the cron conversion (scheduled-jobs.ts's processDormantMembers), admin
+// list and both automatic/manual reactivation paths.
 export async function getMemberSleepList(filters: { keyword?: string }, page = 1): Promise<MemberSleepListResult> {
   const where = filters.keyword
     ? { OR: [{ id: { contains: filters.keyword } }, { name: { contains: filters.keyword } }, { email: { contains: filters.keyword } }] }
@@ -351,6 +344,19 @@ export async function getMemberSleepList(filters: { keyword?: string }, page = 1
     page: safePage,
     totalPages,
   };
+}
+
+// Port of managers/member/member_post.php's sleep_restore mode.
+export async function restoreDormantMember(uid: number): Promise<MemberAdminResult> {
+  const row = await prisma.memberSleep.findUnique({ where: { uid } });
+  if (!row) return { ok: false, error: "존재하지 않는 휴면회원입니다." };
+  const now = Math.floor(Date.now() / 1000);
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`INSERT INTO mallRN_member SELECT * FROM mallRN_member_sleep WHERE uid = ${uid}`;
+    await tx.member.update({ where: { id: row.id }, data: { sleep_time: now, nondormant_time: now } });
+    await tx.memberSleep.delete({ where: { uid } });
+  });
+  return { ok: true };
 }
 
 export type MemberLevelListItem = {
@@ -500,4 +506,39 @@ export async function recalculateMemberLevels(dateFrom: string, dateTo: string):
   });
 
   return { ok: true, evaluatedCount: members.length, changedCount, couponsIssued };
+}
+
+export type MemberWithdrawalListItem = {
+  uid: number;
+  id: string;
+  name: string;
+  reason: string;
+  message: string;
+  orderCount: number;
+  mobile: boolean;
+  signdate: number;
+};
+
+export async function getMemberWithdrawalList(filters: { keyword?: string; dateFrom?: string; dateTo?: string }, page = 1) {
+  const where = {
+    ...(filters.keyword ? { OR: [{ id: { contains: filters.keyword } }, { name: { contains: filters.keyword } }, { reason: { contains: filters.keyword } }, { message: { contains: filters.keyword } }] } : {}),
+    ...(filters.dateFrom || filters.dateTo ? { signdate: {
+      ...(filters.dateFrom ? { gte: Math.floor(new Date(`${filters.dateFrom}T00:00:00`).getTime() / 1000) } : {}),
+      ...(filters.dateTo ? { lte: Math.floor(new Date(`${filters.dateTo}T23:59:59`).getTime() / 1000) } : {}),
+    } } : {}),
+  };
+  const total = await prisma.memberWithdrawal.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / 30));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const rows = await prisma.memberWithdrawal.findMany({ where, orderBy: { uid: "desc" }, skip: (safePage - 1) * 30, take: 30 });
+  return {
+    items: rows.map((row) => ({ uid: row.uid, id: row.id, name: row.name, reason: row.reason, message: row.message, orderCount: row.order_cnt, mobile: row.mobile === "Y", signdate: row.signdate })),
+    total,
+    page: safePage,
+    totalPages,
+  };
+}
+
+export async function deleteMemberWithdrawalRecord(uid: number): Promise<void> {
+  await prisma.memberWithdrawal.deleteMany({ where: { uid } });
 }

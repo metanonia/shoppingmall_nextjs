@@ -17,7 +17,7 @@ export default async function BoardAdminListPage({
   searchParams: Promise<{ page?: string }>;
 }) {
   const { boardId } = await params;
-  if (!isBoardId(boardId) || (boardId !== "notice" && boardId !== "faq")) notFound();
+  if (!isBoardId(boardId) || !["notice", "faq", "vnotice"].includes(boardId)) notFound();
 
   const config = BOARD_CONFIG[boardId];
   const { page: pageParam } = await searchParams;

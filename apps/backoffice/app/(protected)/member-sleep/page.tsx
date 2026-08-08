@@ -1,4 +1,5 @@
 import { getMemberSleepList } from "@shoppingmall/core";
+import { restoreDormantMemberAction } from "./actions";
 
 function formatDate(unix: number): string {
   return unix > 0 ? new Date(unix * 1000).toLocaleDateString("ko-KR") : "-";
@@ -24,6 +25,7 @@ export default async function MemberSleepPage({ searchParams }: { searchParams: 
             <th>이메일</th>
             <th>가입일</th>
             <th>휴면전환일</th>
+            <th>처리</th>
           </tr>
         </thead>
         <tbody>
@@ -34,6 +36,12 @@ export default async function MemberSleepPage({ searchParams }: { searchParams: 
               <td>{m.email}</td>
               <td>{formatDate(m.signdate)}</td>
               <td>{formatDate(m.sleepTime)}</td>
+              <td>
+                <form action={restoreDormantMemberAction}>
+                  <input type="hidden" name="uid" value={m.uid} />
+                  <button type="submit">휴면해제</button>
+                </form>
+              </td>
             </tr>
           ))}
         </tbody>

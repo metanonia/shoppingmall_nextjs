@@ -5,20 +5,20 @@ import { useRouter } from "next/navigation";
 import type { OptionCombination, OptionGroup } from "@shoppingmall/core";
 import { addToCartAction, type AddToCartFormState } from "@/app/cart/actions";
 
-// Replaces ProductDetail.tsx's no-op BuyButtons() now that the cart engine
-// (Phase 4) exists. Legacy's mobile view puts this behind a sticky bottom
-// drawer (#btnFixOrder) — not reproduced, same simplification the rest of
-// ProductDetail already makes.
+// Product purchase actions shared by the desktop area and mobile sticky
+// order drawer, including the contract-gated Naver Pay actions.
 export function CartActions({
   goodsUid,
   optionUse,
   options,
   optionCombinations,
+  naverPayEnabled,
 }: {
   goodsUid: number;
   optionUse: boolean;
   options: OptionGroup[];
   optionCombinations: OptionCombination[];
+  naverPayEnabled: boolean;
 }) {
   const router = useRouter();
   const isMultiDimension = options.length > 1;
@@ -107,6 +107,7 @@ export function CartActions({
           장바구니
         </button>
       </form>
+      {naverPayEnabled && <div style={{ display: "flex", gap: 6, marginTop: 12 }}><form method="post" action="/api/naverpay/order" target="_blank"><input type="hidden" name="uid" value={goodsUid} /><input type="hidden" name="optionUid" value={optionUid ?? 0} /><input type="hidden" name="qty" value={qty} /><button type="submit" disabled={disabled} style={{ background: "#03c75a", color: "white", padding: "10px 18px", border: 0 }}>N Pay 구매</button></form><a href={`/api/naverpay/wishlist?uid=${goodsUid}`} target="_blank" rel="noreferrer" style={{ border: "1px solid #03c75a", color: "#03c75a", padding: "10px 18px" }}>N Pay 찜</a></div>}
       <form action={formAction}>
         <input type="hidden" name="goodsUid" value={goodsUid} />
         <input type="hidden" name="optionUid" value={optionUid ?? 0} />

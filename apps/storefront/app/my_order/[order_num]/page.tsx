@@ -1,7 +1,9 @@
 import { notFound, redirect } from "next/navigation";
-import { getOrderDetail } from "@shoppingmall/core";
+import { getOrderChanges, getOrderDetail, getReviewedOrderGoodsUids } from "@shoppingmall/core";
 import { getSession } from "@/lib/auth";
 import { CancelOrderButton } from "@/components/CancelOrderButton";
+import { ReviewForm } from "@/components/ReviewForm";
+import { OrderChangeForm, OrderChangeStatus } from "@/components/OrderChangeForm";
 
 const PAY_TYPE_LABELS: Record<string, string> = { B: "무통장입금", C: "카드", R: "실시간계좌이체", V: "가상계좌", H: "휴대폰", M: "마일리지" };
 const PAY_STATUS_LABELS: Record<string, string> = { A: "진행중", B: "가상계좌발급완료", C: "결제성공", D: "결제실패" };
@@ -19,6 +21,9 @@ export default async function MyOrderDetailPage({ params }: { params: Promise<{ 
 
   const detail = await getOrderDetail(orderNum, { memberId: session.userId });
   if (!detail) notFound();
+  const reviewedUids = await getReviewedOrderGoodsUids(detail.lines.map((line) => line.ogUid));
+  const changes = await getOrderChanges({ orderNum: detail.orderNum });
+  const changeByLine = new Map(changes.map((item) => [item.og_uid, item]));
 
   const canCancel = detail.lines.some((l) => l.status !== 9);
 
@@ -32,6 +37,13 @@ export default async function MyOrderDetailPage({ params }: { params: Promise<{ 
         결제수단: {PAY_TYPE_LABELS[detail.payType] ?? detail.payType} / 결제상태:{" "}
         {PAY_STATUS_LABELS[detail.payStatus] ?? detail.payStatus}
       </p>
+      {detail.payType === "B" && detail.payStatus !== "C" && (
+        <p>
+          입금계좌: {detail.bankAccount ?? "-"}
+          <br />
+          입금자명: {detail.remitterName ?? "-"}
+        </p>
+      )}
 
       <div className="empty20" />
       <table style={{ width: "100%" }}>
@@ -41,6 +53,8 @@ export default async function MyOrderDetailPage({ params }: { params: Promise<{ 
             <th>수량</th>
             <th>금액</th>
             <th>상태</th>
+            <th>구매후기</th>
+            <th>교환/반품/취소</th>
           </tr>
         </thead>
         <tbody>
@@ -49,9 +63,18 @@ export default async function MyOrderDetailPage({ params }: { params: Promise<{ 
               <td>
                 {line.goodsName} {line.optionValue && `(${line.optionValue})`}
               </td>
+              <td>{changeByLine.has(line.ogUid) ? <OrderChangeStatus request={changeByLine.get(line.ogUid)!} /> : <OrderChangeForm orderNum={detail.orderNum} ogUid={line.ogUid} status={line.status} />}</td>
               <td>{line.qty}</td>
               <td>{formatWon(line.lineTotal)}원</td>
               <td>{line.statusLabel}</td>
+              <td>
+                {(line.status === 4 || line.status === 5) &&
+                  (reviewedUids.has(line.ogUid) ? (
+                    <span className="colorGray size12">후기 작성완료</span>
+                  ) : (
+                    <ReviewForm orderNum={detail.orderNum} orderGoodsUid={line.ogUid} goodsUid={line.goodsUid} />
+                  ))}
+              </td>
             </tr>
           ))}
         </tbody>

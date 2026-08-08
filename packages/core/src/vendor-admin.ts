@@ -145,6 +145,9 @@ export type VendorSalesCalculateItem = {
   bankName: string;
   bankNum: string;
   bankOwner: string;
+  taxBill: boolean;
+  status: boolean;
+  statusDate: number;
   signdate: number;
 };
 
@@ -162,8 +165,22 @@ export async function getVendorSalesCalculateList(vendorId: string): Promise<Ven
     bankName: r.bank_name,
     bankNum: r.bank_num,
     bankOwner: r.bank_owner,
+    taxBill: r.tax_bill === 1,
+    status: r.status === 1,
+    statusDate: r.status_date,
     signdate: r.signdate,
   }));
+}
+
+export async function updateSettlementStatus(uid: number, input: { taxBill: boolean; status: boolean }): Promise<VendorAdminResult> {
+  const row = await prisma.salesCalculate.findFirst({ where: { uid } });
+  if (!row) return { ok: false, error: "존재하지 않는 정산내역입니다." };
+  await prisma.salesCalculate.update({ where: { uid }, data: {
+    tax_bill: input.taxBill ? 1 : 0,
+    status: input.status ? 1 : 0,
+    status_date: input.status ? (row.status_date || now()) : 0,
+  } });
+  return { ok: true };
 }
 
 export type VendorStatsPoint = { date: string; goodsTotal: number; commissionTotal: number };

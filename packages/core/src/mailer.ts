@@ -59,21 +59,19 @@ export async function sendMail(input: SendMailInput): Promise<SendMailResult> {
   }
 }
 
-// Port of managers/design/mail_*.php's mallRN_auto_mail-backed templates —
-// simplified from legacy's 2-tier {LOOP_*}/{TOKEN} templating engine (which
-// loops over vendor groups and goods lines inside the template text itself)
-// to a single flat {TOKEN} substitution pass. The line-item table stays
-// server-rendered HTML handed in as one token (GOODS_TABLE) rather than
-// something the admin's template text can loop over — replicating a real
-// nested-loop template engine for 4 email types isn't worth the complexity
-// it'd add. An admin who hasn't customized a template (AutoMail.used=0, the
-// seeded default — see packages/db/sql/016_automail.sql) gets this file's
-// hardcoded default, unchanged from before this table existed.
-export type AutoMailTemplateItem = { type: string; used: boolean; subject: string; content: string };
+// Port of managers/design/mail_*.php's mallRN_auto_mail-backed templates.
+// Order line groups are rendered into GOODS_TABLE before token substitution;
+// all messages are then wrapped in the editable `common` layout, matching
+// mallMailSend() in lib.Shop.php.
+export type AutoMailTemplateItem = { type: string; enabled: boolean; used: boolean; subject: string; content: string };
 
 const AUTO_MAIL_LABELS: Record<string, string> = {
+  common: "자동메일 공통 레이아웃",
+  join: "회원가입 축하 안내",
+  vjoin: "판매사 가입 축하 안내",
   order_received: "주문 접수 안내",
   order_paid: "결제 완료 안내",
+  delivery: "상품 발송 안내",
   passwd: "비밀번호 재설정 인증코드",
   sleep: "휴면계정 전환 예정 안내",
 };
@@ -91,15 +89,15 @@ export async function getAutoMailTemplates(): Promise<AutoMailTemplateItem[]> {
   const byType = new Map(rows.map((r) => [r.type, r]));
   return AUTO_MAIL_TYPES.map((type) => {
     const row = byType.get(type);
-    return { type, used: row?.used === 1, subject: row?.subject ?? "", content: row?.content ?? "" };
+    return { type, enabled: row?.send === 1, used: row?.used === 1, subject: row?.subject ?? "", content: row?.content ?? "" };
   });
 }
 
-export async function updateAutoMailTemplate(type: string, input: { used: boolean; subject: string; content: string }): Promise<void> {
+export async function updateAutoMailTemplate(type: string, input: { enabled: boolean; used: boolean; subject: string; content: string }): Promise<void> {
   if (!AUTO_MAIL_TYPES.includes(type)) return;
   await prisma.autoMail.update({
     where: { type },
-    data: { used: input.used ? 1 : 0, subject: input.subject, content: input.content, signdate: Math.floor(Date.now() / 1000) },
+    data: { send: input.enabled ? 1 : 0, used: input.used ? 1 : 0, subject: input.subject, content: input.content, signdate: Math.floor(Date.now() / 1000) },
   });
 }
 
@@ -109,13 +107,52 @@ function substituteTokens(text: string, tokens: Record<string, string>): string 
   return text.replace(/\{(\w+)\}/g, (match, key) => tokens[key] ?? match);
 }
 
-async function renderAutoMail(type: string, defaultSubject: string, defaultHtml: string, tokens: Record<string, string>): Promise<RenderedEmail> {
-  const template = await prisma.autoMail.findFirst({ where: { type, used: 1 } });
-  if (!template) return { subject: defaultSubject, html: defaultHtml };
-  return {
+async function renderAutoMail(
+  type: string,
+  defaultSubject: string,
+  defaultHtml: string,
+  tokens: Record<string, string>,
+): Promise<RenderedEmail>;
+async function renderAutoMail(
+  type: string,
+  defaultSubject: string,
+  defaultHtml: string,
+  tokens: Record<string, string>,
+  respectSend: true,
+): Promise<RenderedEmail | null>;
+async function renderAutoMail(
+  type: string,
+  defaultSubject: string,
+  defaultHtml: string,
+  tokens: Record<string, string>,
+  respectSend = false,
+): Promise<RenderedEmail | null> {
+  const template = await prisma.autoMail.findUnique({ where: { type } });
+  if (respectSend && template?.send !== 1) return null;
+  const rendered = !template || template.used !== 1 ? { subject: defaultSubject, html: defaultHtml } : {
     subject: substituteTokens(template.subject || defaultSubject, tokens),
     html: substituteTokens(template.content || defaultHtml, tokens),
   };
+  if (type === "common") return rendered;
+  return { ...rendered, html: await wrapCommonLayout(rendered.html) };
+}
+
+async function wrapCommonLayout(content: string): Promise<string> {
+  const [template, config] = await Promise.all([
+    prisma.autoMail.findUnique({ where: { type: "common" } }),
+    prisma.configuration.findUnique({ where: { uid: 1 } }),
+  ]);
+  if (!template?.content || !config) return content;
+  return substituteTokens(template.content, {
+    CONTENT: content,
+    CSURL: `${config.basic_url.replace(/\/$/, "")}/cs_center`,
+    COMPANY: config.comp_name,
+    OWNER: config.comp_owner,
+    COMPNUM: config.comp_license_no1,
+    ADDRESS: `${config.comp_address1} ${config.comp_address2}`.trim(),
+    TEL: config.comp_tel,
+    SHOPNAME: config.basic_name,
+  });
 }
 
 export async function renderOrderReceivedEmail(params: {
@@ -123,7 +160,7 @@ export async function renderOrderReceivedEmail(params: {
   orderNum: string;
   lines: { goodsName: string; qty: number; lineTotal: number }[];
   payTotal: number;
-}): Promise<RenderedEmail> {
+}): Promise<RenderedEmail | null> {
   const rows = params.lines
     .map((l) => `<tr><td>${l.goodsName}</td><td>${l.qty}</td><td>${l.lineTotal.toLocaleString("en-US")}원</td></tr>`)
     .join("");
@@ -133,7 +170,7 @@ export async function renderOrderReceivedEmail(params: {
     ORDERNUM: params.orderNum,
     GOODS_TABLE: rows,
     PAYTOTAL: params.payTotal.toLocaleString("en-US"),
-  });
+  }, true);
 }
 
 // Port of php/passwd_search_step_json.php's step2 email branch.
@@ -143,6 +180,69 @@ export async function renderPasswordResetCodeEmail(params: { shopName: string; c
     SHOPNAME: params.shopName,
     AUTHCODE: params.code,
   });
+}
+
+export async function renderWelcomeEmail(params: {
+  shopName: string;
+  memberId: string;
+  memberName: string;
+  smsAccepted: boolean;
+  mailAccepted: boolean;
+  changedAt: Date;
+}): Promise<RenderedEmail | null> {
+  const changedAt = params.changedAt.toLocaleString("ko-KR");
+  const defaultHtml = `<h2>${params.shopName} 회원가입을 축하드립니다.</h2><p>${params.memberName}님의 가입 아이디는 ${params.memberId}입니다.</p><p>SMS 수신: ${params.smsAccepted ? "동의함" : "동의안함"}<br>이메일 수신: ${params.mailAccepted ? "동의함" : "동의안함"}</p>`;
+  return renderAutoMail("join", `[${params.shopName}] 회원가입을 진심으로 환영합니다.`, defaultHtml, {
+    SHOPNAME: params.shopName,
+    ID: params.memberId,
+    NAME: params.memberName,
+    SMSYN: params.smsAccepted ? "동의함" : "동의안함",
+    SMSDATE: changedAt,
+    MAILYN: params.mailAccepted ? "동의함" : "동의안함",
+    MAILDATE: changedAt,
+  }, true);
+}
+
+export async function renderVendorWelcomeEmail(params: {
+  shopName: string;
+  vendorId: string;
+  vendorName: string;
+}): Promise<RenderedEmail | null> {
+  const defaultHtml = `<h2>${params.shopName} 판매사 가입을 축하드립니다.</h2><p>${params.vendorName}님의 판매사 아이디는 ${params.vendorId}입니다.</p>`;
+  return renderAutoMail("vjoin", `[${params.shopName}] 판매사 가입을 진심으로 환영합니다.`, defaultHtml, {
+    SHOPNAME: params.shopName,
+    ID: params.vendorId,
+    NAME: params.vendorName,
+  }, true);
+}
+
+export async function renderOrderShippedEmail(params: {
+  shopName: string;
+  receiverName: string;
+  receiverCell: string;
+  receiverAddress: string;
+  orderDate: Date;
+  goodsName: string;
+  deliveryDate: Date;
+  carrier: string;
+  trackingNumber: string;
+  trackingUrl: string;
+  exchange?: boolean;
+}): Promise<RenderedEmail | null> {
+  const date = (value: Date) => value.toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" });
+  const receiverInfo = `${params.receiverName} / ${params.receiverCell} / ${params.receiverAddress}`;
+  const deliveryLabel = params.exchange ? "교환 발송" : "발송";
+  const defaultHtml = `<h2>주문하신 상품이 ${deliveryLabel}되었습니다.</h2><p>${date(params.orderDate)}에 주문하신 ${params.goodsName} 상품이 ${date(params.deliveryDate)}에 ${deliveryLabel}되었습니다.</p><p>택배사: ${params.carrier}<br>송장번호: ${params.trackingNumber}</p><p><a href="${params.trackingUrl}">배송조회하기</a></p><p>${receiverInfo}</p>`;
+  return renderAutoMail("delivery", `[${params.shopName}] ${params.receiverName}님, 주문하신 상품이 ${deliveryLabel}되었습니다.`, defaultHtml, {
+    SHOPNAME: params.shopName,
+    ORDER_DATE: date(params.orderDate),
+    GOODS_NAME: params.goodsName,
+    DELIVERY_DATE: date(params.deliveryDate),
+    DELIVERY_NAME: params.carrier,
+    DELIVERY_NUM: params.trackingNumber,
+    DELIVERY_LINK: params.trackingUrl,
+    RECIEVER_INFO: receiverInfo,
+  }, true);
 }
 
 // Port of async_day_proc.php's 30-day-ahead dormant-member warning — sent
@@ -162,7 +262,7 @@ export async function renderOrderPaidEmail(params: {
   orderNum: string;
   lines: { goodsName: string; qty: number; lineTotal: number }[];
   payTotal: number;
-}): Promise<RenderedEmail> {
+}): Promise<RenderedEmail | null> {
   const rows = params.lines
     .map((l) => `<tr><td>${l.goodsName}</td><td>${l.qty}</td><td>${l.lineTotal.toLocaleString("en-US")}원</td></tr>`)
     .join("");
@@ -172,5 +272,5 @@ export async function renderOrderPaidEmail(params: {
     ORDERNUM: params.orderNum,
     GOODS_TABLE: rows,
     PAYTOTAL: params.payTotal.toLocaleString("en-US"),
-  });
+  }, true);
 }

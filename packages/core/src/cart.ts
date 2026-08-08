@@ -325,6 +325,7 @@ export type DeliveryConfig = Pick<
 export function getDeliveryFee(
   items: Pick<CartLine, "vendorDelivery" | "deliveryType" | "deliveryPrice" | "lineTotal">[],
   config: DeliveryConfig,
+  vendorConfigs: Map<string, DeliveryConfig> = new Map(),
 ): { total: number; perVendor: Map<string, number> } {
   const groups = new Map<string, typeof items>();
   for (const item of items) {
@@ -335,6 +336,7 @@ export function getDeliveryFee(
 
   const perVendor = new Map<string, number>();
   for (const [vendor, lines] of groups) {
+    const groupConfig = vendorConfigs.get(vendor) ?? config;
     let fee = 0;
     let fixedCharged = false;
     const subtotal = lines.reduce((sum, l) => sum + l.lineTotal, 0);
@@ -361,8 +363,8 @@ export function getDeliveryFee(
     }
 
     if (usesDefault) {
-      if (config.deliveryType === "D") fee += config.deliveryDPrice;
-      else if (config.deliveryType !== "F" && subtotal < config.deliveryPPrice1) fee += config.deliveryPPrice2;
+      if (groupConfig.deliveryType === "D") fee += groupConfig.deliveryDPrice;
+      else if (groupConfig.deliveryType !== "F" && subtotal < groupConfig.deliveryPPrice1) fee += groupConfig.deliveryPPrice2;
     }
 
     perVendor.set(vendor, fee);
@@ -391,7 +393,16 @@ export async function getCartSummary(
 ): Promise<CartSummary> {
   const lines = await getCheckoutScopeLines(cartId, direct, eventDiscounts, priceLimitConfig, memberDiscountPct);
   const subtotal = lines.reduce((sum, l) => sum + l.lineTotal, 0);
-  const { total: deliveryTotal, perVendor: perVendorDelivery } = getDeliveryFee(lines, config);
+  const vendorIds = Array.from(new Set(lines.map((line) => line.vendorDelivery).filter(Boolean)));
+  const vendorRows = vendorIds.length ? await prisma.vendorConfiguration.findMany({ where: { vendor: { in: vendorIds } } }) : [];
+  const vendorConfigs = new Map<string, DeliveryConfig>(vendorRows.map((row) => [row.vendor, {
+    deliveryType: row.delivery_type,
+    deliveryDPrice: row.delivery_d_price,
+    deliveryPType: row.delivery_p_type,
+    deliveryPPrice1: row.delivery_p_price1,
+    deliveryPPrice2: row.delivery_p_price2,
+  }]));
+  const { total: deliveryTotal, perVendor: perVendorDelivery } = getDeliveryFee(lines, config, vendorConfigs);
   return { lines, subtotal, deliveryTotal, perVendorDelivery };
 }
 

@@ -40,8 +40,8 @@ export class SweetTrackerProvider implements DeliveryTrackerProvider {
   }
 }
 
-export function getDeliveryTrackerProvider(): DeliveryTrackerProvider {
-  const apiKey = process.env.SWEETTRACKER_API_KEY;
+export function getDeliveryTrackerProvider(apiKeyOverride?: string): DeliveryTrackerProvider {
+  const apiKey = apiKeyOverride || process.env.SWEETTRACKER_API_KEY;
   if (!apiKey) return NoopDeliveryTracker;
   return new SweetTrackerProvider(apiKey);
 }
@@ -52,7 +52,8 @@ export type PollDeliveryResult = { checked: number; delivered: number; provider:
 // updateDeliveryProgress (order.ts) already writes when an admin/vendor
 // enters tracking info, so no new column/format is introduced here.
 export async function pollDeliveryTracking(): Promise<PollDeliveryResult> {
-  const provider = getDeliveryTrackerProvider();
+  const config = await prisma.configuration.findUnique({ where: { uid: 1 }, select: { order_tracker_yn: true, order_tracker_key: true } });
+  const provider = config?.order_tracker_yn === "Y" ? getDeliveryTrackerProvider(config.order_tracker_key) : NoopDeliveryTracker;
   const lines = await prisma.orderGoods.findMany({
     where: { status: 3, reals: 1, delivery_info: { not: "" } },
   });

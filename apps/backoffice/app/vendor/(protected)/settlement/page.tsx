@@ -21,6 +21,7 @@ export default async function VendorSettlementPage() {
             <th>정산액</th>
             <th>입금계좌</th>
             <th>확정일</th>
+            <th>세금계산서</th><th>정산상태</th>
           </tr>
         </thead>
         <tbody>
@@ -32,6 +33,7 @@ export default async function VendorSettlementPage() {
               <td>{formatWon(h.payoutTotal)}원</td>
               <td>{h.bankName} {h.bankNum} ({h.bankOwner})</td>
               <td>{new Date(h.signdate * 1000).toLocaleDateString("ko-KR")}</td>
+              <td>{h.taxBill ? "발행완료" : "미발행"}</td><td>{h.status ? `정산완료${h.statusDate ? ` (${new Date(h.statusDate * 1000).toLocaleDateString("ko-KR")})` : ""}` : "대기중"}</td>
             </tr>
           ))}
         </tbody>

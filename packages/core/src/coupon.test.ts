@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcCouponDiscount } from "./coupon";
+import { calcCouponDiscount, couponIssuanceLimitError } from "./coupon";
 
 describe("calcCouponDiscount", () => {
   it("caps a flat-won (W) discount at the order price", () => {
@@ -17,5 +17,18 @@ describe("calcCouponDiscount", () => {
 
   it("never returns more than the price even with a percent discount over 100%", () => {
     expect(calcCouponDiscount(1000, 150, "P", 0)).toBe(1000);
+  });
+});
+
+describe("couponIssuanceLimitError", () => {
+  it("uses use_limit2 as the per-member limit for product-download coupons", () => {
+    expect(couponIssuanceLimitError(4, 2, 0)).toBeNull();
+    expect(couponIssuanceLimitError(4, 2, 1)).toBeNull();
+    expect(couponIssuanceLimitError(4, 2, 2)).toBe("쿠폰 발급 가능 수량을 초과했습니다.");
+  });
+
+  it("allows repeated non-download issuance like legacy admin/annual triggers", () => {
+    expect(couponIssuanceLimitError(0, 0, 0)).toBeNull();
+    expect(couponIssuanceLimitError(0, 0, 1)).toBeNull();
   });
 });

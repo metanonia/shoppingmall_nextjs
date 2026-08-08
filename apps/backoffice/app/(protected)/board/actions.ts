@@ -32,6 +32,7 @@ export async function createBoardPostAction(_prevState: ActionState, formData: F
 }
 
 export async function updateBoardPostAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
   const boardId = String(formData.get("boardId") ?? "");
   const uid = Number(formData.get("uid"));
   const subject = String(formData.get("subject") ?? "").trim();
@@ -47,6 +48,7 @@ export async function updateBoardPostAction(_prevState: ActionState, formData: F
 }
 
 export async function deleteBoardPostAction(formData: FormData): Promise<void> {
+  await requireAdmin();
   const boardId = String(formData.get("boardId") ?? "");
   const uid = Number(formData.get("uid"));
   await deletePost(uid);
@@ -58,11 +60,12 @@ export type ReplyState = { error?: string };
 
 export async function replyToCounselAction(_prevState: ReplyState, formData: FormData): Promise<ReplyState> {
   const session = await requireAdmin();
+  const boardId = formData.get("boardId") === "vcounsel" ? "vcounsel" : "counsel";
   const postUid = Number(formData.get("postUid"));
   const content = String(formData.get("content") ?? "").trim();
 
   const result = await createComment(
-    "counsel",
+    boardId,
     postUid,
     { memberId: session.userId, memberName: "관리자" },
     content,
@@ -70,7 +73,7 @@ export async function replyToCounselAction(_prevState: ReplyState, formData: For
   );
   if (!result.ok) return { error: result.error };
 
-  revalidatePath(`/board/counsel/${postUid}`);
-  revalidatePath("/board/counsel");
+  revalidatePath(`/board/${boardId}/${postUid}`);
+  revalidatePath(`/board/${boardId}`);
   return {};
 }

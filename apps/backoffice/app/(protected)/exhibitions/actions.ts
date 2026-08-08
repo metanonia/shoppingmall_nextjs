@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { addExhibitionGoods, createExhibition, removeExhibitionGoods, updateExhibition, type ExhibitionFormInput } from "@shoppingmall/core";
 import { saveImage } from "@/lib/image-upload";
+import { requireAdmin } from "@/lib/auth";
 
 export type ActionState = { error?: string };
 
@@ -38,6 +39,7 @@ async function buildInput(formData: FormData, existingImage1: string): Promise<E
 }
 
 export async function createExhibitionAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
   const input = await buildInput(formData, "");
   const result = await createExhibition(input);
   if (!result.ok) return { error: result.error };
@@ -45,6 +47,7 @@ export async function createExhibitionAction(_prevState: ActionState, formData: 
 }
 
 export async function updateExhibitionAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
   const uid = Number(formData.get("uid"));
   const input = await buildInput(formData, str(formData, "existingImage1"));
   const result = await updateExhibition(uid, input);
@@ -54,6 +57,7 @@ export async function updateExhibitionAction(_prevState: ActionState, formData: 
 }
 
 export async function addExhibitionGoodsAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
   const euid = Number(formData.get("euid"));
   const goodsUid = Number(formData.get("goodsUid"));
   const result = await addExhibitionGoods(euid, goodsUid);
@@ -63,6 +67,7 @@ export async function addExhibitionGoodsAction(_prevState: ActionState, formData
 }
 
 export async function removeExhibitionGoodsAction(formData: FormData): Promise<void> {
+  await requireAdmin();
   const uid = Number(formData.get("uid"));
   const euid = Number(formData.get("euid"));
   await removeExhibitionGoods(uid);

@@ -12,6 +12,7 @@ import type {
 const ARONHUB_BASE = "https://api.aronhub.com/api/danal";
 
 function actionUrlFor(payType: PgPayType, action: "Start" | "Cancel"): string {
+  if (payType === "R" || payType === "V") throw new Error("ARONHUB_UNSUPPORTED_PAY_TYPE");
   const segment = payType === "C" ? "card1" : "phone";
   return `${ARONHUB_BASE}/${segment}/${action}.asp`;
 }
@@ -30,6 +31,7 @@ export class AronhubPaymentGateway implements PaymentGateway {
   // Legacy also sends `ITEMCODE`, always empty in this app (goods aren't
   // modeled with a separate PG item code).
   async createPaymentRequest(input: PaymentRequestInput): Promise<PaymentRequestResult> {
+    if (input.payType === "R" || input.payType === "V") throw new Error("ARONHUB_UNSUPPORTED_PAY_TYPE");
     const sid = input.payType === "C" ? this.config.paymentShopId : this.config.paymentShopKey;
     return {
       kind: "form-post",
@@ -69,6 +71,7 @@ export class AronhubPaymentGateway implements PaymentGateway {
   // aronhub (order_cancel.php 404s on mode=partial_cancel) — `amount` is
   // accepted for audit-log purposes only and never sent to aronhub.
   async cancelPayment(input: CancelInput): Promise<PaymentCancelResult> {
+    if (input.payType === "R" || input.payType === "V") return { ok: false, reason: "ARONHUB_UNSUPPORTED_PAY_TYPE" };
     const sid = input.payType === "C" ? this.config.paymentShopId : this.config.paymentShopKey;
     const body = new URLSearchParams({ SID: sid, TRANSACTIONID: input.pgTransactionId });
     try {

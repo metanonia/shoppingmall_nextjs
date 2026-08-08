@@ -3,6 +3,7 @@ import type { ShopConfig } from "./config";
 import { type GoodsCardViewModel, toGoodsCard } from "./goods";
 import { getGoodsPrice, priceLimit } from "./pricing";
 import { getActiveEventDiscounts, priceLimitConfigFrom } from "./listing";
+import { getOrderableLimitQty } from "./cart";
 
 function formatWon(n: number): string {
   return Math.round(n).toLocaleString("en-US");
@@ -39,7 +40,7 @@ export type GoodsDetailViewModel = {
   limitQty: number;
   detailHtml: string;
   soldOut: boolean;
-  memberOnly: boolean;
+  purchaseBlocked: boolean;
   limitMsg: string | null;
   optionUse: boolean;
   options: OptionGroup[];
@@ -89,6 +90,7 @@ export async function getGoodsDetail(
   uid: number,
   config: ShopConfig,
   memberDiscountPct = 0,
+  purchaser: { memberId: string | null; cartId: string } | null = null,
 ): Promise<GoodsDetailViewModel | null> {
   const row = await prisma.goods.findFirst({ where: { uid, display_use: 1 } });
   if (!row) return null;
@@ -149,8 +151,20 @@ export async function getGoodsDetail(
     if (used - soldOutOptions === 0) soldOut = true;
   } else if (row.qty_type === 0 && row.qty < 1) soldOut = true;
 
-  const memberOnly = row.limit_qty > 0; // guest can't be shown a real remaining-quantity count — see pricing.ts note
-  const limitMsg = memberOnly ? "회원만 구매 가능 합니다." : null;
+  let purchaseBlocked = false;
+  let limitMsg: string | null = null;
+  if (row.limit_qty > 0) {
+    if (!purchaser?.memberId) {
+      purchaseBlocked = true;
+      limitMsg = "회원만 구매 가능 합니다.";
+    } else {
+      const remaining = await getOrderableLimitQty(purchaser.memberId, uid, purchaser.cartId, row.limit_qty);
+      if (remaining <= 0) {
+        purchaseBlocked = true;
+        limitMsg = "회원당 구매 가능 수량을 모두 구매했습니다.";
+      }
+    }
+  }
 
   const options: OptionGroup[] = [];
   let optionCombinations: OptionCombination[] = [];
@@ -221,8 +235,22 @@ export async function getGoodsDetail(
     : [];
 
   let mileagePct = 0;
-  if (row.mileage_type === 1) mileagePct = 0; // requires member_mileage_order config + member mileage; guest = 0
-  else if (row.mileage_type === 4) mileagePct = row.mileage_common;
+  if (purchaser?.memberId) {
+    if (row.mileage_type === 1) {
+      const [memberConfig, member] = await Promise.all([
+        prisma.configuration.findUnique({ where: { uid: 2 }, select: { member_mileage_yn: true, member_mileage_order: true } }),
+        prisma.member.findUnique({ where: { id: purchaser.memberId }, select: { level: true } }),
+      ]);
+      if (memberConfig?.member_mileage_yn === "Y" && member) {
+        const level = await prisma.memberLevel.findFirst({ where: { level: member.level }, select: { mileage: true } });
+        mileagePct = memberConfig.member_mileage_order + (level?.mileage ?? 0);
+      }
+    } else if (row.mileage_type === 3) {
+      const member = await prisma.member.findUnique({ where: { id: purchaser.memberId }, select: { level: true } });
+      const match = row.mileage_level.split("|*|").map((value) => value.split("|")).find(([level]) => Number(level) === member?.level);
+      mileagePct = Number(match?.[1] ?? 0) || 0;
+    } else if (row.mileage_type === 4) mileagePct = row.mileage_common;
+  }
 
   const deliveryMessage = getDeliveryMessage(row.delivery_type, row.delivery_price, config);
 
@@ -232,10 +260,7 @@ export async function getGoodsDetail(
     take: 6,
   });
 
-  // mallRN_review needs og_uid (an actual order-goods row) to mean anything —
-  // still deferred until Phase 4's order engine exists. Inquiries don't have
-  // that dependency (g_uid only) so they're implemented — see inquiry.ts.
-  const reviewCount = 0;
+  const reviewCount = await prisma.review.count({ where: { g_uid: uid } });
   const inquiryCount = await prisma.inquiry.count({ where: { g_uid: uid } });
 
   // Port of php/view.php:468-488's "이 판매자의 인기상품" widget: seller-curated
@@ -281,7 +306,7 @@ export async function getGoodsDetail(
     limitQty: row.limit_qty,
     detailHtml: row.explains,
     soldOut,
-    memberOnly,
+    purchaseBlocked,
     limitMsg,
     optionUse: row.option_use === 1,
     options,

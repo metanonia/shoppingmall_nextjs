@@ -24,6 +24,11 @@ export async function updateVendorConfigurationAction(_prevState: ActionState, f
     rtnPostcode: String(formData.get("rtnPostcode") ?? ""),
     rtnAddress1: String(formData.get("rtnAddress1") ?? ""),
     rtnAddress2: String(formData.get("rtnAddress2") ?? ""),
+    deliveryType: (["F", "D", "P"].includes(String(formData.get("deliveryType"))) ? String(formData.get("deliveryType")) : "P") as "F" | "D" | "P",
+    deliveryDPrice: Number(formData.get("deliveryDPrice") ?? 0) || 0,
+    deliveryPType: String(formData.get("deliveryPType") ?? "order"),
+    deliveryPPrice1: Number(formData.get("deliveryPPrice1") ?? 0) || 0,
+    deliveryPPrice2: Number(formData.get("deliveryPPrice2") ?? 0) || 0,
     deliveryInfo: String(formData.get("deliveryInfo") ?? ""),
     refundInfo: String(formData.get("refundInfo") ?? ""),
     exchangeInfo: String(formData.get("exchangeInfo") ?? ""),
@@ -34,6 +39,7 @@ export async function updateVendorConfigurationAction(_prevState: ActionState, f
     brandInfo: multiline(formData, "brandInfo"),
     makeInfo: multiline(formData, "makeInfo"),
     originInfo: multiline(formData, "originInfo"),
+    optionInfo: multiline(formData, "optionInfo"),
   });
   if (!result.ok) return { error: result.error };
 

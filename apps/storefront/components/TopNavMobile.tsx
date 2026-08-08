@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { FreeMode } from "swiper/modules";
 import type { BannerItem, CategoryNavItem, MemberProfile, TopMenuItem } from "@shoppingmall/core";
@@ -115,9 +116,9 @@ export function TopNavMobile({
                   </a>
                 </li>
                 <li>
-                  <a href="/order_list">
+                  <Link href="/my_order">
                     <i className="xi-box xi-x" /> 주문배송조회
-                  </a>
+                  </Link>
                 </li>
                 <li>
                   <a href="/cs_center">
@@ -153,19 +154,19 @@ export function TopNavMobile({
               <div className="empty20" />
               <ul>
                 <li>
-                  <a href="/">
+                  <Link href="/">
                     <i className="xi-home-o xi-x" /> 메인페이지
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a href="/cs_board?b_id=notice">
+                  <Link href="/board/notice">
                     <i className="xi-info-o xi-x" /> 공지사항
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a href="/cs_board?b_id=faq">
+                  <Link href="/board/faq">
                     <i className="xi-forum-o xi-x" /> 자주 찾는 질문
-                  </a>
+                  </Link>
                 </li>
                 <li>
                   <a href="/review">
@@ -173,9 +174,9 @@ export function TopNavMobile({
                   </a>
                 </li>
                 <li>
-                  <a href="/cs_board?b_id=counsel">
+                  <Link href="/board/counsel">
                     <i className="xi-border-color xi-x" /> 1:1 문의
-                  </a>
+                  </Link>
                 </li>
                 {member ? (
                   <li>

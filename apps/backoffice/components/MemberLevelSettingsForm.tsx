@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import type { MemberLevelListItem } from "@shoppingmall/core";
 import {
   createMemberLevelAction,
@@ -139,14 +139,18 @@ export function MemberLevelTable({ levels }: { levels: MemberLevelListItem[] }) 
 
 export function RecalculateLevelsForm() {
   const [state, formAction, pending] = useActionState<RecalculateState, FormData>(recalculateMemberLevelsAction, {});
-  const today = new Date().toISOString().slice(0, 10);
-  const monthAgo = new Date(Date.now() - 30 * 86400 * 1000).toISOString().slice(0, 10);
+  const [defaultDates] = useState(() => {
+    const today = new Date();
+    const monthAgo = new Date(today);
+    monthAgo.setDate(today.getDate() - 30);
+    return { today: today.toISOString().slice(0, 10), monthAgo: monthAgo.toISOString().slice(0, 10) };
+  });
 
   return (
     <form action={formAction} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-      <input type="date" name="dateFrom" defaultValue={monthAgo} />
+      <input type="date" name="dateFrom" defaultValue={defaultDates.monthAgo} />
       ~
-      <input type="date" name="dateTo" defaultValue={today} />
+      <input type="date" name="dateTo" defaultValue={defaultDates.today} />
       <button type="submit" disabled={pending}>
         {pending ? "산정 중..." : "자동등급 일괄산정 실행"}
       </button>

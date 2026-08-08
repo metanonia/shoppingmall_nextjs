@@ -5,8 +5,12 @@ import type { AutoMailTemplateItem } from "@shoppingmall/core";
 import { updateAutoMailTemplateAction, type ActionState } from "@/app/(protected)/mail-templates/actions";
 
 const TOKEN_HINTS: Record<string, string[]> = {
+  common: ["CONTENT", "CSURL", "COMPANY", "OWNER", "COMPNUM", "ADDRESS", "TEL", "SHOPNAME"],
+  join: ["SHOPNAME", "ID", "NAME", "SMSYN", "SMSDATE", "MAILYN", "MAILDATE"],
+  vjoin: ["SHOPNAME", "ID", "NAME"],
   order_received: ["SHOPNAME", "ORDERNUM", "GOODS_TABLE", "PAYTOTAL"],
   order_paid: ["SHOPNAME", "ORDERNUM", "GOODS_TABLE", "PAYTOTAL"],
+  delivery: ["SHOPNAME", "ORDER_DATE", "GOODS_NAME", "DELIVERY_DATE", "DELIVERY_NAME", "DELIVERY_NUM", "DELIVERY_LINK", "RECIEVER_INFO"],
   passwd: ["SHOPNAME", "AUTHCODE"],
   sleep: ["SHOPNAME", "NAME", "DAYS"],
 };
@@ -19,6 +23,9 @@ export function AutoMailTemplateForm({ item, label }: { item: AutoMailTemplateIt
       <legend>{label}</legend>
       <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 640 }}>
         <input type="hidden" name="type" value={item.type} />
+        {item.type !== "common" && <label>
+          <input type="checkbox" name="enabled" defaultChecked={item.enabled} /> 자동 메일 발송
+        </label>}
         <label>
           <input type="checkbox" name="used" defaultChecked={item.used} /> 아래 커스텀 내용 사용(체크 해제 시 기본 템플릿 사용)
         </label>

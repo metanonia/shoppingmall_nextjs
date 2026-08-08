@@ -1,17 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { BOARD_CONFIG, clampPage, isBoardId, resolveSecretFlag } from "./board";
+import { BOARD_CONFIG, clampPage, isBoardId, isCustomerBoardId, resolveSecretFlag } from "./board";
 
 describe("isBoardId", () => {
-  it("accepts the 4 in-scope boards", () => {
+  it("accepts customer and vendor boards in the shared core", () => {
     expect(isBoardId("notice")).toBe(true);
     expect(isBoardId("faq")).toBe(true);
     expect(isBoardId("counsel")).toBe(true);
     expect(isBoardId("gallery")).toBe(true);
+    expect(isBoardId("vnotice")).toBe(true);
+    expect(isBoardId("vcounsel")).toBe(true);
   });
 
-  it("rejects vendor-only boards not yet in scope (Phase 8)", () => {
-    expect(isBoardId("vnotice")).toBe(false);
-    expect(isBoardId("vcounsel")).toBe(false);
+  it("keeps vendor-only boards out of customer routes", () => {
+    expect(isCustomerBoardId("vnotice")).toBe(false);
+    expect(isCustomerBoardId("vcounsel")).toBe(false);
+    expect(isCustomerBoardId("notice")).toBe(true);
     expect(isBoardId("bogus")).toBe(false);
   });
 });

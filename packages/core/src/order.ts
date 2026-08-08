@@ -7,8 +7,8 @@ import { consumeCoupon, getCouponPrice, restoreCoupon } from "./coupon";
 import { type MileageValidityConfig, getMileageBalance, saveMileage, useMileage } from "./mileage";
 import type { Device } from "./device";
 import { type PgPayType, getPaymentGateway } from "./payment";
-import { notifyOrderCreated, notifyOrderPaid } from "./notification";
-import { renderOrderShippedSms, sendSms } from "./sms";
+import { notifyOrderCreated, notifyOrderPaid, notifyOrderShipped } from "./notification";
+import { ensureCashReceiptRequest } from "./cash-receipt";
 
 type Tx = Prisma.TransactionClient;
 
@@ -42,8 +42,12 @@ function generateOrderNum(insertedUid: number): string {
   return `${yy}${mm}${dd}-${HH}${MM}_${tail}`;
 }
 
-function calcLineMileagePct(goods: { mileage_type: number; mileage_common: number }, memberLevelMileagePct: number): number {
-  if (goods.mileage_type === 3) return memberLevelMileagePct;
+function calcLineMileagePct(goods: { mileage_type: number; mileage_common: number; mileage_level: string }, memberLevel: number, memberLevelMileagePct: number, configMileagePct: number): number {
+  if (goods.mileage_type === 1) return configMileagePct + memberLevelMileagePct;
+  if (goods.mileage_type === 3) {
+    const match = goods.mileage_level.split("|*|").map((value) => value.split("|")).find(([level]) => Number(level) === memberLevel);
+    return Number(match?.[1] ?? 0) || 0;
+  }
   if (goods.mileage_type === 4) return goods.mileage_common;
   return 0; // type 1 (per-member override) needs member_mileage_order config — not implemented, see detail.ts
 }
@@ -62,8 +66,10 @@ export type CreateOrderInput = {
   address1: string;
   address2: string;
   message: string;
+  bankInfo: string;
+  cashReceipt: string;
   guestPasswordHash?: string; // pre-hashed (argon2id) — see actions.ts
-  payType: "B" | "M" | "C" | "H";
+  payType: "B" | "M" | "C" | "H" | "R" | "V";
   couponUid: number | null; // mallRN_coupon.uid (an issued instance), cart-level (g_uid=0)
   useMileage: number;
   clientPayTotal: number;
@@ -138,9 +144,12 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
       const vendorById = new Map(vendorRows.map((v) => [v.id, v]));
 
       let memberLevelMileagePct = 0;
+      let memberLevel = 0;
+      const mileageConfig = await tx.configuration.findUnique({ where: { uid: 2 }, select: { member_mileage_yn: true, member_mileage_order: true } });
       if (input.memberId) {
         const member = await tx.member.findFirst({ where: { id: input.memberId }, select: { level: true } });
         if (member) {
+          memberLevel = member.level;
           const level = await tx.memberLevel.findFirst({ where: { level: member.level }, select: { mileage: true } });
           memberLevelMileagePct = level?.mileage ?? 0;
         }
@@ -163,6 +172,8 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
           address1: input.address1,
           address2: input.address2,
           message: input.message,
+          bank_info: input.bankInfo,
+          cash_receipts: input.cashReceipt,
           passwd: input.guestPasswordHash ?? "",
           pay_total: grandTotal,
           delivery_total: summary.deliveryTotal,
@@ -184,7 +195,9 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
 
       for (const line of summary.lines) {
         const goods = goodsByUid.get(line.goodsUid);
-        const mileagePct = goods ? calcLineMileagePct(goods, memberLevelMileagePct) : 0;
+        const mileagePct = goods && input.memberId && mileageConfig?.member_mileage_yn === "Y"
+          ? calcLineMileagePct(goods, memberLevel, memberLevelMileagePct, mileageConfig.member_mileage_order)
+          : 0;
         const createdLine = await tx.orderGoods.create({
           data: {
             vendor: line.vendor,
@@ -336,20 +349,27 @@ export async function confirmBankTransferPayment(orderNum: string, actorId: stri
   if (order.pay_status === "C") return { ok: false, error: "이미 결제완료된 주문입니다." };
 
   await orderStatus1(orderNum, actorId);
+  await ensureCashReceiptRequest(orderNum);
   await notifyOrderPaid(orderNum).catch(() => {});
   return { ok: true };
 }
 
 // Port of lib.Shop.php:1757 orderStatus4() — delivery received/completed,
 // operates on one order-goods line (og_uid) at a time, same granularity as
-// legacy's admin checkbox-per-line UI. The `status==7 && status2==4`
-// exchange-in-progress branch isn't ported — exchanges are out of scope
-// (see MIGRATION.md).
+// legacy's admin checkbox-per-line UI, including the exchange re-shipment
+// completion branch (`status==7 && status2==4`).
 export async function orderStatus4(orderNum: string, ogUid: number, actorId: string): Promise<OrderActionResult> {
   return prisma.$transaction(async (tx) => {
     const line = await tx.orderGoods.findFirst({ where: { order_num: orderNum, uid: ogUid, reals: 1 } });
     if (!line) return { ok: false, error: "존재하지 않는 주문상품입니다." };
-    if (line.status !== 3) return { ok: false, error: "배송중 상태일 때만 수취확인이 가능합니다." };
+    if (line.status !== 3 && !(line.status === 7 && line.status2 === 4)) return { ok: false, error: "배송중 상태일 때만 수취확인이 가능합니다." };
+
+    if (line.status === 7 && line.status2 === 4) {
+      await tx.orderStatusChange.updateMany({
+        where: { order_num: orderNum, og_uid: ogUid, status: 7, status2: 4 },
+        data: { status2: 5, status_date: now(), manager: actorId },
+      });
+    }
 
     await tx.orderGoods.update({ where: { uid: ogUid }, data: { status: 4, status2: 0, status_date: now() } });
     await tx.orderLog.create({
@@ -371,8 +391,7 @@ export async function orderStatus4(orderNum: string, ogUid: number, actorId: str
 // at which per-line mileage is actually earned. First real caller of the
 // earn path this repo's `saveMileage` already supported — see
 // migration_deferred_items memory's Phase 4 "나중에 확인할 사항". The
-// `mallRN_order_sales.confirmation` bookkeeping legacy also does here isn't
-// ported (admin sales-reporting table, out of scope).
+// OrderSales confirmation is represented by the current settlement ledger.
 export async function orderStatus5(orderNum: string, ogUid: number, actorId: string): Promise<OrderActionResult> {
   return prisma.$transaction(async (tx) => {
     const line = await tx.orderGoods.findFirst({ where: { order_num: orderNum, uid: ogUid, reals: 1 } });
@@ -421,10 +440,8 @@ export type DeliveryProgressInput =
   | { status: 3; carrier: string; trackingNumber: string };
 
 // Port of order_post.php's `statusChange`/`statusChange2` modes (배송준비중→
-// 배송중 progression). Legacy sends the "배송이 시작되었습니다" SMS via a
-// DB-driven mallRN_sms_auto template (`status3Sms`) — this repo already
-// decided (Phase 5) to hardcode SMS copy as TS functions instead of adding
-// an admin-managed template table, so this reuses that same principle.
+// 배송중 progression), including the PHP status3Mail/status3Sms notification
+// hooks after the state transaction commits.
 export async function updateDeliveryProgress(
   orderNum: string,
   ogUids: number[],
@@ -459,24 +476,7 @@ export async function updateDeliveryProgress(
   });
 
   if (input.status === 3) {
-    const order = await prisma.orderInfo.findFirst({ where: { order_num: orderNum } });
-    if (order) {
-      const config = await getShopConfig();
-      const itemName = lines.length > 1 ? `${lines[0].g_name} 외 ${lines.length - 1}건` : lines[0].g_name;
-      await sendSms(
-        {
-          to: order.cell,
-          text: renderOrderShippedSms({
-            shopName: config.basicName,
-            orderName: order.name,
-            itemName,
-            carrier: input.carrier,
-            trackingNumber: input.trackingNumber,
-          }),
-        },
-        config,
-      ).catch(() => {});
-    }
+    await notifyOrderShipped(orderNum, lines, input.carrier, input.trackingNumber).catch(() => {});
   }
 
   return { ok: true };
@@ -542,6 +542,10 @@ export async function partialRefundOrder(
     // purely on the refund bookkeeping below. This mirrors that.
     if (line.status === 9 || line.status === 8) {
       await tx.orderGoods.update({ where: { uid: ogUid }, data: { status2: 5, status_date: now() } });
+      await tx.orderStatusChange.updateMany({
+        where: { order_num: orderNum, og_uid: ogUid, status: line.status, status2: { in: [1, 2, 3, 4] } },
+        data: { status2: 5, status_date: now(), manager: actorId },
+      });
       await tx.orderLog.create({
         data: {
           order_num: orderNum,
@@ -612,7 +616,7 @@ export async function confirmPgPayment(
 ): Promise<ConfirmPgPaymentResult> {
   const order = await prisma.orderInfo.findFirst({ where: { order_num: orderNum } });
   if (!order) return { ok: false, reason: "ORDER_NOT_FOUND" };
-  if (order.pay_type !== "C" && order.pay_type !== "H") return { ok: false, reason: "INVALID_PAY_TYPE" };
+  if (!["C", "H", "R", "V"].includes(order.pay_type)) return { ok: false, reason: "INVALID_PAY_TYPE" };
   if (amount !== order.pay_total) return { ok: false, reason: "AMOUNT_MISMATCH" };
 
   const alreadyProcessed = await prisma.$transaction(async (tx) => {
@@ -625,7 +629,10 @@ export async function confirmPgPayment(
     return false;
   });
 
-  if (!alreadyProcessed) await notifyOrderPaid(orderNum).catch(() => {});
+  if (!alreadyProcessed) {
+    await ensureCashReceiptRequest(orderNum);
+    await notifyOrderPaid(orderNum).catch(() => {});
+  }
 
   return { ok: true, alreadyProcessed };
 }
@@ -715,7 +722,7 @@ export async function orderStatus95(orderNum: string, actorId: string): Promise<
   // if the PG refuses the refund, nothing here is rolled back either. A
   // "money not refunded but stock/mileage restored" mismatch is worse than
   // an oversell, so this fails closed instead of racing the two.
-  if (order.pay_type === "C" || order.pay_type === "H") {
+  if (["C", "H", "R", "V"].includes(order.pay_type)) {
     const config = await getShopConfig();
     const gateway = getPaymentGateway(order.pay_type as PgPayType, config);
     const cancelResult = await gateway.cancelPayment({
@@ -821,6 +828,8 @@ export type OrderDetailView = {
   address1: string;
   address2: string;
   message: string;
+  bankAccount: string | null;
+  remitterName: string | null;
   payType: string;
   payStatus: string;
   payTotal: number;
@@ -848,6 +857,16 @@ function toOrderLineView(g: { uid: number; g_uid: number; g_name: string; option
 
 export type OrderDetailAuth = { memberId: string } | { guestName: string; guestPasswordPlain: string };
 
+function parseBankInfo(bankInfo: string): { bankAccount: string | null; remitterName: string | null } {
+  if (!bankInfo) return { bankAccount: null, remitterName: null };
+  const separator = bankInfo.lastIndexOf("|");
+  if (separator < 0) return { bankAccount: bankInfo, remitterName: null };
+  return {
+    bankAccount: bankInfo.slice(0, separator) || null,
+    remitterName: bankInfo.slice(separator + 1) || null,
+  };
+}
+
 // Port of php/order_detail.php (member path) and its guest-order-lookup
 // twin. This repo simplifies the guest side to "look up one order by
 // number + name + password" rather than porting order_list_guest.php's
@@ -868,6 +887,7 @@ export async function getOrderDetail(orderNum: string, auth: OrderDetailAuth): P
   }
 
   const goods = await prisma.orderGoods.findMany({ where: { order_num: orderNum }, orderBy: { uid: "asc" } });
+  const bank = parseBankInfo(order.bank_info);
 
   return {
     orderNum: order.order_num,
@@ -880,6 +900,8 @@ export async function getOrderDetail(orderNum: string, auth: OrderDetailAuth): P
     address1: order.address1,
     address2: order.address2,
     message: order.message ?? "",
+    bankAccount: bank.bankAccount,
+    remitterName: bank.remitterName,
     payType: order.pay_type,
     payStatus: order.pay_status,
     payTotal: order.pay_total,
@@ -949,6 +971,8 @@ export type OrderConfirmation = {
   payStatus: string;
   deliveryTotal: number;
   signdate: number;
+  bankAccount: string | null;
+  remitterName: string | null;
 };
 
 // Port of php/order_ok.php. Deliberately minimal (no address/phone) so the
@@ -958,6 +982,7 @@ export type OrderConfirmation = {
 export async function getOrderConfirmation(orderNum: string): Promise<OrderConfirmation | null> {
   const order = await prisma.orderInfo.findFirst({ where: { order_num: orderNum, reals: 1 } });
   if (!order) return null;
+  const bank = parseBankInfo(order.bank_info);
   return {
     orderNum: order.order_num,
     payTotal: order.pay_total,
@@ -965,6 +990,8 @@ export async function getOrderConfirmation(orderNum: string): Promise<OrderConfi
     payStatus: order.pay_status,
     deliveryTotal: order.delivery_total,
     signdate: order.signdate,
+    bankAccount: bank.bankAccount,
+    remitterName: bank.remitterName,
   };
 }
 
@@ -985,7 +1012,7 @@ export type OrderPaymentInfo = {
 // Only C/H (PG) orders are meaningful here.
 export async function getOrderPaymentInfo(orderNum: string): Promise<OrderPaymentInfo | null> {
   const order = await prisma.orderInfo.findFirst({ where: { order_num: orderNum, reals: 1 } });
-  if (!order || (order.pay_type !== "C" && order.pay_type !== "H")) return null;
+  if (!order || !["C", "H", "R", "V"].includes(order.pay_type)) return null;
   const firstLine = await prisma.orderGoods.findFirst({ where: { order_num: orderNum }, orderBy: { uid: "asc" } });
   const lineCount = await prisma.orderGoods.count({ where: { order_num: orderNum } });
   const itemName = firstLine ? `${firstLine.g_name}${lineCount > 1 ? ` 외 ${lineCount - 1}건` : ""}` : "주문 상품";

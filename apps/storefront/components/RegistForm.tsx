@@ -4,12 +4,9 @@ import { useActionState, useRef } from "react";
 import type { MemberFormConfig } from "@shoppingmall/core";
 import { registerAction } from "@/app/regist/actions";
 import { PostcodeSearchButton } from "./PostcodeSearchButton";
+import { MemberExtraFields } from "./MemberExtraFields";
 
-// Port of regist.html. Only the common optional fields (tel/cell/address,
-// mail/SMS consent) are wired to `member_form_*` config — the long tail
-// (birth/gender/marry/job/hobby/company/custom fields) isn't, see
-// MIGRATION.md. All member_form_* flags default to 0 in this fresh
-// install's seed, so by default none of the optional fields render anyway.
+// Port of regist.html's configuration-driven optional member fields.
 export function RegistForm({ config }: { config: MemberFormConfig }) {
   const [state, formAction, pending] = useActionState(registerAction, {});
   const postcodeRef = useRef<HTMLInputElement>(null);
@@ -59,6 +56,7 @@ export function RegistForm({ config }: { config: MemberFormConfig }) {
                 </li>
               </>
             )}
+            <MemberExtraFields config={config} />
           </ul>
         </div>
 

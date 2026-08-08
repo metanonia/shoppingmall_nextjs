@@ -30,6 +30,10 @@ export default async function MemberStatsPage({ searchParams }: { searchParams: 
 
       <div style={{ display: "flex", gap: 16, marginBottom: 20 }}>
         <div style={{ padding: 16, border: "1px solid #eee", borderRadius: 8 }}>
+          <div style={{ fontSize: 12, color: "#999" }}>기간 회원탈퇴</div>
+          <div style={{ fontSize: 20, fontWeight: 600 }}>{stats.totalWithdrawalCount}명</div>
+        </div>
+        <div style={{ padding: 16, border: "1px solid #eee", borderRadius: 8 }}>
           <div style={{ fontSize: 12, color: "#999" }}>기간 신규가입</div>
           <div style={{ fontSize: 20, fontWeight: 600 }}>{stats.totalSignupCount}명</div>
         </div>
@@ -48,6 +52,7 @@ export default async function MemberStatsPage({ searchParams }: { searchParams: 
           <tr>
             <th>날짜</th>
             <th>신규가입</th>
+            <th>회원탈퇴</th>
             <th>휴면전환</th>
           </tr>
         </thead>
@@ -56,6 +61,7 @@ export default async function MemberStatsPage({ searchParams }: { searchParams: 
             <tr key={p.date}>
               <td>{p.date}</td>
               <td>{p.signupCount}명</td>
+              <td>{p.withdrawalCount}명</td>
               <td>{p.sleepCount}명</td>
             </tr>
           ))}

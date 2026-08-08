@@ -1,4 +1,4 @@
-import { prisma } from "@shoppingmall/db";
+import { Prisma, prisma } from "@shoppingmall/db";
 import type { ShopConfig } from "./config";
 import { type GoodsCardViewModel, toGoodsCard } from "./goods";
 import type { EventDiscountMap, PriceLimitConfig } from "./pricing";
@@ -15,6 +15,29 @@ export type GoodsListResult = {
 
 const DEFAULT_LIMIT = 12;
 
+export type GoodsSoldoutMode = 0 | 1 | 2;
+
+const SOLD_OUT_WHERE: Prisma.GoodsWhereInput = {
+  OR: [
+    { qty_type: 0, qty: 0, option_use: 0 },
+    { option_soldout: 2 },
+    { sale_use: 0 },
+  ],
+};
+
+export function isGoodsSoldOut(goods: { qty_type: number; qty: number; option_use: number; option_soldout: number; sale_use: number }) {
+  return (goods.qty_type === 0 && goods.qty === 0 && goods.option_use === 0) || goods.option_soldout === 2 || goods.sale_use === 0;
+}
+
+export function goodsWhereForSoldout(where: Prisma.GoodsWhereInput, mode: GoodsSoldoutMode): Prisma.GoodsWhereInput {
+  return mode === 2 ? { AND: [where, { NOT: SOLD_OUT_WHERE }] } : where;
+}
+
+export async function getGoodsSoldoutMode(): Promise<GoodsSoldoutMode> {
+  const row = await prisma.configuration.findUnique({ where: { uid: 1 }, select: { goods_soldout: true } });
+  return row?.goods_soldout === 1 || row?.goods_soldout === 2 ? row.goods_soldout : 0;
+}
+
 function sortToOrderBy(sort: SortOption) {
   switch (sort) {
     case "new":
@@ -28,14 +51,21 @@ function sortToOrderBy(sort: SortOption) {
   }
 }
 
-// Port of php/list.php / search.php's `INSTR(REPLACE(a.name, ' ', ''), '...')`
-// keyword matching, simplified to a single search phrase against name/goods_code
-// (legacy also ANDs successive "결과 내 검색" narrowing terms and matches the
-// pipe-delimited `keyword` field — deferred, see the migration plan).
+// Port of php/list.php / search.php's successive "결과 내 검색" conditions.
+// Every whitespace-delimited term must match one of the legacy searchable
+// product fields; spaces inside names are ignored like REPLACE(name,' ','').
 export function keywordWhere(keyword: string | undefined) {
-  if (!keyword) return {};
+  const terms = (keyword ?? "").trim().split(/\s+/).map((term) => term.replace(/\s/g, "")).filter(Boolean);
+  if (terms.length === 0) return {};
   return {
-    OR: [{ name: { contains: keyword } }, { goods_code: { contains: keyword } }],
+    AND: terms.map((term) => ({
+      OR: [
+        { name: { contains: term } },
+        { name_code_able: { contains: term } },
+        { goods_code: { contains: term } },
+        { keyword: { contains: term } },
+      ],
+    })),
   };
 }
 
@@ -48,16 +78,27 @@ export async function runGoodsQuery(
   priceLimitConfig: PriceLimitConfig,
   memberDiscountPct = 0,
 ): Promise<GoodsListResult> {
-  const total = await prisma.goods.count({ where });
+  const soldoutMode = await getGoodsSoldoutMode();
+  const effectiveWhere = goodsWhereForSoldout(where ?? {}, soldoutMode);
+  const total = await prisma.goods.count({ where: effectiveWhere });
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const safePage = Math.min(Math.max(1, page), totalPages);
 
-  const rows = await prisma.goods.findMany({
-    where,
+  let rows = await prisma.goods.findMany({
+    where: effectiveWhere,
     orderBy: sortToOrderBy(sort),
-    skip: (safePage - 1) * limit,
-    take: limit,
+    ...(soldoutMode === 1 ? {} : { skip: (safePage - 1) * limit, take: limit }),
   });
+
+  // MySQL's legacy query prepends the computed `sold_out ASC` field. Prisma
+  // cannot order by this expression, so preserve the requested DB order and
+  // stably partition before applying pagination.
+  if (soldoutMode === 1) {
+    rows = [
+      ...rows.filter((row) => !isGoodsSoldOut(row)),
+      ...rows.filter((row) => isGoodsSoldOut(row)),
+    ].slice((safePage - 1) * limit, safePage * limit);
+  }
 
   return {
     items: rows.map((row) => toGoodsCard(row, eventDiscounts, priceLimitConfig, memberDiscountPct)),
@@ -160,21 +201,36 @@ export async function getNewGoodsList(
   );
 }
 
-// Port of php/best.php. Legacy ranks by order count over the trailing 7 days
-// (mallRN_order_goods) and pads with an all-time popularity fallback; there is
-// no order history yet (orders are Phase 4), so this only implements the
-// fallback ranking — swap in the weekly-order-count query once orders exist.
+// Port of php/best.php: rank by order-line count over the trailing 7 days,
+// then pad with the ordinary all-time popularity order while excluding the
+// products already selected by the weekly ranking.
 export async function getBestSellingGoodsList(
   limit: number,
   eventDiscounts: EventDiscountMap,
   priceLimitConfig: PriceLimitConfig,
   memberDiscountPct = 0,
 ): Promise<GoodsCardViewModel[]> {
-  const rows = await prisma.goods.findMany({
-    where: VISIBLE_GOODS_WHERE,
-    orderBy: [{ order_priority: "asc" }, { order_cnt: "desc" }, { view_cnt: "desc" }],
+  const since = Math.floor(Date.now() / 1000) - 7 * 24 * 60 * 60;
+  const weekly = await prisma.orderGoods.groupBy({
+    by: ["g_uid"],
+    where: { reals: 1, status: { lt: 8 }, signdate: { gt: since } },
+    _count: { g_uid: true },
+    orderBy: { _count: { g_uid: "desc" } },
     take: limit,
   });
+  const weeklyIds = weekly.map((row) => row.g_uid);
+  const weeklyRows = weeklyIds.length > 0
+    ? await prisma.goods.findMany({ where: { ...VISIBLE_GOODS_WHERE, uid: { in: weeklyIds } } })
+    : [];
+  const weeklyByUid = new Map(weeklyRows.map((row) => [row.uid, row]));
+  const rankedRows = weeklyIds.map((uid) => weeklyByUid.get(uid)).filter((row): row is NonNullable<typeof row> => Boolean(row));
+
+  const fallbackRows = await prisma.goods.findMany({
+    where: { ...VISIBLE_GOODS_WHERE, ...(rankedRows.length > 0 ? { uid: { notIn: rankedRows.map((row) => row.uid) } } : {}) },
+    orderBy: [{ order_priority: "asc" }, { order_cnt: "desc" }, { view_cnt: "desc" }],
+    take: Math.max(0, limit - rankedRows.length),
+  });
+  const rows = [...rankedRows, ...fallbackRows];
   return rows.map((row) => toGoodsCard(row, eventDiscounts, priceLimitConfig, memberDiscountPct));
 }
 

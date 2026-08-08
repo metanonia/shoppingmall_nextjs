@@ -20,6 +20,62 @@ export function signCoolSmsAuthHeader(apiKey: string, apiSecret: string, date: D
 export type SmsMessage = { to: string; text: string };
 export type SendSmsResult = { ok: boolean; skipped?: boolean; error?: string };
 
+export type SmsAutoTemplateItem = {
+  uid: number;
+  code: string;
+  title: string;
+  message1: string;
+  message2: string;
+  customerEnabled: boolean;
+  adminEnabled: boolean;
+  type: number;
+};
+
+function substituteTokens(text: string, tokens: Record<string, string>): string {
+  return text.replace(/\{(\w+)\}/g, (match, key) => tokens[key] ?? match);
+}
+
+export async function getSmsAutoTemplates(): Promise<SmsAutoTemplateItem[]> {
+  const rows = await prisma.smsAuto.findMany({ orderBy: { uid: "asc" } });
+  return rows.map((row) => ({
+    uid: row.uid,
+    code: row.code,
+    title: row.title,
+    message1: row.message1,
+    message2: row.message2,
+    customerEnabled: row.ck_message1 === 1,
+    adminEnabled: row.ck_message2 === 1,
+    type: row.type,
+  }));
+}
+
+export async function updateSmsAutoTemplate(uid: number, input: { message1: string; message2: string; customerEnabled: boolean; adminEnabled: boolean }): Promise<void> {
+  await prisma.smsAuto.update({
+    where: { uid },
+    data: { message1: input.message1, message2: input.message2, ck_message1: input.customerEnabled ? 1 : 0, ck_message2: input.adminEnabled ? 1 : 0 },
+  });
+}
+
+export async function sendAutoSms(
+  code: string,
+  to: string,
+  tokens: Record<string, string>,
+  config: SmsConfig & Pick<ShopConfig, "basicName" | "smsAdminNumber1" | "smsAdminNumber2" | "smsAdminNumber3">,
+): Promise<void> {
+  const template = await prisma.smsAuto.findUnique({ where: { code } });
+  if (!template) return;
+  const values = { SHOPNAME: config.basicName, ...tokens };
+  if ((template.type === 0 || template.type === 1) && template.ck_message1 === 1 && to && template.message1) {
+    await sendSms({ to, text: substituteTokens(template.message1, values) }, config);
+  }
+  if ((template.type === 0 || template.type === 2) && template.ck_message2 === 1 && template.message2) {
+    const message = substituteTokens(template.message2, values);
+    for (const adminNumber of [config.smsAdminNumber1, config.smsAdminNumber2, config.smsAdminNumber3]) {
+      if (adminNumber) await sendSms({ to: adminNumber, text: message }, config);
+    }
+  }
+}
+
 // Port of lib.Shop.php:3041 mallSmsSend() -> plugin/coolSMS/lib/message.php's
 // send_messages() (POST /messages/v4/send). Unlike legacy, this never throws
 // — a notification failure must never take down the order flow that
@@ -72,12 +128,15 @@ export async function sendSms(message: SmsMessage, config: SmsConfig): Promise<S
   }
 }
 
-// Templates below port the legacy mallRN_sms_auto seed rows ('order',
-// 'pay_ok', 'pay_ok2') as hardcoded TS functions — there's no admin screen
-// to manage SMS templates yet (Phase 7), so a template table isn't added.
+// Fallback text helpers retained for API compatibility and previews. Runtime
+// automatic delivery uses sendAutoSms() and the admin-managed PHP templates.
 
 export function renderOrderReceivedSms(params: { shopName: string; orderName: string; orderNum: string; price: number }): string {
   return `[${params.shopName}] ${params.orderName}님 주문이 접수되었습니다. (주문번호 ${params.orderNum}, ${params.price.toLocaleString("en-US")}원)`;
+}
+
+export function renderWelcomeSms(params: { shopName: string; memberName: string }): string {
+  return `[${params.shopName}] ${params.memberName}님, 회원가입을 환영합니다.`;
 }
 
 export function renderOrderPaidSms(params: { shopName: string; orderName: string; orderNum: string; price: number }): string {

@@ -4,7 +4,7 @@ import { BoardPostForm } from "@/components/BoardPostForm";
 
 export default async function EditBoardPostPage({ params }: { params: Promise<{ boardId: string; uid: string }> }) {
   const { boardId, uid: uidParam } = await params;
-  if (!isBoardId(boardId) || (boardId !== "notice" && boardId !== "faq")) notFound();
+  if (!isBoardId(boardId) || !["notice", "faq", "vnotice"].includes(boardId)) notFound();
   const uid = Number(uidParam);
   if (!Number.isInteger(uid)) notFound();
 

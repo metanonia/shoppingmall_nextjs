@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { BannerItem, CategoryNavItem, MemberProfile, TopMenuItem } from "@shoppingmall/core";
 import { SearchBox } from "./SearchBox";
 
@@ -58,7 +59,7 @@ export function TopNavPC({
               </>
             )}
             <li className="line">
-              <a href="/order_list">ORDER LIST</a>
+              <Link href="/my_order">ORDER LIST</Link>
             </li>
             <li className="line menuMy">
               <div>

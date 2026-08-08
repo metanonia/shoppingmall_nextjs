@@ -2,9 +2,8 @@ import type { StoreInfo } from "@shoppingmall/core";
 import { toggleFavoriteStoreAction } from "@/app/store/actions";
 
 // Port of store.html:1-72 / mobile_store.html:1-71's `.storeMenu` info panel.
-// Review star breakdown is always zero — see getStoreInfo's comment (no
-// mallRN_review table yet, needs an order to point at). Favorite-store count
-// is real; the toggle button is a plain <form> server action, so no client
+// Review satisfaction and favorite-store count use live data. The toggle
+// button is a plain <form> server action, so no client
 // component is needed here. The hover-to-reveal storeInfo/storeCS panels are
 // plain CSS `:hover` in the legacy stylesheet (no JS needed there either).
 export function StoreHeader({

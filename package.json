@@ -4,8 +4,17 @@
   "scripts": {
     "dev:storefront": "pnpm --filter storefront dev",
     "dev:backoffice": "pnpm --filter backoffice dev",
+    "test": "pnpm --filter @shoppingmall/core test",
+    "lint": "pnpm --filter storefront lint && pnpm --filter backoffice lint",
+    "build": "pnpm --filter storefront build && pnpm --filter backoffice build",
+    "verify": "pnpm test && pnpm lint && pnpm build",
     "db:up": "docker compose up -d mysql",
-    "db:down": "docker compose down"
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --filter @shoppingmall/db migrate",
+    "db:migrate:baseline": "pnpm --filter @shoppingmall/db migrate:baseline",
+    "db:generate": "pnpm --filter @shoppingmall/db generate",
+    "db:seed": "pnpm --filter @shoppingmall/db seed",
+    "db:setup": "pnpm db:migrate && pnpm db:generate && pnpm db:seed"
   },
   "engines": {
     "node": ">=22"

@@ -3,19 +3,26 @@
 import { useState } from "react";
 import type { PopupItem } from "@shoppingmall/core";
 
+function setDismissCookie(uid: number): void {
+  const expires = new Date();
+  expires.setDate(expires.getDate() + 1);
+  document.cookie = `popup_${uid}=1; expires=${expires.toUTCString()}; path=/`;
+}
+
 // Port of lib/lib.Function.js's itsmallPopup plugin markup (`.itsmallPopup`,
-// `.popup-close`, `.popup-content`, `.popup-bottom`). The "여러 이미지 팝업을
-// 슬라이더로 합치기" behavior isn't reproduced — each popup floats
-// independently, see popup.ts / MIGRATION.md. Legacy's cookie option
-// defaults to checked (dismiss unless unchecked); this keeps that default.
+// `.popup-close`, `.popup-content`, `.popup-bottom`) including image popup
+// groups sharing a position. Legacy's cookie option defaults to checked.
 export function PopupLayer({ popups }: { popups: PopupItem[] }) {
   const [closedUids, setClosedUids] = useState<number[]>([]);
   const [dismissChecked, setDismissChecked] = useState<Record<number, boolean>>({});
+  const [slideIndexes, setSlideIndexes] = useState<Record<number, number>>({});
 
   function close(popup: PopupItem) {
     if (popup.type === 1 && dismissChecked[popup.uid] !== false) {
-      const oneDay = 24 * 60 * 60 * 1000;
-      document.cookie = `popup_${popup.uid}=1; expires=${new Date(Date.now() + oneDay).toUTCString()}; path=/`;
+      setDismissCookie(popup.uid);
+    }
+    for (const slide of popup.slides) {
+      if (slide.dismissForToday && dismissChecked[popup.uid] !== false) setDismissCookie(slide.uid);
     }
     setClosedUids((prev) => [...prev, popup.uid]);
   }
@@ -33,6 +40,8 @@ export function PopupLayer({ popups }: { popups: PopupItem[] }) {
         }
         if (popup.width) style.width = `${popup.width}px`;
 
+        const slideIndex = slideIndexes[popup.uid] ?? 0;
+        const slide = popup.slides[slideIndex] ?? null;
         return (
           <div
             key={popup.uid}
@@ -40,15 +49,16 @@ export function PopupLayer({ popups }: { popups: PopupItem[] }) {
             style={style}
           >
             <div className="popup-close" onClick={() => close(popup)} />
-            {popup.imageOnly ? (
+            {popup.imageOnly && slide ? (
               <div className="popup-content popup-one">
-                {popup.link ? (
-                  <a href={popup.link}>
-                    <img src={popup.imageUrl ?? ""} alt={popup.name} />
+                {slide.link ? (
+                  <a href={slide.link}>
+                    <img src={slide.imageUrl} alt={slide.name} />
                   </a>
                 ) : (
-                  <img src={popup.imageUrl ?? ""} alt={popup.name} />
+                  <img src={slide.imageUrl} alt={slide.name} />
                 )}
+                {popup.slides.length > 1 && <div style={{ display: "flex", justifyContent: "center", gap: 8, padding: 6 }}><button type="button" onClick={() => setSlideIndexes((prev) => ({ ...prev, [popup.uid]: (slideIndex - 1 + popup.slides.length) % popup.slides.length }))}>‹</button><span>{slideIndex + 1}/{popup.slides.length}</span><button type="button" onClick={() => setSlideIndexes((prev) => ({ ...prev, [popup.uid]: (slideIndex + 1) % popup.slides.length }))}>›</button></div>}
               </div>
             ) : (
               <div className="popup-content editer" dangerouslySetInnerHTML={{ __html: popup.contentHtml ?? "" }} />

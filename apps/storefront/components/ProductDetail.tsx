@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { DownloadableCoupon, GoodsDetailViewModel, InquiryItem } from "@shoppingmall/core";
+import type { DownloadableCoupon, GoodsDetailViewModel, InquiryItem, ReviewItem } from "@shoppingmall/core";
 import { toggleFavoriteGoodsAction, toggleFavoriteStoreAction } from "@/app/goods/[uid]/actions";
 import { GoodsCard } from "./GoodsCard";
 import { ProductGallery } from "./ProductGallery";
@@ -19,25 +19,29 @@ export type ProductDetailFavoriteState = {
 
 // Port of view.html / mobile_view.html's `.goodsInfo` + `.goods_explain` tab
 // panel. Add-to-cart/buy-now (Phase 4) and favorites/inquiry/vendor
-// "인기상품" are wired up; reviews are still stubbed — see getGoodsDetail's
-// comment. Both devices share this component; legacy's mobile view
-// additionally puts options+buy behind a sticky bottom drawer
-// (`#btnFixOrder`) which isn't reproduced — options/buy render inline
-// instead.
+// "인기상품", reviews, and inquiries are wired up. Both devices share this
+// component; mobile keeps the legacy sticky order drawer interaction.
 export function ProductDetail({
   detail,
   device,
   favorite,
   inquiries,
+  reviews,
   downloadableCoupons,
+  inquiryConfig,
+  naverPayEnabled,
 }: {
   detail: GoodsDetailViewModel;
   device: "pc" | "mobile";
   favorite: ProductDetailFavoriteState;
   inquiries: InquiryItem[];
+  reviews: ReviewItem[];
   downloadableCoupons: DownloadableCoupon[];
+  inquiryConfig: { allowGuest: boolean; secretType: number; privacy: boolean; categoryInfo: string; guestAgreement: string };
+  naverPayEnabled: boolean;
 }) {
   const [tab, setTab] = useState<1 | 2 | 3 | 4>(1);
+  const [mobileOrderOpen, setMobileOrderOpen] = useState(false);
 
   const infoRows: { label: string; value: string }[] = [
     ...(detail.consumerPrice ? [{ label: "소비자가격", value: `${detail.consumerPrice}원` }] : []),
@@ -158,17 +162,20 @@ export function ProductDetail({
             <button className="shineButton" style={{ width: 433 }} type="button" disabled>
               품절된 상품 입니다.
             </button>
-          ) : detail.memberOnly ? (
+          ) : detail.purchaseBlocked ? (
             <button className="shineButton" style={{ width: 433 }} type="button" disabled>
               {detail.limitMsg}
             </button>
-          ) : (
-            <CartActions
+          ) : device === "mobile" ? (
+            <><button className="mobileOrderOpen" type="button" onClick={() => setMobileOrderOpen(true)}>구매하기</button>{mobileOrderOpen && <div className="mobileOrderDrawer" role="dialog" aria-label="상품 주문"><button type="button" className="mobileOrderClose" onClick={() => setMobileOrderOpen(false)}>닫기 ×</button><CartActions
               goodsUid={detail.uid}
               optionUse={detail.optionUse}
               options={detail.options}
               optionCombinations={detail.optionCombinations}
-            />
+              naverPayEnabled={naverPayEnabled}
+            /></div>}</>
+          ) : (
+            <CartActions goodsUid={detail.uid} optionUse={detail.optionUse} options={detail.options} optionCombinations={detail.optionCombinations} naverPayEnabled={naverPayEnabled} />
           )}
         </div>
       </div>
@@ -260,7 +267,25 @@ export function ProductDetail({
             <div className="empty30" />
             <div className="sub_title">구매후기({detail.reviewCount})</div>
             <div className="empty20" />
-            <div className="emptyList">아직 등록된 후기가 없습니다.</div>
+            {reviews.length === 0 ? (
+              <div className="emptyList">아직 등록된 후기가 없습니다.</div>
+            ) : (
+              <ul>
+                {reviews.map((review) => (
+                  <li key={review.uid} style={{ borderBottom: "1px solid #eee", padding: "14px 0" }}>
+                    <div aria-label={`별점 ${review.stars}점`}>
+                      {"★".repeat(review.stars)}{"☆".repeat(5 - review.stars)}
+                    </div>
+                    <div>{review.content}</div>
+                    {review.files.map((filename) => <a key={filename} href={`/uploads/review/${review.uid}/${filename}`} target="_blank" rel="noreferrer">첨부파일</a>)}
+                    <div className="colorGray size12">
+                      {review.authorName} · {new Date(review.signdate * 1000).toLocaleDateString("ko-KR")}
+                      {review.optionName && ` · ${review.optionName}`}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
@@ -269,7 +294,7 @@ export function ProductDetail({
             <div className="empty30" />
             <div className="sub_title">상품문의({detail.inquiryCount})</div>
             <div className="empty20" />
-            <InquiryPanel goodsUid={detail.uid} isMember={favorite.isMember} inquiries={inquiries} />
+            <InquiryPanel goodsUid={detail.uid} isMember={favorite.isMember} inquiries={inquiries} config={inquiryConfig} />
           </div>
         )}
 

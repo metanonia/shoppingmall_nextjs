@@ -2,26 +2,9 @@ import { prisma } from "@shoppingmall/db";
 
 // Port of managers/order/margin_statistics*.php, managers/member/
 // member_statistics*.php, managers/goods/goods_statistics_type.php,
-// managers/member/mileage_statistics.php — scoped down from legacy in two
-// ways documented once here rather than per-function:
-//
-// 1. No PC/Mobile split and no per-sales-type breakdown (상품/배송비/마일리지/
-//    쿠폰/할인/CP수수료). Phase 8 deliberately redesigned `mallRN_order_sales`
-//    to only track goods-line settlement (price/qty/commission per
-//    OrderGoods row) rather than porting legacy's `mobile`/`type`/`status`
-//    columns — re-adding them now just to power one statistics screen isn't
-//    worth reopening that schema decision. These functions follow
-//    order-admin.ts's `getSalesStats` precedent instead: fetch rows in the
-//    date range, bucket/sum in JS rather than a dynamic SQL-string GROUP BY.
-// 2. "클릭수"(product view/click count) ranking is dropped — this migration
-//    has never had a page-view/click-log table at any phase, and building
-//    one now solely for a ranking column would be new tracking
-//    infrastructure, not a statistics port. 판매금액/판매수량/관심상품 rankings
-//    are kept since OrderGoods/FavoriteGoods already carry that data.
-// 3. member_statistics' "탈퇴" (withdrawal) time series is dropped —
-//    withdrawMember() (member.ts) hard-deletes the row with no audit table
-//    (a decision the completeness audit already reviewed and accepted), so
-//    there's nothing to count. 휴면전환 uses MemberSleep.sleep_time instead.
+// managers/member/mileage_statistics.php. Sales device/payment breakdown is
+// handled by order-admin.ts; product views use GoodsView, and withdrawal/
+// dormant conversion use their audit tables.
 
 function dateToUnix(dateStr: string, endOfDay = false): number {
   return Math.floor(new Date(`${dateStr}T${endOfDay ? "23:59:59" : "00:00:00"}`).getTime() / 1000);
@@ -64,10 +47,11 @@ export async function getMarginStats(dateFrom: string, dateTo: string): Promise<
   return { points, salesTotal, marginTotal, marginPct: salesTotal > 0 ? Math.round((marginTotal / salesTotal) * 10000) / 100 : 0 };
 }
 
-export type MemberStatsPoint = { date: string; signupCount: number; sleepCount: number };
+export type MemberStatsPoint = { date: string; signupCount: number; withdrawalCount: number; sleepCount: number };
 export type MemberStatsResult = {
   points: MemberStatsPoint[];
   totalSignupCount: number;
+  totalWithdrawalCount: number;
   totalSleepCount: number;
   currentSleepMemberCount: number;
 };
@@ -76,8 +60,9 @@ export async function getMemberStats(dateFrom: string, dateTo: string): Promise<
   const from = dateToUnix(dateFrom);
   const to = dateToUnix(dateTo, true);
 
-  const [signups, sleepConversions, currentSleepMemberCount] = await Promise.all([
+  const [signups, withdrawals, sleepConversions, currentSleepMemberCount] = await Promise.all([
     prisma.member.findMany({ where: { signdate: { gte: from, lte: to } }, select: { signdate: true } }),
+    prisma.memberWithdrawal.findMany({ where: { signdate: { gte: from, lte: to } }, select: { signdate: true } }),
     prisma.memberSleep.findMany({ where: { sleep_time: { gte: from, lte: to } }, select: { sleep_time: true } }),
     prisma.memberSleep.count(),
   ]);
@@ -85,13 +70,19 @@ export async function getMemberStats(dateFrom: string, dateTo: string): Promise<
   const byDate = new Map<string, MemberStatsPoint>();
   for (const row of signups) {
     const key = dateKey(row.signdate);
-    const point = byDate.get(key) ?? { date: key, signupCount: 0, sleepCount: 0 };
+    const point = byDate.get(key) ?? { date: key, signupCount: 0, withdrawalCount: 0, sleepCount: 0 };
     point.signupCount += 1;
+    byDate.set(key, point);
+  }
+  for (const row of withdrawals) {
+    const key = dateKey(row.signdate);
+    const point = byDate.get(key) ?? { date: key, signupCount: 0, withdrawalCount: 0, sleepCount: 0 };
+    point.withdrawalCount += 1;
     byDate.set(key, point);
   }
   for (const row of sleepConversions) {
     const key = dateKey(row.sleep_time);
-    const point = byDate.get(key) ?? { date: key, signupCount: 0, sleepCount: 0 };
+    const point = byDate.get(key) ?? { date: key, signupCount: 0, withdrawalCount: 0, sleepCount: 0 };
     point.sleepCount += 1;
     byDate.set(key, point);
   }
@@ -100,12 +91,35 @@ export async function getMemberStats(dateFrom: string, dateTo: string): Promise<
   return {
     points,
     totalSignupCount: signups.length,
+    totalWithdrawalCount: withdrawals.length,
     totalSleepCount: sleepConversions.length,
     currentSleepMemberCount,
   };
 }
 
-export type GoodsRankingType = "sales" | "qty" | "favorite";
+export type KeywordStatsItem = { keyword: string; count: number; pct: number };
+export type KeywordStatsResult = { items: KeywordStatsItem[]; totalSearchCount: number; uniqueKeywordCount: number };
+
+// Port of managers/etcs/keyword_statistics.php. KeywordSearch is already
+// incremented by every storefront search, so the admin view only needs the
+// same date-range grouping and percentage calculation.
+export async function getKeywordStats(dateFrom: string, dateTo: string): Promise<KeywordStatsResult> {
+  const rows = await prisma.keywordSearch.groupBy({
+    by: ["keyword"],
+    where: { date: { gte: new Date(`${dateFrom}T00:00:00`), lte: new Date(`${dateTo}T23:59:59`) } },
+    _sum: { count: true },
+    orderBy: { _sum: { count: "desc" } },
+    take: 100,
+  });
+  const totalSearchCount = rows.reduce((sum, row) => sum + (row._sum?.count ?? 0), 0);
+  return {
+    items: rows.map((row) => ({ keyword: row.keyword, count: row._sum?.count ?? 0, pct: totalSearchCount ? Math.round(((row._sum?.count ?? 0) / totalSearchCount) * 10000) / 100 : 0 })),
+    totalSearchCount,
+    uniqueKeywordCount: rows.length,
+  };
+}
+
+export type GoodsRankingType = "sales" | "qty" | "favorite" | "view";
 export type GoodsRankingItem = { uid: number; name: string; image1: string; value: number; pct: number };
 
 const RANKING_LIMIT = 30;
@@ -118,6 +132,9 @@ export async function getGoodsRanking(dateFrom: string, dateTo: string, type: Go
 
   if (type === "favorite") {
     const rows = await prisma.favoriteGoods.findMany({ where: { signdate: { gte: from, lte: to } }, select: { g_uid: true } });
+    for (const row of rows) sums.set(row.g_uid, (sums.get(row.g_uid) ?? 0) + 1);
+  } else if (type === "view") {
+    const rows = await prisma.goodsView.findMany({ where: { signdate: { gte: from, lte: to } }, select: { g_uid: true } });
     for (const row of rows) sums.set(row.g_uid, (sums.get(row.g_uid) ?? 0) + 1);
   } else {
     const orderNums = await prisma.orderInfo.findMany({

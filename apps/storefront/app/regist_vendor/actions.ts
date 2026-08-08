@@ -1,6 +1,7 @@
 "use server";
 
 import { registerVendor } from "@shoppingmall/core";
+import { saveVendorApplicationDocs } from "@/lib/vendor-doc-upload";
 
 export type RegisterVendorFormState = { error?: string; success?: boolean };
 
@@ -12,8 +13,14 @@ export async function registerVendorAction(_prevState: RegisterVendorFormState, 
   const agree = formData.get("agree");
   if (!agree) return { error: "필수 동의 항목에 체크해 주세요." };
 
+  const vendorId = String(formData.get("id") ?? "").trim();
+  if (!vendorId) return { error: "아이디를 입력해 주세요." };
+  const image1File = formData.get("image1");
+  const image2File = formData.get("image2");
+  const docs = await saveVendorApplicationDocs(vendorId, [image1File instanceof File ? image1File : new File([], ""), image2File instanceof File ? image2File : new File([], "")]);
+  if (!docs.ok) return { error: docs.error };
   const result = await registerVendor({
-    id: String(formData.get("id") ?? "").trim(),
+    id: vendorId,
     password: String(formData.get("passwd") ?? ""),
     compName: String(formData.get("compName") ?? "").trim(),
     compOwner: String(formData.get("compOwner") ?? "").trim(),
@@ -35,6 +42,8 @@ export async function registerVendorAction(_prevState: RegisterVendorFormState, 
     bankName: String(formData.get("bankName") ?? ""),
     bankNum: String(formData.get("bankNum") ?? ""),
     bankOwner: String(formData.get("bankOwner") ?? ""),
+    image1: docs.filenames[0] ?? "",
+    image2: docs.filenames[1] ?? "",
   });
 
   if (!result.ok) return { error: result.error };

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createAddPage, deleteAddPage, setAddPageImages, updateAddPage, type AddPageFormInput } from "@shoppingmall/core";
 import { saveImage } from "@/lib/image-upload";
+import { requireAdmin } from "@/lib/auth";
 
 export type ActionState = { error?: string };
 
@@ -33,6 +34,7 @@ async function uploadImages(uid: number, formData: FormData, existing: string[])
 }
 
 export async function createAddPageAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
   const created = await createAddPage(parseInput(formData));
   if (!created.ok) return { error: created.error };
 
@@ -44,6 +46,7 @@ export async function createAddPageAction(_prevState: ActionState, formData: For
 }
 
 export async function updateAddPageAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
   const uid = Number(formData.get("uid"));
   const result = await updateAddPage(uid, parseInput(formData));
   if (!result.ok) return { error: result.error };
@@ -57,6 +60,7 @@ export async function updateAddPageAction(_prevState: ActionState, formData: For
 }
 
 export async function deleteAddPageAction(formData: FormData): Promise<void> {
+  await requireAdmin();
   const uid = Number(formData.get("uid"));
   await deleteAddPage(uid);
   revalidatePath("/pages");

@@ -1,6 +1,8 @@
 import { prisma } from "@shoppingmall/db";
 import { getMileageBalance } from "./mileage";
 import { renderDormantWarningEmail, sendMail } from "./mailer";
+import { issueCoupon } from "./coupon";
+import { orderStatus4, orderStatus5, orderStatus9 } from "./order";
 
 function now(): number {
   return Math.floor(Date.now() / 1000);
@@ -15,6 +17,35 @@ export async function expireCoupons(): Promise<{ count: number }> {
     data: { status: 2 },
   });
   return { count: result.count };
+}
+
+function monthDay(date: Date): string {
+  return `${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function lunarMonthDay(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-u-ca-chinese", { month: "numeric", day: "numeric", timeZone: "Asia/Seoul" }).formatToParts(date);
+  const month = Number(parts.find((part) => part.type === "month")?.value ?? 0);
+  const day = Number(parts.find((part) => part.type === "day")?.value ?? 0);
+  return `${String(month).padStart(2, "0")}${String(day).padStart(2, "0")}`;
+}
+
+// Port of async_day_proc.php's annual type=3 birthday coupon issuance.
+export async function issueBirthdayCoupons(date = new Date()): Promise<{ count: number }> {
+  const templates = await prisma.couponManager.findMany({ where: { type: 3 } });
+  if (!templates.length) return { count: 0 };
+  const [solar, lunar] = [monthDay(date), lunarMonthDay(date)];
+  const members = await prisma.member.findMany({ where: { OR: [
+    { birth_sl: "S", birth: { endsWith: solar } },
+    { birth_sl: "L", birth: { endsWith: lunar } },
+  ] }, select: { id: true } });
+  const yearStart = Math.floor(new Date(date.getFullYear(), 0, 1).getTime() / 1000);
+  let count = 0;
+  for (const member of members) for (const template of templates) {
+    const issued = await prisma.coupon.count({ where: { id: member.id, c_uid: template.uid, signdate: { gte: yearStart } } });
+    if (!issued && (await issueCoupon(member.id, template.uid)).ok) count++;
+  }
+  return { count };
 }
 
 // Port of async_day_proc.php's mileage-expiry pass. Mirrors useMileage()'s
@@ -144,7 +175,40 @@ export async function processDormantMembers(shopName: string): Promise<DormantMe
   return { warnedCount: warningCandidates.length, convertedCount: sleepCandidates.length };
 }
 
+export async function processAutomaticOrderStatuses(): Promise<{ delivered: number; confirmed: number; cancelled: number; draftsDeleted: number }> {
+  const config = await prisma.configuration.findUniqueOrThrow({ where: { uid: 1 } });
+  let delivered = 0;
+  let confirmed = 0;
+  let cancelled = 0;
+
+  if (config.order_tracker_yn === "N" && config.order_auto_completed1 > 0) {
+    const due = await prisma.orderGoods.findMany({ where: { reals: 1, status_date: { lt: daysAgoUnix(config.order_auto_completed1) }, OR: [{ status: 3 }, { status: 7, status2: 4 }] }, select: { uid: true, order_num: true } });
+    for (const line of due) if ((await orderStatus4(line.order_num, line.uid, "auto")).ok) delivered++;
+  }
+  if (config.order_auto_completed2 > 0) {
+    const due = await prisma.orderGoods.findMany({ where: { reals: 1, status: 4, status_date: { lt: daysAgoUnix(config.order_auto_completed2) } }, select: { uid: true, order_num: true } });
+    for (const line of due) if ((await orderStatus5(line.order_num, line.uid, "auto")).ok) confirmed++;
+  }
+  if (config.order_auto_completed3 > 0) {
+    // The legacy SQL says pay_status='C' but then calls orderStatus9(), whose
+    // contract is unpaid cancellation. Use the internally consistent unpaid
+    // condition so stale bank/unfinished orders are actually cancellable.
+    const due = await prisma.orderInfo.findMany({ where: { pay_status: { not: "C" }, signdate: { lt: daysAgoUnix(config.order_auto_completed3) } }, select: { order_num: true } });
+    for (const order of due) {
+      const active = await prisma.orderGoods.count({ where: { order_num: order.order_num, reals: 1, status: { gt: 0, lt: 9 } } });
+      if (active === 0 && (await orderStatus9(order.order_num, "auto")).ok) cancelled++;
+    }
+  }
+  const draftCutoff = daysAgoUnix(3);
+  const [draftGoods, draftOrders] = await prisma.$transaction([
+    prisma.orderGoods.deleteMany({ where: { reals: 0, signdate: { lt: draftCutoff } } }),
+    prisma.orderInfo.deleteMany({ where: { reals: 0, signdate: { lt: draftCutoff } } }),
+  ]);
+  return { delivered, confirmed, cancelled, draftsDeleted: draftGoods.count + draftOrders.count };
+}
+
 export type DailyBatchResult = {
+  birthdayCouponsIssued: number;
   couponsExpired: number;
   mileageMembersExpired: number;
   mileageTotalExpired: number;
@@ -153,6 +217,7 @@ export type DailyBatchResult = {
   dormantWarned: number;
   dormantConverted: number;
   logsPurged: { keywordRecent: number; keywordSearch: number; smsLog: number };
+  automaticOrders: { delivered: number; confirmed: number; cancelled: number; draftsDeleted: number };
 };
 
 // Orchestrates the whole daily batch — the Node equivalent of legacy's
@@ -160,13 +225,16 @@ export type DailyBatchResult = {
 // /api/cron/daily route instead of an HTTP self-ping.
 export async function runDailyBatch(shopName = "SHOP NEXT"): Promise<DailyBatchResult> {
   const coupons = await expireCoupons();
+  const birthdayCoupons = await issueBirthdayCoupons();
   const mileage = await expireMileageLots();
   const exhibitions = await updateExhibitionStatuses();
   const dormant = await processDormantMembers(shopName);
   const logsPurged = await purgeOldLogs();
+  const automaticOrders = await processAutomaticOrderStatuses();
 
   return {
     couponsExpired: coupons.count,
+    birthdayCouponsIssued: birthdayCoupons.count,
     mileageMembersExpired: mileage.memberCount,
     mileageTotalExpired: mileage.totalExpired,
     exhibitionsStarted: exhibitions.startedCount,
@@ -174,5 +242,6 @@ export async function runDailyBatch(shopName = "SHOP NEXT"): Promise<DailyBatchR
     dormantWarned: dormant.warnedCount,
     dormantConverted: dormant.convertedCount,
     logsPurged,
+    automaticOrders,
   };
 }

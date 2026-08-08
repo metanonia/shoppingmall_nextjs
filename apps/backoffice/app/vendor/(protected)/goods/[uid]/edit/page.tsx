@@ -40,6 +40,7 @@ export default async function EditVendorGoodsPage({ params }: { params: Promise<
         guid={uid}
         options={goods.options}
         actions={{ create: createVendorGoodsOptionsAction, update: updateVendorGoodsOptionAction, delete: deleteVendorGoodsOptionAction }}
+        optionNames={masterValues.options}
       />
     </div>
   );

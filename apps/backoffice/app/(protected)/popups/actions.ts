@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createPopup, deletePopup, updatePopup, type PopupFormInput } from "@shoppingmall/core";
 import type { Device } from "@shoppingmall/core";
 import { saveImage } from "@/lib/image-upload";
+import { requireAdmin } from "@/lib/auth";
 
 export type ActionState = { error?: string };
 
@@ -44,6 +45,7 @@ function parseInput(formData: FormData, image1: string): PopupFormInput {
 // Same per-uid subfolder / create-then-upload-then-update shape as
 // banners.ts actions — popup.ts's read path is /image/{popup|mobile_popup}/{uid}/{filename}.
 export async function createPopupAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
   const device = toDevice(formData);
   const created = await createPopup(device, parseInput(formData, ""));
   if (!created.ok) return { error: created.error };
@@ -60,6 +62,7 @@ export async function createPopupAction(_prevState: ActionState, formData: FormD
 }
 
 export async function updatePopupAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
   const device = toDevice(formData);
   const uid = Number(formData.get("uid"));
 
@@ -78,6 +81,7 @@ export async function updatePopupAction(_prevState: ActionState, formData: FormD
 }
 
 export async function deletePopupAction(formData: FormData): Promise<void> {
+  await requireAdmin();
   const device = toDevice(formData);
   const uid = Number(formData.get("uid"));
   await deletePopup(device, uid);

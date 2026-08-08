@@ -359,6 +359,29 @@ model Goods {
   @@map("mallRN_goods")
 }
 
+model GoodsRecentView {
+  uid       Int    @id @default(autoincrement()) @db.UnsignedInt
+  check_id  String @default("") @db.VarChar(50)
+  g_uid     Int    @default(0) @db.UnsignedInt
+  signdate  Int    @default(0) @db.UnsignedInt
+
+  @@unique([check_id, g_uid], map: "check_id_g_uid")
+  @@index([check_id, signdate], map: "check_id_signdate")
+  @@map("mallRN_goods_recent_view")
+}
+
+model GoodsView {
+  uid      Int                       @id @default(autoincrement()) @db.UnsignedInt
+  check_id String                    @default("") @db.VarChar(50)
+  g_uid    Int                       @default(0) @db.UnsignedInt
+  vendor   String                    @default("") @db.VarChar(50)
+  mobile   mallRN_member_mobile      @default(N)
+  signdate Int                       @default(0) @db.UnsignedInt
+
+  @@index([check_id, g_uid, signdate], map: "viewer_goods_date")
+  @@map("mallRN_goods_view")
+}
+
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model GoodsCate {
   uid       Int    @id @default(autoincrement()) @db.UnsignedInt
@@ -531,6 +554,7 @@ model Member {
   reference      String                 @default("") @db.VarChar(50)
   auth_code      String                 @default("") @db.VarChar(10)
   auth_code_time Int                    @default(0) @db.UnsignedInt
+  nondormant_time Int                   @default(0) @db.UnsignedInt
   login_time     Int                    @default(0) @db.UnsignedInt
   order_time     Int                    @default(0) @db.UnsignedInt
   sleep_time     Int                    @default(0) @db.UnsignedInt
@@ -553,6 +577,20 @@ model MemberLevel {
   signdate      Int    @default(0) @db.UnsignedInt
 
   @@map("mallRN_member_level")
+}
+
+model MemberWithdrawal {
+  uid       Int                        @id @default(autoincrement()) @db.UnsignedInt
+  id        String                     @default("") @db.VarChar(50)
+  name      String                     @default("") @db.VarChar(50)
+  reason    String                     @default("") @db.VarChar(50)
+  order_cnt Int                        @default(0) @db.UnsignedInt
+  message   String                     @default("") @db.Text
+  mobile    mallRN_member_mobile       @default(N)
+  signdate  Int                        @default(0) @db.UnsignedInt
+
+  @@index([id], map: "id")
+  @@map("mallRN_member_withdrawal")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -596,6 +634,28 @@ model Inquiry {
   signdate Int     @default(0) @db.UnsignedInt
 
   @@map("mallRN_inquiry")
+}
+
+model Review {
+  uid      Int     @id @default(autoincrement()) @db.UnsignedInt
+  vendor   String  @default("") @db.VarChar(50)
+  og_uid   Int     @unique(map: "og_uid") @default(0) @db.UnsignedInt
+  g_uid    Int     @default(0) @db.UnsignedInt
+  g_name   String  @default("") @db.VarChar(100)
+  op_name  String  @default("") @db.VarChar(100)
+  id       String  @default("") @db.VarChar(50)
+  name     String  @default("") @db.VarChar(50)
+  passwd   String  @default("") @db.VarChar(100)
+  content  String  @default("") @db.Text
+  files    String? @db.Text
+  stars    Int     @default(0) @db.UnsignedInt
+  best     Int     @default(0) @db.UnsignedInt
+  acc_ip   String  @default("") @db.VarChar(50)
+  signdate Int     @default(0) @db.UnsignedInt
+
+  @@index([g_uid], map: "g_uid")
+  @@index([id], map: "id")
+  @@map("mallRN_review")
 }
 
 model KeywordRecent {
@@ -760,6 +820,33 @@ model OrderGoods {
   @@map("mallRN_order_goods")
 }
 
+model OrderStatusChange {
+  uid         Int     @id @default(autoincrement()) @db.UnsignedInt
+  id          String  @default("") @db.VarChar(50)
+  name        String  @default("") @db.VarChar(50)
+  manager     String  @default("") @db.VarChar(50)
+  vendor      String  @default("") @db.VarChar(50)
+  order_num   String  @default("") @db.VarChar(32)
+  og_uid      Int     @default(0) @db.UnsignedInt
+  reason      String  @default("") @db.VarChar(100)
+  bank_info   String  @default("") @db.VarChar(250)
+  message     String? @db.Text
+  refund      Int     @default(0) @db.UnsignedInt
+  delivery    Int     @default(0) @db.UnsignedInt
+  delivery2   Int     @default(0) @db.UnsignedInt
+  mileage     Int     @default(0) @db.UnsignedInt
+  coupon      Int     @default(0) @db.UnsignedInt
+  refund_fee  Int     @default(0) @db.UnsignedInt
+  status      Int     @default(9) @db.UnsignedTinyInt
+  status2     Int     @default(1) @db.UnsignedTinyInt
+  status_date Int     @default(0) @db.UnsignedInt
+  signdate    Int     @default(0) @db.UnsignedInt
+
+  @@index([order_num], map: "idx_order_status_change_order")
+  @@index([vendor, status, status2], map: "idx_order_status_change_vendor")
+  @@map("mallRN_order_status_change")
+}
+
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model OrderInfo {
   uid            Int                          @id @default(autoincrement()) @db.UnsignedInt
@@ -803,6 +890,34 @@ model OrderInfo {
   signdate       Int                          @default(0) @db.UnsignedInt
 
   @@map("mallRN_order_info")
+}
+
+model OrderCashReceipt {
+  uid               Int                        @id @default(autoincrement()) @db.UnsignedInt
+  order_num         String                     @default("") @db.VarChar(32)
+  id                String                     @default("") @db.VarChar(50)
+  name              String                     @default("") @db.VarChar(50)
+  cell              String                     @default("") @db.VarChar(30)
+  email             String                     @default("") @db.VarChar(80)
+  price             Int                        @default(0) @db.UnsignedInt
+  partial_price     Int                        @default(0) @db.UnsignedInt
+  goods_name        String                     @default("") @db.VarChar(250)
+  pay_type          mallRN_order_info_pay_type @default(B)
+  tax_type          Int                        @default(0) @db.UnsignedInt
+  cash_type         Int                        @default(0) @db.UnsignedInt
+  auth_number       String                     @default("") @db.VarChar(30)
+  receipt_time      String                     @default("") @db.VarChar(30)
+  receipt_no        String                     @default("") @db.VarChar(50)
+  receipt_cancel_no String                     @default("") @db.VarChar(50)
+  receipt_info      String                     @default("") @db.VarChar(100)
+  receipt_status    String                     @default("") @db.VarChar(20)
+  receipt_error     String                     @default("") @db.VarChar(250)
+  status            Int                        @default(0) @db.UnsignedInt
+  status_date       Int                        @default(0) @db.UnsignedInt
+  signdate          Int                        @default(0) @db.UnsignedInt
+
+  @@index([order_num], map: "order_num")
+  @@map("mallRN_order_cash_receipts")
 }
 
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
@@ -859,6 +974,8 @@ model BoardComment {
   name     String @default("") @db.VarChar(50)
   content  String @default("") @db.Text
   passwd   String @default("") @db.VarChar(100)
+  parent_uid Int  @default(0) @db.UnsignedInt
+  depth      Int  @default(0) @db.UnsignedInt
   signdate Int    @default(0) @db.UnsignedInt
 
   @@index([post_uid], map: "post_uid")
@@ -919,6 +1036,10 @@ model SalesCalculate {
   bank_name        String @default("") @db.VarChar(20)
   bank_num         String @default("") @db.VarChar(20)
   bank_owner       String @default("") @db.VarChar(20)
+  tax_bill         Int    @default(0) @db.UnsignedTinyInt
+  type             Int    @default(0) @db.UnsignedTinyInt
+  status           Int    @default(0) @db.UnsignedTinyInt
+  status_date      Int    @default(0) @db.UnsignedInt
   signdate         Int    @default(0) @db.UnsignedInt
 
   @@index([vendor], map: "vendor")
@@ -1087,6 +1208,9 @@ model AdminConfiguration {
   uid         Int    @id @default(autoincrement()) @db.UnsignedInt
   id          String @unique(map: "id") @default("") @db.VarChar(50)
   widget_info String @default("") @db.Text
+  push_yn     String @default("N") @db.Char(1)
+  token_pc    String @default("") @db.VarChar(250)
+  token_mobile String @default("") @db.VarChar(250)
 
   @@map("mallRN_admin_configuration")
 }
@@ -1095,11 +1219,45 @@ model AutoMail {
   uid      Int    @id @default(autoincrement()) @db.UnsignedInt
   type     String @unique(map: "type") @default("") @db.VarChar(50)
   used     Int    @default(0) @db.UnsignedTinyInt
+  send     Int    @default(0) @db.UnsignedTinyInt
   subject  String @default("") @db.VarChar(150)
   content  String @default("") @db.Text
   signdate Int    @default(0) @db.UnsignedInt
 
   @@map("mallRN_auto_mail")
+}
+
+model SmsAuto {
+  uid         Int    @id @default(autoincrement()) @db.UnsignedInt
+  code        String @unique(map: "code") @default("") @db.VarChar(50)
+  title       String @default("") @db.VarChar(100)
+  message1    String @default("") @db.Text
+  message2    String @default("") @db.Text
+  ck_message1 Int    @default(0) @db.UnsignedInt
+  ck_message2 Int    @default(0) @db.UnsignedInt
+  type        Int    @default(0) @db.UnsignedInt
+
+  @@map("mallRN_sms_auto")
+}
+
+model VisitorEvent {
+  uid         Int    @id @default(autoincrement()) @db.UnsignedInt
+  visitor_key String @default("") @db.VarChar(64)
+  path        String @default("") @db.VarChar(500)
+  referer     String @default("") @db.VarChar(500)
+  site        String @default("") @db.VarChar(100)
+  keyword     String @default("") @db.VarChar(150)
+  browser     String @default("") @db.VarChar(50)
+  os          String @default("") @db.VarChar(50)
+  vendor      String @default("") @db.VarChar(50)
+  mobile      Int    @default(0) @db.UnsignedTinyInt
+  date        Int    @default(0) @db.UnsignedInt
+  signdate    Int    @default(0) @db.UnsignedInt
+
+  @@index([date], map: "date")
+  @@index([visitor_key, date], map: "visitor_date")
+  @@index([vendor, date], map: "vendor_date")
+  @@map("mallRN_visitor_event")
 }
 
 enum mallRN_exhibition_discount_yn {

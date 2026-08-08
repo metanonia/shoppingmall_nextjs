@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createBanner, deleteBanner, updateBanner, type BannerFormInput } from "@shoppingmall/core";
 import type { Device } from "@shoppingmall/core";
 import { saveImage } from "@/lib/image-upload";
+import { requireAdmin } from "@/lib/auth";
 
 export type ActionState = { error?: string };
 
@@ -40,6 +41,7 @@ function parseInput(formData: FormData, image1: string): BannerFormInput {
 // update. Same two-step shape as board.ts's setPostFiles / add-page.ts's
 // setAddPageImages.
 export async function createBannerAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
   const device = toDevice(formData);
   const created = await createBanner(device, parseInput(formData, ""));
   if (!created.ok) return { error: created.error };
@@ -56,6 +58,7 @@ export async function createBannerAction(_prevState: ActionState, formData: Form
 }
 
 export async function updateBannerAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
   const device = toDevice(formData);
   const uid = Number(formData.get("uid"));
 
@@ -74,6 +77,7 @@ export async function updateBannerAction(_prevState: ActionState, formData: Form
 }
 
 export async function deleteBannerAction(formData: FormData): Promise<void> {
+  await requireAdmin();
   const device = toDevice(formData);
   const uid = Number(formData.get("uid"));
   await deleteBanner(device, uid);

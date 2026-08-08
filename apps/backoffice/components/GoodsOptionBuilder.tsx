@@ -20,23 +20,24 @@ const DEFAULT_ACTIONS: OptionActions = { create: createGoodsOptionsAction, updat
 // Shared by admin (/goods) and vendor (/vendor/goods) — vendor pages pass
 // their own vendor-scoped actions (ownership-checked server-side) instead
 // of the admin defaults.
-export function GoodsOptionBuilder({ guid, options, actions = DEFAULT_ACTIONS }: { guid: number; options: AdminGoodsOptionRow[]; actions?: OptionActions }) {
+export function GoodsOptionBuilder({ guid, options, actions = DEFAULT_ACTIONS, optionNames = [] }: { guid: number; options: AdminGoodsOptionRow[]; actions?: OptionActions; optionNames?: string[] }) {
   const [state, formAction, pending] = useActionState<OptionActionState, FormData>(actions.create, {});
 
   return (
     <div>
       <h3 style={{ fontSize: 16 }}>옵션 빌더</h3>
       <p style={{ fontSize: 12, color: "#999" }}>
-        옵션명과 값을 입력하고 생성하면, 기존 옵션 품목이 전부 새 조합으로 교체됩니다(레거시 "옵션품목 만들기"와 동일).
+        옵션명과 값을 입력하고 생성하면, 기존 옵션 품목이 전부 새 조합으로 교체됩니다(레거시 &quot;옵션품목 만들기&quot;와 동일).
       </p>
       <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: 6, maxWidth: 500 }}>
         <input type="hidden" name="guid" value={guid} />
         {[0, 1, 2].map((i) => (
           <div key={i} style={{ display: "flex", gap: 6 }}>
-            <input type="text" name={`dimName${i}`} placeholder={`옵션명 ${i + 1} (예: 색상)`} style={{ width: 140 }} />
+            <input type="text" name={`dimName${i}`} placeholder={`옵션명 ${i + 1} (예: 색상)`} list="goods-option-names" style={{ width: 140 }} />
             <input type="text" name={`dimValues${i}`} placeholder="값(쉼표로 구분, 예: 화이트,블랙)" style={{ flex: 1 }} />
           </div>
         ))}
+        <datalist id="goods-option-names">{optionNames.map((name) => <option key={name} value={name} />)}</datalist>
         {state.error && <div style={{ color: "#e02020", fontSize: 12 }}>{state.error}</div>}
         <button type="submit" disabled={pending} style={{ alignSelf: "flex-start" }}>
           옵션품목 만들기

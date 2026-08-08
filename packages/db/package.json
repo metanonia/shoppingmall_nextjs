@@ -6,6 +6,8 @@
   "types": "./src/index.ts",
   "scripts": {
     "generate": "prisma generate",
+    "migrate": "node scripts/migrate.js",
+    "migrate:baseline": "node scripts/migrate.js --baseline",
     "db:pull": "prisma db pull",
     "seed": "node prisma/seed.js",
     "studio": "prisma studio"

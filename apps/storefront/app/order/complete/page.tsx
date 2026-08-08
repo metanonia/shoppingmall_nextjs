@@ -33,6 +33,10 @@ export default async function OrderCompletePage({ searchParams }: { searchParams
       </p>
       {confirmation.payType === "B" && (
         <p className="colorGray size12">
+          입금계좌: {confirmation.bankAccount ?? "-"}
+          <br />
+          입금자명: {confirmation.remitterName ?? "-"}
+          <br />
           입금 확인 후 결제완료로 처리됩니다. 주문내역은 {session ? "마이페이지" : "비회원 주문조회"}에서 확인하실 수
           있습니다.
         </p>

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getVendorProfile } from "@shoppingmall/core";
 import { requireVendor } from "@/lib/auth";
-import { runGoodsExcelImport, type ImportState } from "@/app/(protected)/goods/import/actions";
+import { runGoodsExcelImport, type ImportState } from "@/lib/goods-excel-import";
 
 // Vendor twin of app/(protected)/goods/import/actions.ts — forces vendor to
 // the caller's own id, derives auto-approval from Vendor.goods_auth (same

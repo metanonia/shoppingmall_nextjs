@@ -1,4 +1,7 @@
+import Link from "next/link";
 import type { BankAccount, ShopConfig } from "@shoppingmall/core";
+
+const BACKOFFICE_URL = (process.env.NEXT_PUBLIC_BACKOFFICE_URL ?? "http://localhost:3001").replace(/\/$/, "");
 
 // Port of bottom.html (PC) / mobile_bottom.html. Peripheral floating widgets
 // (recent-view drawer, popup ads, back-to-top button) need cross-cutting
@@ -50,16 +53,16 @@ export function Footer({
         <div className="copyMenu">
           <ul>
             <li style={{ paddingLeft: 0 }}>
-              <a href="/">HOME</a>
+              <Link href="/">HOME</Link>
             </li>
             <li>
-              <a href="/agreement">AGREEMENT</a>
+              <Link href="/agreement">AGREEMENT</Link>
             </li>
             <li className="weight500">
-              <a href="/privacy">PRIVACY POLICY</a>
+              <Link href="/privacy">PRIVACY POLICY</Link>
             </li>
             <li>
-              <a href="/cs_center">CS CENTER</a>
+              <Link href="/cs_center">CS CENTER</Link>
             </li>
           </ul>
         </div>
@@ -119,25 +122,25 @@ export function Footer({
       <div id="copyMenu">
         <ul className="floatLeft" style={{ width: 600 }}>
           <li style={{ paddingLeft: 0 }}>
-            <a href="/">HOME</a>
+            <Link href="/">HOME</Link>
           </li>
           <li>
-            <a href="/agreement">AGREEMENT</a>
+            <Link href="/agreement">AGREEMENT</Link>
           </li>
           <li className="weight500">
-            <a href="/privacy">PRIVACY POLICY</a>
+            <Link href="/privacy">PRIVACY POLICY</Link>
           </li>
           <li>
-            <a href="/cs_center">CS CENTER</a>
+            <Link href="/cs_center">CS CENTER</Link>
           </li>
         </ul>
         {config.vendorLink > 0 && (
           <ul className="floatRight">
             <li style={{ paddingLeft: 0 }}>
-              <a href="/regist_vendor">입점신청</a>
+              <Link href="/regist_vendor">입점신청</Link>
             </li>
             <li>
-              <a href="/vendor/">입점사로그인</a>
+              <a href={`${BACKOFFICE_URL}/vendor`}>입점사로그인</a>
             </li>
           </ul>
         )}

@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { createCategory, deleteCategory, updateCategory } from "@shoppingmall/core";
+import { requireAdmin } from "@/lib/auth";
 
 export type ActionState = { error?: string };
 
 export async function createCategoryAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
   const cateName = String(formData.get("newCateName") ?? "").trim();
   const parentCateRaw = String(formData.get("parentCate") ?? "").trim();
 
@@ -22,6 +24,7 @@ export async function createCategoryAction(_prevState: ActionState, formData: Fo
 }
 
 export async function updateCategoryAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await requireAdmin();
   const uid = Number(formData.get("uid"));
   const result = await updateCategory(uid, {
     cateName: String(formData.get("cateName") ?? "").trim(),
@@ -37,6 +40,7 @@ export async function updateCategoryAction(_prevState: ActionState, formData: Fo
 }
 
 export async function deleteCategoryAction(formData: FormData): Promise<void> {
+  await requireAdmin();
   const uid = Number(formData.get("uid"));
   await deleteCategory(uid);
   revalidatePath("/categories");
