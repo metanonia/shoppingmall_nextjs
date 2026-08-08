@@ -24,7 +24,7 @@ export async function expireCoupons(): Promise<{ count: number }> {
 // then the lot is marked expired so it's never picked up again.
 export async function expireMileageLots(): Promise<{ memberCount: number; totalExpired: number }> {
   const dueLots = await prisma.mileage.findMany({
-    where: { expired_use: 1, expired: 0, expired_date: { lt: new Date() } },
+    where: { expired_use: 1, expired: 0, deleted: 0, expired_date: { lt: new Date() } },
   });
 
   const memberIds = new Set<string>();

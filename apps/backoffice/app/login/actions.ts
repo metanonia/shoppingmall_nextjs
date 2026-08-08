@@ -1,8 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { authenticateMember } from "@shoppingmall/core";
+import { authenticateMember, recordAccessLog } from "@shoppingmall/core";
 import { createSession } from "@/lib/auth";
+import { getClientIp } from "@/lib/request-ip";
 
 // Admin login reuses the same authenticateMember() the storefront uses for
 // member login (port of php/login_post.php) rather than a separate admin
@@ -24,5 +25,6 @@ export async function loginAction(_prevState: { error?: string }, formData: Form
   }
 
   await createSession({ userId: result.profile.id, role: "admin", level: result.profile.level });
+  await recordAccessLog("ADMIN", result.profile.id, 0, `${result.profile.name} 로그인`, await getClientIp());
   redirect("/");
 }

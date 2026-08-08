@@ -13,7 +13,7 @@ function now(): number {
 export async function getMileageBalance(memberId: string, db: DbClient = prisma): Promise<number> {
   const agg = await db.mileage.aggregate({
     _sum: { mileage: true, use_mileage: true },
-    where: { id: memberId },
+    where: { id: memberId, deleted: 0 },
   });
   const balance = (agg._sum.mileage ?? 0) - (agg._sum.use_mileage ?? 0);
   await db.member.updateMany({ where: { id: memberId }, data: { mileage: balance } });
@@ -34,7 +34,7 @@ export async function useMileage(
   if (amount <= 0) return;
 
   const expiringLots = await db.mileage.findMany({
-    where: { id: memberId, expired_use: 1, expired: 0, mileage: { gt: 0 } },
+    where: { id: memberId, expired_use: 1, expired: 0, deleted: 0, mileage: { gt: 0 } },
     orderBy: { expired_date: "asc" },
   });
 

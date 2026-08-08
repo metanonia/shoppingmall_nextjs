@@ -1,6 +1,6 @@
 import { prisma } from "@shoppingmall/db";
 import { issueCoupon } from "./coupon";
-import { type MileageValidityConfig, saveMileage, useMileage } from "./mileage";
+import { type MileageValidityConfig, getMileageBalance, saveMileage, useMileage } from "./mileage";
 
 export type AdminMemberListItem = {
   id: string;
@@ -216,6 +216,7 @@ export type MileageLogListItem = {
   orderNum: string;
   procId: string;
   signdate: number;
+  deleted: boolean;
 };
 
 export type MileageLogListResult = { items: MileageLogListItem[]; total: number; page: number; totalPages: number };
@@ -224,10 +225,10 @@ const MILEAGE_LOG_PAGE_SIZE = 30;
 
 // Port of managers/member/mileage_list.php — the admin-wide ledger view,
 // as opposed to mileage.ts's getMileageHistory (single member, used by
-// mypage/my_mileage). Legacy's mileage_log_list.php (deleted-row recovery)
-// isn't ported — see scheduled-jobs.ts's expireMileageLots comment, this
-// migration uses a plain reversal ledger row instead of a separate
-// snapshot/recovery table.
+// mypage/my_mileage). Legacy's separate mileage_log_list.php (deleted-row
+// recovery, backed by its own snapshot table mallRN_mileage_log) is folded
+// into this same screen via soft-delete columns on Mileage itself —
+// deleteMileageEntry/restoreMileageEntry below.
 export async function getMileageLogList(filters: { keyword?: string }, page = 1): Promise<MileageLogListResult> {
   const where = filters.keyword ? { OR: [{ id: { contains: filters.keyword } }, { content: { contains: filters.keyword } }] } : {};
 
@@ -252,11 +253,36 @@ export async function getMileageLogList(filters: { keyword?: string }, page = 1)
       orderNum: r.order_num,
       procId: r.proc_id,
       signdate: r.signdate,
+      deleted: r.deleted === 1,
     })),
     total,
     page: safePage,
     totalPages,
   };
+}
+
+// Port of managers/member/mileage_post.php's delete/repair cases —
+// soft-delete instead of legacy's snapshot-to-mileage_log-then-drop, so
+// "restore" is just clearing the flag rather than re-inserting a row.
+export async function deleteMileageEntry(uid: number, actorId: string, actorIp: string): Promise<MemberAdminResult> {
+  const row = await prisma.mileage.findFirst({ where: { uid } });
+  if (!row) return { ok: false, error: "존재하지 않는 마일리지 내역입니다." };
+
+  await prisma.mileage.update({
+    where: { uid },
+    data: { deleted: 1, deleted_proc_id: actorId, deleted_proc_ip: actorIp, deleted_date: Math.floor(Date.now() / 1000) },
+  });
+  await getMileageBalance(row.id);
+  return { ok: true };
+}
+
+export async function restoreMileageEntry(uid: number): Promise<MemberAdminResult> {
+  const row = await prisma.mileage.findFirst({ where: { uid } });
+  if (!row) return { ok: false, error: "존재하지 않는 마일리지 내역입니다." };
+
+  await prisma.mileage.update({ where: { uid }, data: { deleted: 0, deleted_proc_id: "", deleted_proc_ip: "", deleted_date: 0 } });
+  await getMileageBalance(row.id);
+  return { ok: true };
 }
 
 export type MemberSleepListItem = {

@@ -20,6 +20,7 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string }[] }[
       { href: "/mileage-log", label: "마일리지 내역" },
       { href: "/member-sleep", label: "휴면회원" },
       { href: "/sms-log", label: "SMS 발송이력" },
+      { href: "/access-log", label: "접속 로그" },
     ],
   },
   {

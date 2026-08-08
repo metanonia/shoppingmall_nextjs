@@ -1,4 +1,5 @@
 import { getMileageLogList } from "@shoppingmall/core";
+import { deleteMileageEntryAction, restoreMileageEntryAction } from "./actions";
 
 function formatWon(n: number): string {
   return Math.round(n).toLocaleString("en-US");
@@ -30,11 +31,13 @@ export default async function MileageLogPage({ searchParams }: { searchParams: P
             <th>주문번호</th>
             <th>처리자</th>
             <th>일시</th>
+            <th>상태</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           {result.items.map((r) => (
-            <tr key={r.uid}>
+            <tr key={r.uid} style={r.deleted ? { color: "#bbb", textDecoration: "line-through" } : undefined}>
               <td>{r.memberId}</td>
               <td>{r.content}</td>
               <td>{r.mileage > 0 ? `+${formatWon(r.mileage)}` : "-"}</td>
@@ -42,6 +45,20 @@ export default async function MileageLogPage({ searchParams }: { searchParams: P
               <td>{r.orderNum || "-"}</td>
               <td>{r.procId || "-"}</td>
               <td>{formatDate(r.signdate)}</td>
+              <td>{r.deleted ? "삭제됨" : "정상"}</td>
+              <td>
+                {r.deleted ? (
+                  <form action={restoreMileageEntryAction}>
+                    <input type="hidden" name="uid" value={r.uid} />
+                    <button type="submit">복구</button>
+                  </form>
+                ) : (
+                  <form action={deleteMileageEntryAction}>
+                    <input type="hidden" name="uid" value={r.uid} />
+                    <button type="submit">삭제</button>
+                  </form>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
