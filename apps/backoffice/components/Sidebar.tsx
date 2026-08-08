@@ -7,6 +7,7 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string }[] }[
     items: [
       { href: "/orders", label: "주문관리" },
       { href: "/order-cancel-log", label: "PG 취소 로그" },
+      { href: "/delivery-api-log", label: "배송추적 로그" },
     ],
   },
   {
