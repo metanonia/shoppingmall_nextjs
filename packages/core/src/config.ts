@@ -1,4 +1,5 @@
 import { prisma } from "@shoppingmall/db";
+import { sanitizeRichText } from "./sanitize";
 
 export type ShopConfig = Awaited<ReturnType<typeof getShopConfig>>;
 
@@ -42,6 +43,10 @@ export async function getShopConfig() {
     mobileYn: row.mobile_yn,
     goodsPriceLimit1: row.goods_price_limit1,
     goodsPriceLimit2: row.goods_price_limit2,
+    goodsDeliveryInfo: row.goods_delivery_info,
+    goodsRefundInfo: row.goods_refund_info,
+    goodsExchangeInfo: row.goods_exchange_info,
+    goodsAsInfo: row.goods_as_info,
     paymentBankInfo: row.payment_bank_info,
     paymentTypeB: row.payment_type_b,
     paymentTypeC: row.payment_type_c,
@@ -164,6 +169,45 @@ export async function updatePaymentConfig(input: UpdatePaymentConfigInput): Prom
       payment_shop_id: input.paymentShopId,
       payment_shop_key: input.paymentShopKey,
       payment_bank_info: input.paymentBankInfo,
+    },
+  });
+}
+
+// Port of managers/config/goods_info.php, scoped down to the fields with a
+// real consumer in this migration: price limits (already read via
+// getShopConfig/priceLimitConfigFrom) and the 4 shop-wide policy guide
+// texts (detail.ts falls back to these for direct/직영 products —
+// vendor.ts's VendorConfiguration already has the per-vendor equivalent).
+// Left out: goods_soldout (no listing query in this repo branches on it —
+// wiring it would mean threading a config value through every
+// VISIBLE_GOODS_WHERE call site for a display toggle nothing currently
+// reads, out of proportion to the value), the option/brand/make/origin
+// master lists (GoodsForm's brand/origin stay free text, same reasoning as
+// vendor.ts's H5 comment), and goods_require_info/goods_icon_info (neither
+// has any admin/vendor form field that could consume them — see
+// goods-excel-import.ts's comment on the same gap for require_info).
+export type UpdateGoodsConfigInput = {
+  priceLimit1: number;
+  priceLimit2: number;
+  deliveryInfo: string;
+  refundInfo: string;
+  exchangeInfo: string;
+  asInfo: string;
+};
+
+// Read side is just getShopConfig()'s goodsPriceLimit1/2 and
+// goodsDeliveryInfo/goodsRefundInfo/goodsExchangeInfo/goodsAsInfo fields —
+// no separate getter needed.
+export async function updateGoodsConfig(input: UpdateGoodsConfigInput): Promise<void> {
+  await prisma.configuration.update({
+    where: { uid: 1 },
+    data: {
+      goods_price_limit1: input.priceLimit1,
+      goods_price_limit2: input.priceLimit2,
+      goods_delivery_info: sanitizeRichText(input.deliveryInfo),
+      goods_refund_info: sanitizeRichText(input.refundInfo),
+      goods_exchange_info: sanitizeRichText(input.exchangeInfo),
+      goods_as_info: sanitizeRichText(input.asInfo),
     },
   });
 }

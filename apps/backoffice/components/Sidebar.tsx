@@ -55,6 +55,7 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string }[] }[
       { href: "/settings/basic", label: "기본정보" },
       { href: "/settings/member", label: "회원정책" },
       { href: "/settings/member-levels", label: "회원등급설정" },
+      { href: "/settings/goods", label: "상품환경설정" },
       { href: "/settings/delivery", label: "배송" },
       { href: "/settings/payment", label: "결제" },
       { href: "/settings/agreement", label: "약관" },

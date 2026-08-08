@@ -6,6 +6,7 @@ import {
   updateAgreementAction,
   updateBasicConfigAction,
   updateDeliveryConfigAction,
+  updateGoodsConfigAction,
   updateMemberConfigAction,
   updatePaymentConfigAction,
   type ActionState,
@@ -158,6 +159,38 @@ export function MemberConfigForm({ config, socialConfigs }: { config: MemberForm
             <input type="text" name={`social_${s.site}_apiKey`} placeholder="Client Secret" defaultValue={s.apiKey} style={{ flex: 1 }} />
           </div>
         ))}
+      </fieldset>
+
+      <SavedNotice state={state} />
+      <button type="submit" disabled={pending} style={{ alignSelf: "flex-start" }}>
+        저장
+      </button>
+    </form>
+  );
+}
+
+export function GoodsConfigForm({ config }: { config: ShopConfig }) {
+  const [state, formAction, pending] = useActionState<ActionState, FormData>(updateGoodsConfigAction, {});
+  return (
+    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 480 }}>
+      <fieldset style={{ border: "1px solid #eee", padding: 12, borderRadius: 6 }}>
+        <legend>가격 제한</legend>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input type="number" name="priceLimit1" placeholder="최소 판매가" defaultValue={config.goodsPriceLimit1} />
+          <input type="number" name="priceLimit2" placeholder="최대 판매가" defaultValue={config.goodsPriceLimit2} />
+        </div>
+      </fieldset>
+
+      <fieldset style={{ border: "1px solid #eee", padding: 12, borderRadius: 6 }}>
+        <legend>상품 기본 안내문구(직영 상품 공통)</legend>
+        <div style={{ fontSize: 12, color: "#999", marginBottom: 8 }}>
+          상품등록 시 &quot;환경설정 사용&quot;으로 지정한 직영(입점사 없음) 상품에 공통 적용됩니다.
+          입점사 상품은 각 입점사의 스토어설정을 따릅니다.
+        </div>
+        <textarea name="deliveryInfo" placeholder="배송 안내" defaultValue={config.goodsDeliveryInfo} rows={3} style={{ width: "100%" }} />
+        <textarea name="refundInfo" placeholder="환불 안내" defaultValue={config.goodsRefundInfo} rows={3} style={{ width: "100%", marginTop: 6 }} />
+        <textarea name="exchangeInfo" placeholder="교환 안내" defaultValue={config.goodsExchangeInfo} rows={3} style={{ width: "100%", marginTop: 6 }} />
+        <textarea name="asInfo" placeholder="AS 안내" defaultValue={config.goodsAsInfo} rows={3} style={{ width: "100%", marginTop: 6 }} />
       </fieldset>
 
       <SavedNotice state={state} />

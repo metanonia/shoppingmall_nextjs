@@ -96,11 +96,16 @@ export async function getGoodsDetail(
   // Port of view.php:155-167's information_use switch — 1 means "use my
   // vendor's reusable default guide text" (mallRN_vendor_configuration,
   // set up on /vendor/store), anything else means this product wrote its
-  // own delivery/refund/exchange/AS text.
+  // own delivery/refund/exchange/AS text. A 직영(vendor="") product with the
+  // flag on has no VendorConfiguration to borrow from, so it falls back to
+  // Configuration's shop-wide equivalent (settings/goods, H6) instead — this
+  // fallback was missing entirely until H6 (config.ts's getShopConfig
+  // hadn't read those 4 columns at all before then).
   const vendorConfig =
     row.information_use === 1 && row.vendor
       ? await prisma.vendorConfiguration.findFirst({ where: { vendor: row.vendor } })
       : null;
+  const useShopWideInfo = row.information_use === 1 && !row.vendor;
 
   const eventDiscounts = await getActiveEventDiscounts();
   const priceLimitConfig = priceLimitConfigFrom(config);
@@ -284,13 +289,13 @@ export async function getGoodsDetail(
     relatedGoods: relatedRows.map((r) => toGoodsCard(r, eventDiscounts, priceLimitConfig, memberDiscountPct)),
     reviewCount,
     inquiryCount,
-    deliveryInfo: vendorConfig ? vendorConfig.goods_delivery_info : row.delivery_info,
-    refundInfo: vendorConfig ? vendorConfig.goods_refund_info : row.refund_info,
-    exchangeInfo: vendorConfig ? vendorConfig.goods_exchange_info : row.exchange_info,
+    deliveryInfo: vendorConfig ? vendorConfig.goods_delivery_info : useShopWideInfo ? config.goodsDeliveryInfo : row.delivery_info,
+    refundInfo: vendorConfig ? vendorConfig.goods_refund_info : useShopWideInfo ? config.goodsRefundInfo : row.refund_info,
+    exchangeInfo: vendorConfig ? vendorConfig.goods_exchange_info : useShopWideInfo ? config.goodsExchangeInfo : row.exchange_info,
     vendor: row.vendor,
     vendorName,
     vendorGoods,
-    asInfo: vendorConfig ? vendorConfig.goods_as_info : row.as_info,
+    asInfo: vendorConfig ? vendorConfig.goods_as_info : useShopWideInfo ? config.goodsAsInfo : row.as_info,
   };
 }
 

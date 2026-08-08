@@ -5,6 +5,7 @@ import {
   updateAgreementPages,
   updateBasicConfig,
   updateDeliveryConfig,
+  updateGoodsConfig,
   updateMemberFormConfig,
   updatePaymentConfig,
   updateSocialConfig,
@@ -69,6 +70,19 @@ export async function updatePaymentConfigAction(_prevState: ActionState, formDat
 export async function updateAgreementAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   await updateAgreementPages({ terms: str(formData, "terms"), privacy: str(formData, "privacy") });
   revalidatePath("/settings/agreement");
+  return { success: true };
+}
+
+export async function updateGoodsConfigAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  await updateGoodsConfig({
+    priceLimit1: Number(formData.get("priceLimit1") ?? 0) || 0,
+    priceLimit2: Number(formData.get("priceLimit2") ?? 0) || 0,
+    deliveryInfo: str(formData, "deliveryInfo"),
+    refundInfo: str(formData, "refundInfo"),
+    exchangeInfo: str(formData, "exchangeInfo"),
+    asInfo: str(formData, "asInfo"),
+  });
+  revalidatePath("/settings/goods");
   return { success: true };
 }
 
