@@ -35,6 +35,28 @@ export function VendorStoreConfigForm({ config }: { config: VendorConfigurationV
         <textarea name="asInfo" placeholder="AS 안내" defaultValue={config?.asInfo} rows={3} style={{ width: "100%", marginTop: 6 }} />
       </fieldset>
 
+      <fieldset style={{ border: "1px solid #eee", padding: 12, borderRadius: 6 }}>
+        <legend>스토어 페이지 진열</legend>
+        <div style={{ fontSize: 12, color: "#999", marginBottom: 8 }}>
+          내 스토어 페이지 상단에 노출할 섹션입니다. 진열 상품은 상품관리 &gt; 스토어 진열관리에서 지정합니다.
+        </div>
+        {[
+          { name: "displayBest", label: "인기상품", defaultValue: config?.displayBest ?? 0 },
+          { name: "displayReco", label: "추천상품", defaultValue: config?.displayReco ?? 0 },
+          { name: "displayNew", label: "신상품", defaultValue: config?.displayNew ?? 0 },
+        ].map((f) => (
+          <div key={f.name} style={{ marginTop: 6 }}>
+            <label style={{ marginRight: 8 }}>{f.label}</label>
+            <select name={f.name} defaultValue={f.defaultValue}>
+              <option value={0}>사용 안 함</option>
+              <option value={1}>기본형</option>
+              <option value={2}>큰 이미지형</option>
+              <option value={3}>그룹형</option>
+            </select>
+          </div>
+        ))}
+      </fieldset>
+
       {state.error && <div style={{ color: "#e02020" }}>{state.error}</div>}
       {state.success && <div style={{ color: "#2a8" }}>저장되었습니다.</div>}
       <button type="submit" disabled={pending} style={{ alignSelf: "flex-start" }}>

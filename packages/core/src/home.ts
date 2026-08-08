@@ -9,7 +9,7 @@ const DISPLAY_SLOT: Record<string, 1 | 2 | 3> = { reco: 2, best: 1, new: 3 };
 
 export type GoodsDisplayType = "type0" | "type1" | "type1_group";
 
-function displayType(value: number): GoodsDisplayType {
+export function displayType(value: number): GoodsDisplayType {
   if (value === 3) return "type1_group";
   if (value > 1) return "type1";
   return "type0";

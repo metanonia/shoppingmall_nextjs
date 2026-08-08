@@ -291,16 +291,20 @@ export type VendorConfigurationInput = {
   refundInfo: string;
   exchangeInfo: string;
   asInfo: string;
+  displayBest: number;
+  displayReco: number;
+  displayNew: number;
 };
 
 export type VendorConfigurationView = VendorConfigurationInput;
 
-// Only the subset of mallRN_vendor_configuration this migration exposes for
-// editing — CS hours, return address, and the 4 policy guide texts (used as
-// this vendor's default when creating a new product, see goods-admin.ts).
-// Display customization (design_main_display*, delivery pricing overrides,
-// push tokens) stays admin-only-unused, same precedent as Configuration's
-// leftover columns.
+// Subset of mallRN_vendor_configuration this migration exposes for editing —
+// CS hours, return address, the 4 policy guide texts (used as this vendor's
+// default when creating a new product, see goods-admin.ts), and the 3
+// store_display section toggles (store.ts's getStoreSections, added once
+// store_display was un-scoped-out — see goods-display.ts's header comment).
+// Delivery pricing overrides and push tokens stay admin-only-unused, same
+// precedent as Configuration's leftover columns.
 export async function getVendorConfiguration(vendorId: string): Promise<VendorConfigurationView | null> {
   const row = await prisma.vendorConfiguration.findFirst({ where: { vendor: vendorId } });
   if (!row) return null;
@@ -316,6 +320,9 @@ export async function getVendorConfiguration(vendorId: string): Promise<VendorCo
     refundInfo: row.goods_refund_info,
     exchangeInfo: row.goods_exchange_info,
     asInfo: row.goods_as_info,
+    displayBest: row.design_main_display1,
+    displayReco: row.design_main_display2,
+    displayNew: row.design_main_display3,
   };
 }
 
@@ -334,6 +341,9 @@ export async function updateVendorConfiguration(vendorId: string, input: VendorC
     goods_refund_info: sanitizeRichText(input.refundInfo),
     goods_exchange_info: sanitizeRichText(input.exchangeInfo),
     goods_as_info: sanitizeRichText(input.asInfo),
+    design_main_display1: input.displayBest,
+    design_main_display2: input.displayReco,
+    design_main_display3: input.displayNew,
   };
 
   const existing = await prisma.vendorConfiguration.findFirst({ where: { vendor: vendorId } });

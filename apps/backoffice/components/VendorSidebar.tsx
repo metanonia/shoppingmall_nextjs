@@ -3,6 +3,7 @@ import { vendorLogoutAction } from "@/app/vendor/actions";
 const NAV_ITEMS = [
   { href: "/vendor/dashboard", label: "대시보드" },
   { href: "/vendor/goods", label: "상품관리" },
+  { href: "/vendor/goods/display", label: "스토어 진열관리" },
   { href: "/vendor/orders", label: "주문관리" },
   { href: "/vendor/settlement", label: "정산" },
   { href: "/vendor/store", label: "스토어설정" },

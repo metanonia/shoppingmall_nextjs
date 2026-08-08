@@ -2,6 +2,8 @@ import { prisma } from "@shoppingmall/db";
 import { getDescendantCateIds, keywordWhere, runGoodsQuery, VISIBLE_GOODS_WHERE, type GoodsListResult, type SortOption } from "./listing";
 import type { EventDiscountMap, PriceLimitConfig } from "./pricing";
 import { getFavoriteStoreCount } from "./favorite";
+import { displayType, type GoodsSection } from "./home";
+import { toGoodsCard } from "./goods";
 
 export type StoreInfo = {
   vendorId: string;
@@ -91,10 +93,6 @@ export async function getStoreCategories(vendorId: string): Promise<StoreCategor
 }
 
 // Port of php/store.php's main goods grid (mallRN_goods WHERE vendor = ...).
-// The per-vendor "reco/best/new" highlight sections (store_display1/2/3,
-// driven by mallRN_vendor_configuration.design_main_display_order) are out
-// of scope for the same reason as getStoreInfo — no vendor site-settings
-// table yet.
 export async function getStoreGoodsList(
   vendorId: string,
   opts: { cate?: bigint; sort: SortOption; page: number; limit: number; keyword?: string },
@@ -117,4 +115,55 @@ export async function getStoreGoodsList(
     priceLimitConfig,
     memberDiscountPct,
   );
+}
+
+// store_display{1,2,3} / store_display{1,2,3}_sequence are three physically
+// distinct columns — same reason home.ts's MAIN1_DISPLAY_WHERE/ORDER are
+// split by slot instead of interpolating a field name.
+const STORE_DISPLAY_WHERE = {
+  1: { store_display1: 1 as const },
+  2: { store_display2: 1 as const },
+  3: { store_display3: 1 as const },
+};
+const STORE_DISPLAY_ORDER = {
+  1: { store_display1_sequence: "asc" as const },
+  2: { store_display2_sequence: "asc" as const },
+  3: { store_display3_sequence: "asc" as const },
+};
+const STORE_SECTION_KEYS = { 1: "best", 2: "reco", 3: "new" } as const;
+
+// Port of php/store.php's reco/best/new highlight sections — mirrors
+// home.ts's getGoodsSection exactly, scoped to this vendor's own products
+// and driven by VendorConfiguration.design_main_display{1,2,3} (added
+// Phase 8) instead of the shop-wide Configuration row. This was left
+// unwired since Phase 2 (store.ts's own comment cited "no vendor
+// site-settings table yet" — stale by the time Phase 8 added one).
+export async function getStoreSections(
+  vendorId: string,
+  eventDiscounts: EventDiscountMap,
+  priceLimitConfig: PriceLimitConfig,
+  memberDiscountPct = 0,
+): Promise<GoodsSection[]> {
+  const config = await prisma.vendorConfiguration.findFirst({ where: { vendor: vendorId } });
+  if (!config) return [];
+
+  const sections: GoodsSection[] = [];
+  for (const slot of [1, 2, 3] as const) {
+    const displayValue = slot === 1 ? config.design_main_display1 : slot === 2 ? config.design_main_display2 : config.design_main_display3;
+    if (displayValue === 0) continue;
+
+    const rows = await prisma.goods.findMany({
+      where: { ...VISIBLE_GOODS_WHERE, vendor: vendorId, ...STORE_DISPLAY_WHERE[slot] },
+      orderBy: STORE_DISPLAY_ORDER[slot],
+    });
+    if (rows.length === 0) continue;
+
+    sections.push({
+      kind: "goods",
+      key: STORE_SECTION_KEYS[slot],
+      displayType: displayType(displayValue),
+      goods: rows.map((row) => toGoodsCard(row, eventDiscounts, priceLimitConfig, memberDiscountPct)),
+    });
+  }
+  return sections;
 }

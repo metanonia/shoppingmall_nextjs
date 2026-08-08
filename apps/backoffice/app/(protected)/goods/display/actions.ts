@@ -1,12 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { addGoodsToDisplay, reorderDisplayGoods, removeGoodsFromDisplay, type DisplaySubSlot, type MainDisplaySlot } from "@shoppingmall/core";
+import { addGoodsToDisplay, reorderDisplayGoods, removeGoodsFromDisplay, type DisplaySlot, type DisplaySubSlot } from "@shoppingmall/core";
 import { requireAdmin } from "@/lib/auth";
 
 export type ActionState = { error?: string };
 
-function parseSlot(formData: FormData): { slot: MainDisplaySlot; sub: DisplaySubSlot } {
+function parseSlot(formData: FormData): { slot: DisplaySlot; sub: DisplaySubSlot } {
   const slot = formData.get("slot") === "main2" ? "main2" : "main1";
   const subRaw = Number(formData.get("sub"));
   const sub = (subRaw === 2 || subRaw === 3 ? subRaw : 1) as DisplaySubSlot;

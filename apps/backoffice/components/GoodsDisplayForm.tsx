@@ -2,7 +2,12 @@
 
 import { useActionState, useState } from "react";
 import type { AdminGoodsListItem, DisplayGoodsItem } from "@shoppingmall/core";
-import { addGoodsToDisplayAction, removeGoodsFromDisplayAction, reorderDisplayGoodsAction, type ActionState } from "@/app/(protected)/goods/display/actions";
+import {
+  addGoodsToDisplayAction as defaultAddGoodsToDisplayAction,
+  removeGoodsFromDisplayAction as defaultRemoveGoodsFromDisplayAction,
+  reorderDisplayGoodsAction as defaultReorderDisplayGoodsAction,
+  type ActionState,
+} from "@/app/(protected)/goods/display/actions";
 
 function formatWon(n: number): string {
   return Math.round(n).toLocaleString("en-US");
@@ -17,12 +22,19 @@ export function DisplayReorderForm({
   sub,
   cate,
   items,
+  actions,
 }: {
   slot: string;
   sub: number;
   cate?: string;
   items: DisplayGoodsItem[];
+  actions?: {
+    removeGoodsFromDisplay: (formData: FormData) => Promise<void>;
+    reorderDisplayGoods: (formData: FormData) => Promise<void>;
+  };
 }) {
+  const removeGoodsFromDisplayAction = actions?.removeGoodsFromDisplay ?? defaultRemoveGoodsFromDisplayAction;
+  const reorderDisplayGoodsAction = actions?.reorderDisplayGoods ?? defaultReorderDisplayGoodsAction;
   const [order, setOrder] = useState(items.map((i) => i.uid));
   const byUid = new Map(items.map((i) => [i.uid, i]));
 
@@ -98,12 +110,17 @@ export function DisplaySearchForm({
   sub,
   keyword,
   results,
+  actions,
 }: {
   slot: string;
   sub: number;
   keyword?: string;
   results: AdminGoodsListItem[];
+  actions?: {
+    addGoodsToDisplay: (prevState: ActionState, formData: FormData) => Promise<ActionState>;
+  };
 }) {
+  const addGoodsToDisplayAction = actions?.addGoodsToDisplay ?? defaultAddGoodsToDisplayAction;
   const [state, formAction, pending] = useActionState<ActionState, FormData>(addGoodsToDisplayAction, {});
 
   return (

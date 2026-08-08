@@ -21,6 +21,9 @@ export async function updateVendorConfigurationAction(_prevState: ActionState, f
     refundInfo: String(formData.get("refundInfo") ?? ""),
     exchangeInfo: String(formData.get("exchangeInfo") ?? ""),
     asInfo: String(formData.get("asInfo") ?? ""),
+    displayBest: Number(formData.get("displayBest") ?? 0) || 0,
+    displayReco: Number(formData.get("displayReco") ?? 0) || 0,
+    displayNew: Number(formData.get("displayNew") ?? 0) || 0,
   });
   if (!result.ok) return { error: result.error };
 

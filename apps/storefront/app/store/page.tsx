@@ -4,6 +4,7 @@ import {
   getStoreCategories,
   getStoreGoodsList,
   getStoreInfo,
+  getStoreSections,
   isFavoriteStore,
   priceLimitConfigFrom,
   type SortOption,
@@ -14,6 +15,7 @@ import { StoreCategoryList } from "@/components/StoreCategoryList";
 import { GoodsGrid } from "@/components/GoodsGrid";
 import { ListingControls } from "@/components/ListingControls";
 import { Pagination } from "@/components/Pagination";
+import { HomeSections } from "@/components/HomeSections";
 
 const VALID_SORTS: SortOption[] = ["best", "new", "price_asc", "price_desc"];
 
@@ -55,6 +57,11 @@ export default async function StorePage({
     priceLimitConfigFrom(config),
     memberDiscountPct,
   );
+  // Highlight sections (reco/best/new) only make sense on the unfiltered
+  // storefront landing view, not while browsing a category or searching.
+  const sections = !cateParam && !keyword && page === 1
+    ? await getStoreSections(vendorId, eventDiscounts, priceLimitConfigFrom(config), memberDiscountPct)
+    : [];
 
   const makeHref = (p: number) =>
     `/store?vendor=${vendorId}${cateParam ? `&cate=${cateParam}` : ""}&sort=${sort}&limit=${limit}${keyword ? `&keyword=${encodeURIComponent(keyword)}` : ""}&page=${p}`;
@@ -63,6 +70,13 @@ export default async function StorePage({
     <div id="contents">
       <StoreHeader store={store} isMember={Boolean(member)} isFavorited={isFavorited} />
       <div className="empty40" />
+
+      {sections.length > 0 && (
+        <>
+          <HomeSections sections={sections} device={device} />
+          <div className="empty40" />
+        </>
+      )}
 
       {categories.length > 0 && <StoreCategoryList vendorId={vendorId} categories={categories} selectedCate={cateParam} />}
 

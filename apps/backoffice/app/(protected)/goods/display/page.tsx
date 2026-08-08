@@ -21,7 +21,7 @@ export default async function GoodsDisplayPage({
   const cate = slot === "main2" ? BigInt(cateParam || flatCategories[0]?.cate || "0") : undefined;
 
   const [displayed, searchResult] = await Promise.all([
-    getDisplayGoodsList(slot, sub, cate),
+    getDisplayGoodsList(slot, sub, { cate }),
     keyword ? getAdminGoodsList({ keyword }, 1) : Promise.resolve(null),
   ]);
 
