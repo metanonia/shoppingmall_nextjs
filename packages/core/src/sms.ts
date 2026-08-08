@@ -106,3 +106,39 @@ export function renderOrderShippedSms(params: {
 }): string {
   return `[${params.shopName}] ${params.orderName}님 주문하신 상품(${params.itemName})이 발송되었습니다. (${params.carrier} ${params.trackingNumber})`;
 }
+
+export type SmsLogListItem = {
+  uid: number;
+  cell: string;
+  message: string;
+  result: string;
+  signdate: number;
+};
+
+export type SmsLogListResult = { items: SmsLogListItem[]; total: number; page: number; totalPages: number };
+
+const SMS_LOG_PAGE_SIZE = 30;
+
+// Port of managers/member/sms_list.php's read side — sendSms (above) has
+// always written to mallRN_sms_list, but nothing ever read it back.
+export async function getSmsLogList(filters: { keyword?: string }, page = 1): Promise<SmsLogListResult> {
+  const where = filters.keyword ? { OR: [{ cell: { contains: filters.keyword } }, { message: { contains: filters.keyword } }] } : {};
+
+  const total = await prisma.smsLog.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / SMS_LOG_PAGE_SIZE));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+
+  const rows = await prisma.smsLog.findMany({
+    where,
+    orderBy: { uid: "desc" },
+    skip: (safePage - 1) * SMS_LOG_PAGE_SIZE,
+    take: SMS_LOG_PAGE_SIZE,
+  });
+
+  return {
+    items: rows.map((r) => ({ uid: r.uid, cell: r.cell, message: r.message, result: r.result, signdate: r.signdate })),
+    total,
+    page: safePage,
+    totalPages,
+  };
+}

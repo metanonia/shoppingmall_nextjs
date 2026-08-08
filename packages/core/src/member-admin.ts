@@ -258,3 +258,45 @@ export async function getMileageLogList(filters: { keyword?: string }, page = 1)
     totalPages,
   };
 }
+
+export type MemberSleepListItem = {
+  uid: number;
+  id: string;
+  name: string;
+  email: string;
+  sleepTime: number;
+  signdate: number;
+};
+
+export type MemberSleepListResult = { items: MemberSleepListItem[]; total: number; page: number; totalPages: number };
+
+const MEMBER_SLEEP_PAGE_SIZE = 30;
+
+// Port of managers/member/member_sleep_list.php's read side — Phase 9 built
+// the cron conversion (scheduled-jobs.ts's processDormantMembers) but never
+// an admin screen to see who got converted. Reactivation (legacy's
+// nondormant_time + separate unlock flow) is still out of scope — see
+// MIGRATION.md.
+export async function getMemberSleepList(filters: { keyword?: string }, page = 1): Promise<MemberSleepListResult> {
+  const where = filters.keyword
+    ? { OR: [{ id: { contains: filters.keyword } }, { name: { contains: filters.keyword } }, { email: { contains: filters.keyword } }] }
+    : {};
+
+  const total = await prisma.memberSleep.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / MEMBER_SLEEP_PAGE_SIZE));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+
+  const rows = await prisma.memberSleep.findMany({
+    where,
+    orderBy: { uid: "desc" },
+    skip: (safePage - 1) * MEMBER_SLEEP_PAGE_SIZE,
+    take: MEMBER_SLEEP_PAGE_SIZE,
+  });
+
+  return {
+    items: rows.map((r) => ({ uid: r.uid, id: r.id, name: r.name, email: r.email, sleepTime: r.sleep_time, signdate: r.signdate })),
+    total,
+    page: safePage,
+    totalPages,
+  };
+}
