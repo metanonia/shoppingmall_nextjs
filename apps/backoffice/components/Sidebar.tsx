@@ -47,6 +47,7 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string }[] }[
       { href: "/banners", label: "배너" },
       { href: "/popups", label: "팝업" },
       { href: "/pages", label: "정적페이지" },
+      { href: "/mail-templates", label: "자동메일 템플릿" },
     ],
   },
   {

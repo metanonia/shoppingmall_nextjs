@@ -421,11 +421,8 @@ export async function requestPasswordResetCode(id: string, name: string, channel
   const config = await getShopConfig();
   try {
     if (channel === "email") {
-      const result = await sendMail({
-        to: row.email,
-        subject: `[${config.basicName}] 비밀번호 재설정 인증코드`,
-        html: renderPasswordResetCodeEmail({ shopName: config.basicName, code }),
-      });
+      const rendered = await renderPasswordResetCodeEmail({ shopName: config.basicName, code });
+      const result = await sendMail({ to: row.email, subject: rendered.subject, html: rendered.html });
       if (!result.ok) return { ok: false, error: "인증코드 발송에 실패했습니다." };
     } else {
       const result = await sendSms({ to: row.cell, text: renderPasswordResetCodeSms({ shopName: config.basicName, code }) }, config);

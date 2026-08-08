@@ -126,11 +126,8 @@ export async function processDormantMembers(shopName: string): Promise<DormantMe
   });
   for (const member of warningCandidates) {
     if (!member.email) continue;
-    await sendMail({
-      to: member.email,
-      subject: `[${shopName}] 휴면계정 전환 예정 안내`,
-      html: renderDormantWarningEmail({ shopName, memberName: member.name, daysUntilSleep: DORMANT_SLEEP_DAYS - DORMANT_WARNING_DAYS }),
-    });
+    const rendered = await renderDormantWarningEmail({ shopName, memberName: member.name, daysUntilSleep: DORMANT_SLEEP_DAYS - DORMANT_WARNING_DAYS });
+    await sendMail({ to: member.email, subject: rendered.subject, html: rendered.html });
   }
 
   // 365+ days inactive: archive into MemberSleep, then hard-delete — same

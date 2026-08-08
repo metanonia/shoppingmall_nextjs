@@ -25,18 +25,13 @@ export async function notifyOrderCreated(orderNum: string): Promise<void> {
 
   await prisma.orderInfo.update({ where: { order_num: orderNum }, data: { mail_send: 1 } });
 
-  const emailResult = await trySend(() =>
-    sendMail({
-      to: order.email,
-      subject: `[${config.basicName}] 주문이 접수되었습니다`,
-      html: renderOrderReceivedEmail({
-        shopName: config.basicName,
-        orderNum,
-        lines: lines.map((l) => ({ goodsName: l.g_name, qty: l.qty, lineTotal: l.price * l.qty })),
-        payTotal: order.pay_total,
-      }),
-    }),
-  );
+  const orderReceivedEmail = await renderOrderReceivedEmail({
+    shopName: config.basicName,
+    orderNum,
+    lines: lines.map((l) => ({ goodsName: l.g_name, qty: l.qty, lineTotal: l.price * l.qty })),
+    payTotal: order.pay_total,
+  });
+  const emailResult = await trySend(() => sendMail({ to: order.email, subject: orderReceivedEmail.subject, html: orderReceivedEmail.html }));
 
   await trySend(() =>
     sendSms(
@@ -59,18 +54,13 @@ export async function notifyOrderPaid(orderNum: string): Promise<void> {
   if (!data) return;
   const { order, lines, config } = data;
 
-  const emailResult = await trySend(() =>
-    sendMail({
-      to: order.email,
-      subject: `[${config.basicName}] 결제가 완료되었습니다`,
-      html: renderOrderPaidEmail({
-        shopName: config.basicName,
-        orderNum,
-        lines: lines.map((l) => ({ goodsName: l.g_name, qty: l.qty, lineTotal: l.price * l.qty })),
-        payTotal: order.pay_total,
-      }),
-    }),
-  );
+  const orderPaidEmail = await renderOrderPaidEmail({
+    shopName: config.basicName,
+    orderNum,
+    lines: lines.map((l) => ({ goodsName: l.g_name, qty: l.qty, lineTotal: l.price * l.qty })),
+    payTotal: order.pay_total,
+  });
+  const emailResult = await trySend(() => sendMail({ to: order.email, subject: orderPaidEmail.subject, html: orderPaidEmail.html }));
   await prisma.orderInfo.update({ where: { order_num: orderNum }, data: { mail_send: 1, ...(emailResult ? { mail_ok: 1 } : {}) } });
 
   await trySend(() =>
