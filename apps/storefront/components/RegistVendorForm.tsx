@@ -1,10 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import { registerVendorAction, type RegisterVendorFormState } from "@/app/regist_vendor/actions";
+import { PostcodeSearchButton } from "./PostcodeSearchButton";
 
 export function RegistVendorForm() {
   const [state, formAction, pending] = useActionState<RegisterVendorFormState, FormData>(registerVendorAction, {});
+  const postcodeRef = useRef<HTMLInputElement>(null);
+  const address1Ref = useRef<HTMLInputElement>(null);
+  const address2Ref = useRef<HTMLInputElement>(null);
 
   if (state.success) {
     return (
@@ -46,13 +50,14 @@ export function RegistVendorForm() {
             <input type="text" name="compItem" placeholder="종목" />
           </li>
           <li>
-            <input type="text" name="compPostcode" placeholder="우편번호" />
+            <input type="text" name="compPostcode" placeholder="우편번호" ref={postcodeRef} readOnly />
+            <PostcodeSearchButton postcodeRef={postcodeRef} address1Ref={address1Ref} address2Ref={address2Ref} />
           </li>
           <li>
-            <input type="text" name="compAddress1" placeholder="주소" />
+            <input type="text" name="compAddress1" placeholder="주소" ref={address1Ref} readOnly />
           </li>
           <li>
-            <input type="text" name="compAddress2" placeholder="상세주소" />
+            <input type="text" name="compAddress2" placeholder="상세주소" ref={address2Ref} />
           </li>
           <li>
             <input type="email" name="compEmail" placeholder="사업자 이메일" required />

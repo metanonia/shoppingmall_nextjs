@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import type { AdminOrderLineView } from "@shoppingmall/core";
 import {
   adminCancelOrderAction,
@@ -12,6 +12,7 @@ import {
   updateMemoAction,
   type ActionState,
 } from "@/app/(protected)/orders/[orderNum]/actions";
+import { PostcodeSearchButton } from "./PostcodeSearchButton";
 
 function ErrorText({ state }: { state: ActionState }) {
   if (!state.error) return null;
@@ -151,12 +152,16 @@ export function OrderAddressForm({
   address2: string;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(updateAddressAction, {});
+  const postcodeRef = useRef<HTMLInputElement>(null);
+  const address1Ref = useRef<HTMLInputElement>(null);
+  const address2Ref = useRef<HTMLInputElement>(null);
   return (
     <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: 6, maxWidth: 320 }}>
       <input type="hidden" name="orderNum" value={orderNum} />
-      <input type="text" name="postcode" defaultValue={postcode} placeholder="우편번호" />
-      <input type="text" name="address1" defaultValue={address1} placeholder="주소" />
-      <input type="text" name="address2" defaultValue={address2} placeholder="상세주소" />
+      <input type="text" name="postcode" defaultValue={postcode} placeholder="우편번호" ref={postcodeRef} readOnly />
+      <PostcodeSearchButton postcodeRef={postcodeRef} address1Ref={address1Ref} address2Ref={address2Ref} />
+      <input type="text" name="address1" defaultValue={address1} placeholder="주소" ref={address1Ref} readOnly />
+      <input type="text" name="address2" defaultValue={address2} placeholder="상세주소" ref={address2Ref} />
       <button type="submit" disabled={pending} style={{ alignSelf: "flex-start" }}>
         배송지 저장
       </button>

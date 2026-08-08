@@ -1,12 +1,16 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import type { MemberProfile } from "@shoppingmall/core";
 import { updateProfileAction } from "@/app/member_modify/actions";
+import { PostcodeSearchButton } from "./PostcodeSearchButton";
 
 // Port of member_modify.html.
 export function MemberModifyForm({ profile }: { profile: MemberProfile }) {
   const [state, formAction, pending] = useActionState(updateProfileAction, {});
+  const postcodeRef = useRef<HTMLInputElement>(null);
+  const address1Ref = useRef<HTMLInputElement>(null);
+  const address2Ref = useRef<HTMLInputElement>(null);
 
   return (
     <div id="contents">
@@ -29,13 +33,14 @@ export function MemberModifyForm({ profile }: { profile: MemberProfile }) {
               <input type="text" name="cell" defaultValue={profile.cell} placeholder="휴대폰번호" />
             </li>
             <li>
-              <input type="text" name="postcode" defaultValue={profile.postcode} placeholder="우편번호" />
+              <input type="text" name="postcode" defaultValue={profile.postcode} placeholder="우편번호" ref={postcodeRef} readOnly />
+              <PostcodeSearchButton postcodeRef={postcodeRef} address1Ref={address1Ref} address2Ref={address2Ref} />
             </li>
             <li>
-              <input type="text" name="address1" defaultValue={profile.address1} placeholder="주소" />
+              <input type="text" name="address1" defaultValue={profile.address1} placeholder="주소" ref={address1Ref} readOnly />
             </li>
             <li>
-              <input type="text" name="address2" defaultValue={profile.address2} placeholder="상세주소" />
+              <input type="text" name="address2" defaultValue={profile.address2} placeholder="상세주소" ref={address2Ref} />
             </li>
           </ul>
         </div>

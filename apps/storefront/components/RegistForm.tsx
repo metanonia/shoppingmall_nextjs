@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import type { MemberFormConfig } from "@shoppingmall/core";
 import { registerAction } from "@/app/regist/actions";
+import { PostcodeSearchButton } from "./PostcodeSearchButton";
 
 // Port of regist.html. Only the common optional fields (tel/cell/address,
 // mail/SMS consent) are wired to `member_form_*` config — the long tail
@@ -11,6 +12,9 @@ import { registerAction } from "@/app/regist/actions";
 // install's seed, so by default none of the optional fields render anyway.
 export function RegistForm({ config }: { config: MemberFormConfig }) {
   const [state, formAction, pending] = useActionState(registerAction, {});
+  const postcodeRef = useRef<HTMLInputElement>(null);
+  const address1Ref = useRef<HTMLInputElement>(null);
+  const address2Ref = useRef<HTMLInputElement>(null);
 
   return (
     <div id="contents">
@@ -44,13 +48,14 @@ export function RegistForm({ config }: { config: MemberFormConfig }) {
             {config.addressRequired > 0 && (
               <>
                 <li>
-                  <input type="text" name="postcode" placeholder="우편번호" />
+                  <input type="text" name="postcode" placeholder="우편번호" ref={postcodeRef} readOnly />
+                  <PostcodeSearchButton postcodeRef={postcodeRef} address1Ref={address1Ref} address2Ref={address2Ref} />
                 </li>
                 <li>
-                  <input type="text" name="address1" required={config.addressRequired === 2} placeholder="주소" />
+                  <input type="text" name="address1" required={config.addressRequired === 2} placeholder="주소" ref={address1Ref} readOnly />
                 </li>
                 <li>
-                  <input type="text" name="address2" placeholder="상세주소" />
+                  <input type="text" name="address2" placeholder="상세주소" ref={address2Ref} />
                 </li>
               </>
             )}

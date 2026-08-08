@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useMemo, useRef, useState } from "react";
 import { submitOrderAction, type SubmitOrderFormState } from "@/app/order/actions";
+import { PostcodeSearchButton } from "./PostcodeSearchButton";
 
 function formatWon(n: number): string {
   return Math.round(n).toLocaleString("en-US");
@@ -52,6 +53,9 @@ export function OrderForm({
   const [state, formAction, pending] = useActionState<SubmitOrderFormState, FormData>(submitOrderAction, {});
   const [couponUid, setCouponUid] = useState(0);
   const [useMileageInput, setUseMileageInput] = useState(0);
+  const postcodeRef = useRef<HTMLInputElement>(null);
+  const address1Ref = useRef<HTMLInputElement>(null);
+  const address2Ref = useRef<HTMLInputElement>(null);
 
   const couponDiscount = coupons.find((c) => c.couponUid === couponUid)?.discountAmount ?? 0;
   const preDiscountTotal = subtotal + deliveryTotal - couponDiscount;
@@ -103,9 +107,10 @@ export function OrderForm({
       <div className="sub_title">배송지</div>
       <input type="text" name="name2" placeholder="수취인명 (주문자와 동일시 비워두세요)" />
       <input type="text" name="cell2" placeholder="수취인 연락처 (주문자와 동일시 비워두세요)" />
-      <input type="text" name="postcode" defaultValue={defaultPostcode} placeholder="우편번호" />
-      <input type="text" name="address1" defaultValue={defaultAddress1} placeholder="주소" required />
-      <input type="text" name="address2" defaultValue={defaultAddress2} placeholder="상세주소" />
+      <input type="text" name="postcode" defaultValue={defaultPostcode} placeholder="우편번호" ref={postcodeRef} readOnly />
+      <PostcodeSearchButton postcodeRef={postcodeRef} address1Ref={address1Ref} address2Ref={address2Ref} />
+      <input type="text" name="address1" defaultValue={defaultAddress1} placeholder="주소" required ref={address1Ref} readOnly />
+      <input type="text" name="address2" defaultValue={defaultAddress2} placeholder="상세주소" ref={address2Ref} />
       <textarea name="message" placeholder="배송 요청사항" />
 
       {isMember && (
