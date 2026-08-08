@@ -10,6 +10,12 @@ function formatWon(n: number): string {
 
 export type OptionValue = { uid: number; value: string; priceLabel: string | null };
 export type OptionGroup = { name: string; values: OptionValue[] };
+// One row per GoodsOption combination — exposed alongside OptionGroup so a
+// multi-dimension picker can resolve a per-dimension selection (e.g.
+// ["화이트", "S"]) to the actual combination row's uid/price/stock. For a
+// single-dimension product this stays empty; OptionGroup's own per-value
+// uid already resolves directly (see getGoodsDetail below).
+export type OptionCombination = { uid: number; parts: string[]; price: number; priceLabel: string | null; soldOut: boolean };
 
 export type GoodsDetailViewModel = {
   uid: number;
@@ -37,6 +43,7 @@ export type GoodsDetailViewModel = {
   limitMsg: string | null;
   optionUse: boolean;
   options: OptionGroup[];
+  optionCombinations: OptionCombination[];
   relatedGoods: GoodsCardViewModel[];
   reviewCount: number;
   inquiryCount: number;
@@ -141,6 +148,7 @@ export async function getGoodsDetail(
   const limitMsg = memberOnly ? "회원만 구매 가능 합니다." : null;
 
   const options: OptionGroup[] = [];
+  let optionCombinations: OptionCombination[] = [];
   if (row.option_use === 1 && row.option_info) {
     const dimensions = row.option_info.split("|*|").map((d) => d.split("|")[0]).filter(Boolean);
     if (dimensions.length === 1) {
@@ -161,7 +169,33 @@ export async function getGoodsDetail(
       }
       options.push({ name: dimensions[0], values });
     } else {
-      for (const name of dimensions) options.push({ name, values: [] });
+      // Port of goods_option_info_json.php's combination rows — GoodsOption.value
+      // is already "화이트|S"-style pipe-joined per dimension (see
+      // generateOptionCombinations in goods-admin.ts), so no schema/cart.ts
+      // change is needed: just expose every row and let the picker resolve
+      // a dimension selection to the matching combination's uid/price/stock.
+      const comboRows = await prisma.goodsOption.findMany({
+        where: { guid: uid, used: 1 },
+        orderBy: { sequence: "asc" },
+      });
+      optionCombinations = comboRows.map((r) => ({
+        uid: r.uid,
+        parts: r.value.split("|"),
+        price: r.price,
+        priceLabel: r.price > 0 ? `(+${formatWon(r.price)}원)` : r.price < 0 ? `(${formatWon(r.price)}원)` : null,
+        soldOut: r.qty_type === 0 && r.qty <= 0,
+      }));
+      dimensions.forEach((name, i) => {
+        const seen = new Set<string>();
+        const values: OptionValue[] = [];
+        for (const combo of optionCombinations) {
+          const v = combo.parts[i];
+          if (v === undefined || seen.has(v)) continue;
+          seen.add(v);
+          values.push({ uid: 0, value: v, priceLabel: null });
+        }
+        options.push({ name, values });
+      });
     }
   }
 
@@ -246,6 +280,7 @@ export async function getGoodsDetail(
     limitMsg,
     optionUse: row.option_use === 1,
     options,
+    optionCombinations,
     relatedGoods: relatedRows.map((r) => toGoodsCard(r, eventDiscounts, priceLimitConfig, memberDiscountPct)),
     reviewCount,
     inquiryCount,

@@ -1,4 +1,5 @@
 import { type Prisma, prisma } from "@shoppingmall/db";
+import { sanitizeRichText } from "./sanitize";
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
 
@@ -78,8 +79,8 @@ function toGoodsData(input: GoodsFormInput) {
     detail_image: input.detailImages.filter(Boolean).join(","),
     detail_image_only: input.detail_image_only ? 1 : 0,
     detail_image_type: input.detail_image_type,
-    explains: input.explains,
-    detail: input.detail,
+    explains: sanitizeRichText(input.explains),
+    detail: sanitizeRichText(input.detail),
     goods_code: input.goods_code,
     model: input.model,
     make: input.make,
@@ -101,10 +102,10 @@ function toGoodsData(input: GoodsFormInput) {
     mileage_common: input.mileage_common,
     delivery_type: input.delivery_type,
     delivery_price: input.delivery_price,
-    delivery_info: input.delivery_info,
-    refund_info: input.refund_info,
-    exchange_info: input.exchange_info,
-    as_info: input.as_info,
+    delivery_info: sanitizeRichText(input.delivery_info),
+    refund_info: sanitizeRichText(input.refund_info),
+    exchange_info: sanitizeRichText(input.exchange_info),
+    as_info: sanitizeRichText(input.as_info),
     keyword: input.keyword,
     cate_hide: input.cate_hide ? 1 : 0,
     vendor_hide: input.vendor_hide ? 1 : 0,

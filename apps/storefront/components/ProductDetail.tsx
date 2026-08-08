@@ -163,7 +163,12 @@ export function ProductDetail({
               {detail.limitMsg}
             </button>
           ) : (
-            <CartActions goodsUid={detail.uid} optionUse={detail.optionUse} options={detail.options} />
+            <CartActions
+              goodsUid={detail.uid}
+              optionUse={detail.optionUse}
+              options={detail.options}
+              optionCombinations={detail.optionCombinations}
+            />
           )}
         </div>
       </div>

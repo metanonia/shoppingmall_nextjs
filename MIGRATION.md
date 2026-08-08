@@ -46,7 +46,20 @@ cd ../backoffice && pnpm dev                # http://localhost:3001 (관리자, 
   `apps/backoffice/.env.local`에는 추가로 `NEXT_PUBLIC_STOREFRONT_URL`(기본
   `http://localhost:3000`)이 필요합니다 — 상품/배너/팝업 이미지가 storefront의
   `public/`에 저장되므로 관리자 화면의 미리보기 이미지가 storefront 쪽 절대 URL을
-  가리켜야 합니다.
+  가리켜야 합니다. `apps/backoffice/.env.local`에는 Phase 9부터 `CRON_SECRET`도
+  필요합니다(임의의 문자열) — 아래 "cron 작업" 참고.
+- **cron 작업(Phase 9)**: `packages/core/src/scheduled-jobs.ts`(쿠폰/마일리지
+  만료, 전시 상태전환, 휴면회원 전환, 로그 정리)와 `delivery-tracker.ts`(배송추적
+  폴링)는 상시 프로세스가 아니라 `apps/backoffice`의 HTTP 엔드포인트로 노출되어
+  있습니다 — 외부 스케줄러(시스템 crontab 등)가 주기적으로 호출해야 합니다:
+  ```bash
+  # 매일 1회
+  curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3001/api/cron/daily
+  # 매시간(또는 원하는 주기)
+  curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3001/api/cron/tracker
+  ```
+  배송추적은 `SWEETTRACKER_API_KEY`가 없으면 Noop으로 안전하게 스킵됩니다(아래
+  "나중에 확인" 참고).
 - 관리자 계정: 시드에 `id=admin / password=admin1234`(level=100)로 로그인 가능한
   계정이 포함되어 있습니다 — `apps/backoffice`에서 로그인.
 - Playwright로 스크린샷 검증할 때는 설치된 `playwright` npm 패키지가 기대하는
@@ -66,7 +79,9 @@ cd ../backoffice && pnpm dev                # http://localhost:3001 (관리자, 
 | 6 | 게시판/CMS | ✅ 완료 (notice/faq/counsel/gallery만, 아래 참고) |
 | 7 | 관리자 백엔드 | ✅ 완료 (풀스코프, 아래 참고) |
 | 8 | 입점사 백엔드 | ✅ 완료 (정산 포함 풀스코프, 아래 참고) |
-| 9 | 하드닝/정규화/마무리 | ⬜ **다음 작업** (미착수) |
+| 9 | 하드닝/정규화/마무리 | ✅ 완료 (실용적 풀스코프, 아래 참고) |
+
+**9단계 계획 전체 완료.**
 
 커밋 로그가 각 Phase의 실제 작업 내역이니 `git log`로 확인하세요.
 
@@ -122,7 +137,7 @@ Mock의 `cancelPayment` 호출 경유 확인, 환불 반영), 결제 포기(팝�
 세 가지를 가리킵니다. 판매사 전용 게시판(vnotice/vcounsel)은 벤더 로그인이 아직
 없어 Phase 8로 미뤘었으나, Phase 8에서 벤더 로그인은 생겼지만 vnotice/vcounsel
 게시판 자체는 승인된 스코프(입점신청/상품/주문/정산/스토어설정)에 없어 여전히
-미착수 — 필요해지면 Phase 9 이후 재검토.
+미착수 — 9단계 계획 완료 이후 별도 스코프로 재검토 필요.
 
 **게시판 테이블 통합**: 레거시는 게시판 인스턴스마다 런타임에
 `CREATE TABLE mallRN_board_{id}`를 동적 생성하는 구조(zeroboard 계열)라 정적
@@ -350,6 +365,106 @@ DB 대조로 검증.
 `packages/db/sql/011_phase8_vendor.sql`. `Vendor.passwd` 폭 확장은
 `012_phase8_widen_vendor_passwd.sql`.
 
+## Phase 9 완료 요약 (하드닝/정규화/마무리)
+
+계획 문서: `~/.claude/plans/smooth-finding-ullman.md`. 사용자 확정 스코프:
+**실용적 풀스코프** — cron(휴면회원 전환+쿠폰/마일리지 만료+전시 상태전환을
+Node 스케줄러로, 배송추적은 자격증명 없으면 스킵)+옵션 조합가/조합재고
+정규화+보안 리뷰(XSS 교차검증+업로드 경로 점검). 원래 마스터플랜의 "전체
+112개 템플릿 시각적 회귀 스윕"은 레거시 PHP를 띄울 참조 환경 자체가 이
+저장소에 없어(별도 선행 인프라 작업이 필요) 스코프아웃 — 대신 이 Phase가
+건드린 화면들을 Playwright로 재스팟체크.
+
+**다차원 옵션 조합 정규화**: 스키마/`cart.ts` 무변경으로 해결됨 —
+`GoodsOption.value`가 이미 `generateOptionCombinations`(Phase 7)로 조합별
+파이프 구분 문자열(`"화이트|S"`)로 저장되어 있었고, `cart.ts`의 `addToCart`도
+애초에 단일 `optionUid`(조합 행의 uid)만 받는 구조라 다차원 개념 자체가 없었음
+— 즉 쓰기 경로는 이미 완성돼 있었고 읽기 경로만 비어 있었던 것. `detail.ts`에
+`OptionCombination`(`{ uid, parts, price, priceLabel, soldOut }`) 타입과
+`GoodsDetailViewModel.optionCombinations` 필드를 추가해 2차원 이상일 때도 전체
+조합 행을 노출하도록 수정, `CartActions.tsx`를 모든 `OptionGroup`을 렌더링하고
+선택한 조합을 `optionCombinations`에서 찾아 `optionUid`/가격/품절을 해석하는
+방식으로 재작성. 색상×사이즈 2차원 상품 등록→상품상세에서 두 차원 선택→조합별
+가격(+2,000원)/품절 정확히 반영→장바구니/주문까지 Playwright로 DB 대조 검증.
+
+**보안 하드닝(XSS)**: 벤더가 작성하는 리치텍스트 필드(상품 상세설명/요약설명,
+배송·환불·교환·AS 안내문구 — 상품별 + Phase 8의 `VendorConfiguration` 공통값
+둘 다)가 storefront에서 `dangerouslySetInnerHTML`로 그대로 렌더링되고 있었음.
+Phase 8에서 벤더가 `goods_auth==='A'`면 admin 검수 없이 자기 상품을 즉시
+노출할 수 있게 됐으므로 실제로 악용 가능한 저장형 XSS 공격면이었음. `sanitize-
+html` 패키지로 `packages/core/src/sanitize.ts`의 `sanitizeRichText()`를 만들어
+`goods-admin.ts`의 `toGoodsData()`(explains/detail/delivery_info/refund_info/
+exchange_info/as_info — admin/vendor 양쪽 액션이 전부 이 함수를 거침)와
+`vendor.ts`의 `updateVendorConfiguration()`(동일 4종 안내문구)에 적용. 허용
+태그는 b/i/u/strong/em/p/br/div/span/ul/ol/li/a[href]/img[src,alt,width,height]/
+table류/h1-h6 + 최소 인라인 style로 제한, `<script>`/`<iframe>`/`on*` 이벤트/
+`javascript:` URL은 라이브러리 기본 정책으로 차단. Playwright로 실제
+`<script>alert(1)</script>`/`<img onerror=...>` 를 상품 상세설명·안내문구·벤더
+스토어 설정에 입력→저장 후 storefront 렌더링에서 alert가 뜨지 않고 안전한
+텍스트만 남는지, 정상 서식 태그(`<b>`, `<p>`)는 보존되는지 둘 다 확인. 다른
+`dangerouslySetInnerHTML` 사용처(약관/공지사항/팝업/기획전 설명 등)는 전부
+admin 전용 CMS 입력이라 이번 스코프에서 제외.
+
+**cron 인프라**: 레거시 `async_day_proc.php`/`async_tracker.php`도 실제로는
+외부에서 주기적으로 자기 자신을 HTTP로 호출하는 self-ping 구조였음(리퍼러/IP
+체크로 게이팅). 이 저장소엔 상시 프로세스 인프라가 없어(`node-cron` 등) 같은
+패턴을 재현: `apps/backoffice/app/api/cron/daily`·`.../tracker` 라우트를
+만들고 `Authorization: Bearer $CRON_SECRET` 헤더로 게이팅(레거시의 리퍼러/IP
+체크에 대응, `apps/backoffice/lib/cron-auth.ts`). 실제 트리거는 시스템
+crontab이 curl로 호출하는 방식(위 "빠르게 시작하기" 참고) — 앱 프로세스 안에
+상시 스케줄러를 띄우지 않음.
+
+**일일배치**(`packages/core/src/scheduled-jobs.ts`): `expireCoupons()`(status
+0→2, `e_date` 지난 미사용 쿠폰만), `expireMileageLots()`(`useMileage()`와
+동일한 "역분개 행 insert, 원장 직접수정 안 함" 원칙으로 FIFO lot 만료 처리),
+`updateExhibitionStatuses()`(1→2는 `s_date` 도래, 2→3은 `e_date` 경과 —
+"아직 스케줄 안 정해짐" sentinel(`1000-01-01`류)은 제외 처리해 초안 상태
+기획전이 실수로 시작되지 않게 함), `purgeOldLogs()`(`KeywordRecent`/
+`KeywordSearch`/`SmsLog` — 레거시가 정리하는 테이블 대부분은 방문자추적
+인프라 자체가 없어 애초에 존재하지 않음), `processDormantMembers()`(아래).
+전부 `runDailyBatch()`로 묶여 `/api/cron/daily`가 호출. 만료 대상 쿠폰/
+마일리지/기획전을 DB에 직접 세팅→cron 호출→금액/상태 정확성 DB 대조로 검증,
+재호출 시 0건(멱등성)도 확인.
+
+**휴면회원 전환**: 새 `MemberSleep` 모델(레거시 `mallRN_member_sleep` DDL
+그대로 — 개인정보 스냅샷 아카이브 테이블이라 재설계 불필요, `Member`도 이미
+레거시와 거의 1:1). `Member.login_time` 기준 365일 경과 시 `MemberSleep`에
+스냅샷 insert + `Member` 행 삭제(트랜잭션, 레거시와 동일 순서), 335일
+경과(전환 30일 전) 시 `mailer.ts`의 `renderDormantWarningEmail()`로 1회성
+경고 메일만 발송. `login_time===0`(가입 후 미로그인)인 회원은 `signdate`를
+기준으로 삼아 신규 가입자가 즉시 휴면 대상으로 오판되지 않게 처리. 365일 전
+로그인 회원/335일 전 로그인 회원을 DB에 직접 세팅→cron 호출→각각 정확히
+1건씩 전환/경고 처리되고 재호출 시 중복 전환 안 되는지 확인. **휴면
+해제(재로그인 복구) 플로우는 스코프아웃** — 레거시가 `nondormant_time`
+컬럼과 별도 재활성화 화면을 갖춘 완전히 다른 기능이라 이번 범위에 넣지
+않음(`MemberSleep`엔 컬럼만 포팅, 로직 없음).
+
+**배송추적 폴링**(`packages/core/src/delivery-tracker.ts`): `payment.ts`의
+`PaymentGateway`/`getPaymentGateway()`와 동일한 "자격증명 없으면 폴백" 구조 —
+`DeliveryTrackerProvider` 인터페이스, `NoopDeliveryTracker`(기본값),
+`SweetTrackerProvider`(실제 스윗트래커 API, `SWEETTRACKER_API_KEY` 있을 때만
+생성). 배송중(`status===3`)이고 `delivery_info`(`"택배사|송장번호"` 포맷,
+`updateDeliveryProgress`가 이미 이 포맷으로 저장)가 채워진 라인을 폴링,
+배송완료 확인 시 기존 `orderStatus4()`를 그대로 호출. 개발환경엔 실키가 없어
+Noop 경로만 실제 테스트 가능(배송중 주문 세팅→호출→`checked` 카운트는
+정확하지만 `delivered:0`, 주문 상태 불변 확인) — 실제 스윗트래커 연동은
+"나중에 확인" 항목으로 문서화(Phase 5의 아론허브 실키 미검증과 동일 패턴).
+
+**스코프 제외 항목**: 휴면회원 재활성화(위 참고), 전체 112개 템플릿 픽셀
+diff 스윕(레거시 참조 환경 부재), 스윗트래커 실키 연동 미검증(아래 "나중에
+확인" 참고).
+
+**이번 Phase의 새 테이블**: `mallRN_member_sleep`(레거시 DDL 그대로) —
+`packages/db/sql/013_phase9_member_sleep.sql`.
+
+**Playwright E2E로 실제 검증 완료**: 2차원 옵션 조합(등록→상품상세 선택→
+가격/품절→주문), XSS 인젝션 시도(상품/벤더설정, alert 미발생+안전 태그 보존
+확인), cron 일일배치(쿠폰/마일리지/기획전/휴면회원 전체, 멱등성 포함), 배송추적
+폴링(Noop 경로), 그리고 이번 Phase가 건드리지 않은 기존 화면들(홈/목록/상세/
+장바구니/게시판/스토어/admin·vendor 대시보드 전체)이 회귀 없이 200으로
+렌더링되는지 스팟체크. vitest는 sanitizeRichText 6개 케이스 추가로 63개 전체
+통과.
+
 ## 핵심 설계 결정 (다시 논의하지 않아도 되는 것들)
 
 - **DB**: 기존 71개 테이블 중 실제로 필요한 것만 그때그때 추가. `install_post.php`의
@@ -407,9 +522,10 @@ OAuth2 authorization-code flow(인증 URL 생성/토큰 교환/프로필 조회,
 있음. ✅ aronhub는 Phase 5에서 구현됨(카드/휴대폰만) — nicepay/inicis(가상계좌/
 실시간계좌이체 포함)는 아래 "결제(PG)/알림" 항목 참고.
 
-### 휴면회원 (`mallRN_member_sleep`)
-테이블 자체를 안 만듦 — 휴면 전환은 스케줄 작업(`async_day_proc.php`, Phase 9)이
-있어야 의미가 있는데 아직 그 인프라가 없음.
+### 휴면회원 (`mallRN_member_sleep`) — ✅ Phase 9에서 처리
+전환/경고메일까지 완료, 상세는 위 "Phase 9 완료 요약" 참고. **휴면 해제
+(재로그인 복구) 플로우는 스코프아웃** — 레거시가 `nondormant_time` 컬럼과
+별도 재활성화 화면을 갖춘 완전히 다른 기능이라 이번 범위에 넣지 않음.
 
 ### 리뷰 (`mallRN_review`)
 아직 테이블 없음. `mallRN_order_goods`(Phase 4에서 추가됨)가 있어 `og_uid` 참조는
@@ -426,7 +542,7 @@ OAuth2 authorization-code flow(인증 URL 생성/토큰 교환/프로필 조회,
 counsel(1:1문의 게시판, `board.ts`)만 admin 답변 기능을 추가했고, 이 `mallRN_inquiry`
 (상품문의, 게시판과 무관한 별도 테이블)는 범위에 포함되지 않았음. Phase 8도
 입점신청/상품/주문/정산/스토어설정만 승인된 스코프라 상품문의 답변 UI는 여전히
-미착수 — 필요해지면 Phase 9 이후 재검토.
+미착수 — 9단계 계획 완료 이후 별도 스코프로 재검토 필요.
 
 ### 카트/주문 — ✅ Phase 4에서 처리
 `mallRN_cart`/`mallRN_order_info`/`mallRN_order_goods`/`mallRN_order_log`/
@@ -544,9 +660,9 @@ CS시간/반품지주소/상품 기본 안내문구(배송·환불·교환·AS)�
 - 상단 네비 JS 폭 균등분배 (CSS padding으로 단순 대체)
 
 ### 상품상세 (Phase 2)
-- 옵션 2개 이상 조합가/조합재고 조회 (첫 번째 옵션만 실제 값 노출) — Phase 4에서
-  카트 엔진(단일 옵션 차원)은 완성됐지만 조합 UI 자체는 여전히 미구현(레거시도
-  AJAX 팝업으로 별도 구현됨). 필요해지면 이때 함께 처리.
+- ~~옵션 2개 이상 조합가/조합재고 조회~~ — ✅ Phase 9에서 처리. 스키마/
+  `cart.ts` 무변경으로 해결(상세는 "Phase 9 완료 요약" 참고) — 레거시처럼 별도
+  AJAX 팝업이 아니라 인라인 다차원 피커로 구현.
 - ~~찜하기(즐겨찾기 상품/스토어)~~ — ✅ Phase 3에서 처리. `mallRN_favorite_goods`/
   `mallRN_favorite_store` 테이블 + `packages/core/src/favorite.ts` + 상품상세/
   스토어 페이지의 하트 버튼(토글, 100개 캡 포함) + `/my_favorite_goods`,
@@ -564,8 +680,8 @@ CS시간/반품지주소/상품 기본 안내문구(배송·환불·교환·AS)�
 
 ### 게시판/CMS — ✅ Phase 6에서 처리, 관리자 답변/작성은 ✅ Phase 7에서 처리
 notice/faq/counsel/gallery 4개만 구현. 판매사 전용 게시판(vnotice/vcounsel)은
-Phase 8에서 벤더 로그인이 생겼지만 승인된 스코프에 없어 여전히 미착수(Phase 9
-이후 재검토). ~~게시글
+Phase 8에서 벤더 로그인이 생겼지만 승인된 스코프에 없어 여전히 미착수(9단계
+계획 완료 이후 별도 스코프로 재검토 필요). ~~게시글
 수정/삭제 기능은 스코프아웃(v1)~~ — ✅ Phase 7에서 admin 전용으로 추가
 (`updatePost`/`deletePost`); **고객 쪽 수정/삭제는 여전히 스코프아웃**
 (`inquiry.ts`도 없다는 기존 전례를 따름). 게시판별 관리 권한

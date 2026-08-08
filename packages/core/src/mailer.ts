@@ -73,6 +73,13 @@ export function renderOrderReceivedEmail(params: {
   return `<h2>${params.shopName} 주문 접수</h2><p>주문번호: ${params.orderNum}</p><table>${rows}</table><p>결제금액: ${params.payTotal.toLocaleString("en-US")}원</p>`;
 }
 
+// Port of async_day_proc.php's 30-day-ahead dormant-member warning — sent
+// once, on the day a member crosses 335 days since last login (see
+// scheduled-jobs.ts's processDormantMembers).
+export function renderDormantWarningEmail(params: { shopName: string; memberName: string; daysUntilSleep: number }): string {
+  return `<h2>${params.shopName} 휴면계정 전환 예정 안내</h2><p>${params.memberName}님, 장기간 로그인하지 않아 ${params.daysUntilSleep}일 후 휴면계정으로 전환될 예정입니다.</p><p>계속 이용하시려면 로그인해 주세요.</p>`;
+}
+
 export function renderOrderPaidEmail(params: {
   shopName: string;
   orderNum: string;

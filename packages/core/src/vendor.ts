@@ -1,5 +1,6 @@
 import { prisma } from "@shoppingmall/db";
 import { hashPassword, verifyPassword } from "@shoppingmall/auth";
+import { sanitizeRichText } from "./sanitize";
 
 export type VendorProfile = {
   id: string;
@@ -215,10 +216,10 @@ export async function updateVendorConfiguration(vendorId: string, input: VendorC
     comp_rtn_postcode: input.rtnPostcode,
     comp_rtn_address1: input.rtnAddress1,
     comp_rtn_address2: input.rtnAddress2,
-    goods_delivery_info: input.deliveryInfo,
-    goods_refund_info: input.refundInfo,
-    goods_exchange_info: input.exchangeInfo,
-    goods_as_info: input.asInfo,
+    goods_delivery_info: sanitizeRichText(input.deliveryInfo),
+    goods_refund_info: sanitizeRichText(input.refundInfo),
+    goods_exchange_info: sanitizeRichText(input.exchangeInfo),
+    goods_as_info: sanitizeRichText(input.asInfo),
   };
 
   const existing = await prisma.vendorConfiguration.findFirst({ where: { vendor: vendorId } });
