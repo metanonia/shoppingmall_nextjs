@@ -165,6 +165,120 @@ export async function getVendorProfile(id: string): Promise<VendorProfile | null
   return row ? toProfile(row) : null;
 }
 
+// Editable subset (vendor/conf/vendor_post.php's $item_array — 19 fields).
+// auth/sell/goodsAuth/deliveryType/commission/accountCycle are admin-only
+// (surfaced read-only in VendorInfoView below) and id/password have their
+// own dedicated flows (registration is one-time, password change is
+// changeVendorPassword).
+export type UpdateVendorInfoInput = Omit<RegisterVendorInput, "id" | "password" | "accountCycle"> & {
+  image1?: string;
+  image2?: string;
+};
+
+export type VendorInfoView = UpdateVendorInfoInput & {
+  id: string;
+  image1: string;
+  image2: string;
+  auth: "R" | "Y" | "N";
+  sell: "A" | "R" | "N";
+  goodsAuth: "A" | "P";
+  deliveryType: number;
+  commission: number;
+  accountCycle: number;
+};
+
+// Port of vendor/conf/vendor_info.php's read side — includes the
+// admin-controlled fields (for display only; updateVendorInfo can't touch
+// them) alongside the vendor-editable ones.
+export async function getVendorInfo(vendorId: string): Promise<VendorInfoView | null> {
+  const row = await prisma.vendor.findFirst({ where: { id: vendorId } });
+  if (!row) return null;
+  return {
+    id: row.id,
+    compName: row.comp_name,
+    compOwner: row.comp_owner,
+    compLicenseNo: row.comp_license_no,
+    compPostcode: row.comp_postcode,
+    compAddress1: row.comp_address1,
+    compAddress2: row.comp_address2,
+    compType: row.comp_type,
+    compItem: row.comp_item,
+    compEmail: row.comp_email,
+    compTel: row.comp_tel,
+    compFax: row.comp_fax,
+    contName: row.cont_name,
+    contCell: row.cont_cell,
+    contEmail: row.cont_email,
+    contPart: row.cont_part,
+    contPosition: row.cont_position,
+    bankName: row.bank_name,
+    bankNum: row.bank_num,
+    bankOwner: row.bank_owner,
+    image1: row.image1,
+    image2: row.image2,
+    auth: row.auth,
+    sell: row.sell,
+    goodsAuth: row.goods_auth,
+    deliveryType: row.delivery_type,
+    commission: row.commission,
+    accountCycle: row.account_cycle,
+  };
+}
+
+export type UpdateVendorInfoResult = { ok: true } | { ok: false; error: string };
+
+// Port of vendor/conf/vendor_post.php's default case — every field here is
+// vendor-owned, so no ownership check beyond the caller already holding a
+// session for this vendorId (enforced by the backoffice action layer).
+export async function updateVendorInfo(vendorId: string, input: UpdateVendorInfoInput): Promise<UpdateVendorInfoResult> {
+  const existing = await prisma.vendor.findFirst({ where: { id: vendorId } });
+  if (!existing) return { ok: false, error: "존재하지 않는 입점사입니다." };
+
+  await prisma.vendor.update({
+    where: { uid: existing.uid },
+    data: {
+      comp_name: input.compName,
+      comp_owner: input.compOwner,
+      comp_license_no: input.compLicenseNo,
+      comp_postcode: input.compPostcode,
+      comp_address1: input.compAddress1,
+      comp_address2: input.compAddress2,
+      comp_type: input.compType,
+      comp_item: input.compItem,
+      comp_email: input.compEmail,
+      comp_tel: input.compTel,
+      comp_fax: input.compFax,
+      cont_name: input.contName,
+      cont_cell: input.contCell,
+      cont_email: input.contEmail,
+      cont_part: input.contPart,
+      cont_position: input.contPosition,
+      bank_name: input.bankName,
+      bank_num: input.bankNum,
+      bank_owner: input.bankOwner,
+      ...(input.image1 !== undefined && { image1: input.image1 }),
+      ...(input.image2 !== undefined && { image2: input.image2 }),
+    },
+  });
+  return { ok: true };
+}
+
+export type ChangeVendorPasswordResult = { ok: true } | { ok: false; error: string };
+
+// Port of vendor/conf/vendor_post.php's case "passwd" — same
+// verify-current-then-hash-new shape as member.ts's changeMemberPassword,
+// simpler since vendors have no SNS-login branch to skip.
+export async function changeVendorPassword(id: string, currentPassword: string, newPassword: string): Promise<ChangeVendorPasswordResult> {
+  const row = await prisma.vendor.findFirst({ where: { id }, select: { uid: true, passwd: true } });
+  if (!row) return { ok: false, error: "존재하지 않는 입점사입니다." };
+
+  const valid = await verifyPassword(row.passwd, currentPassword);
+  if (!valid) return { ok: false, error: "비밀번호가 일치하지 않습니다." };
+
+  await prisma.vendor.update({ where: { uid: row.uid }, data: { passwd: await hashPassword(newPassword) } });
+  return { ok: true };
+}
+
 export type VendorConfigurationInput = {
   csTime1: string;
   csTime2: string;

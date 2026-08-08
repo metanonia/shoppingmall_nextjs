@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { href: "/vendor/orders", label: "주문관리" },
   { href: "/vendor/settlement", label: "정산" },
   { href: "/vendor/store", label: "스토어설정" },
+  { href: "/vendor/profile", label: "업체정보관리" },
 ];
 
 export function VendorSidebar({ vendorId }: { vendorId: string }) {
