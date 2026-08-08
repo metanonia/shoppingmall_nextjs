@@ -86,11 +86,12 @@ cd ../backoffice && pnpm dev                # http://localhost:3001 (관리자, 
 재검토(2026-08-08) 결과 각 Phase 진행 중 스코프 논의에서 아예 다뤄지지 않아
 "미뤄둔 것"에 문서화되지 못한 레거시 기능이 다수 발견됐습니다** — 버그가
 아니라 "존재 자체를 몰랐던 누락"입니다. 사용자 지시로 발견된 항목 전부를
-우선순위 순 그룹(A~I)으로 나눠 구현 중이며, **그룹 A~F(F5까지) 완료** —
-상세는 아래 "## 마이그레이션 완결성 감사" 섹션과 [[migration_completeness_audit]]
-메모리 참고. 이 저장소를 넘겨받는 작업자는 "9단계 완료"라는 문구만 보고
-레거시 기능이 전부 있다고 가정하지 말고, 완결성 감사 섹션에서 아직 취소선이
-안 그어진(미착수) 항목부터 이어서 진행하세요.
+우선순위 순 그룹(A~I)으로 나눠 구현 중이며, **그룹 A~F 전체(F1~F5) 완료,
+G/H/I 남음** — 상세는 아래 "## 마이그레이션 완결성 감사" 섹션과
+[[migration_completeness_audit]] 메모리 참고. 이 저장소를 넘겨받는 작업자는
+"9단계 완료"라는 문구만 보고 레거시 기능이 전부 있다고 가정하지 말고,
+완결성 감사 섹션에서 아직 취소선이 안 그어진(미착수) 항목부터 이어서
+진행하세요.
 
 커밋 로그가 각 Phase의 실제 작업 내역이니 `git log`로 확인하세요.
 
@@ -538,11 +539,13 @@ Phase 9까지 끝낸 뒤 "레거시 기준으로 정말 빠진 게 없는지"를
 - ~~**휴면회원 관리자 조회 화면 부재**~~ ✅ 그룹D: `/member-sleep` 조회 화면
   신설. 재활성화(해제) 버튼은 레거시의 완전히 다른 인증 플로우라 계속 스코프컷
   유지([[migration_deferred_items]] 참고).
-- ~~상품 진열관리/가격·재고 일괄수정~~ ✅ 그룹F(F1-F3, F5): `/goods/display`
+- ~~상품 진열관리/가격·재고 일괄수정/엑셀 일괄등록~~ ✅ 그룹F(F1-F5): `/goods/display`
   (main1/main2/store 3슬롯 — store는 처음엔 스코프컷했다가 사용자 질문으로
-  재검토 후 구현, [[migration_deferred_items]] 참고), `/goods/bulk-edit` +
-  벤더용 `/vendor/goods/display`, `/vendor/goods/bulk-edit`. 엑셀 일괄등록
-  (`goods_adds.php`)은 여전히 미착수(그룹F4).
+  재검토 후 구현, [[migration_deferred_items]] 참고), `/goods/bulk-edit`,
+  `/goods/import`(exceljs, 23컬럼 위치기반 매핑, SSRF-safe 이미지 URL 다운로드) +
+  벤더용 `/vendor/goods/display`, `/vendor/goods/bulk-edit`, `/vendor/goods/import`
+  (레거시 `vendor/goods/goods_adds.php`도 동일 기능 보유 — 이 감사가 처음엔
+  "엑셀등록은 admin 전용"이라고 잘못 적었던 걸 소스 직접 확인으로 정정).
 - ~~주문 목록에 **진행단계별 필터**~~ ✅ 그룹D: `status` 필터 추가
   (`order-admin.ts`의 `AdminOrderListFilters`).
 - ~~DB 에러로그 조회, 배송추적 API 호출 로그 조회~~ ✅ 그룹E: `DbErrorLog`
@@ -561,15 +564,17 @@ Phase 9까지 끝낸 뒤 "레거시 기준으로 정말 빠진 게 없는지"를
 - 옵션/브랜드/제조사/원산지 **마스터 값 관리**(`goods_info.php`의
   `goods_option_info`/`goods_brand_info`/`goods_make_info`/`goods_origin_info`)
   부재 — `GoodsForm.tsx`에서 brand/origin이 자유 텍스트. (미착수, 그룹H)
-- ~~상품 진열관리/일괄수정~~ ✅ 그룹F: `/vendor/goods/display`(main1/main2와
-  동일한 슬롯 시스템에 `store` 슬롯 추가, 벤더 소유권 검증 포함),
-  `/vendor/goods/bulk-edit`(F5). **`store_display`(스토어 페이지 인기/추천/
-  신상품 하이라이트)는 처음엔 "VendorConfiguration 테이블 없음"을 근거로
-  스코프컷했다가, 사용자가 직접 "왜 스코프아웃됐나" 질문 → 그 근거가 Phase 8
-  이후 스테일해진 것으로 확인 → 사용자 지시로 즉시 구현**: `store.ts`의
-  `getStoreSections()` + `/vendor/store`에 진열 타입 select 3개
-  ([[migration_deferred_items]] 참고). 엑셀등록/상품랭킹통계는 여전히
-  미착수(그룹F4/G).
+- ~~상품 진열관리/일괄수정/엑셀등록~~ ✅ 그룹F: `/vendor/goods/display`
+  (main1/main2와 동일한 슬롯 시스템에 `store` 슬롯 추가, 벤더 소유권 검증 포함),
+  `/vendor/goods/bulk-edit`(F5), `/vendor/goods/import`(F4 — 처음엔 "레거시도
+  vendor 쪽엔 없음"이라 적었으나 `vendor/goods/goods_post.php`의 `case "excel"`을
+  직접 확인해 정정, admin과 동일 로직 재사용 + `session.vendorId` 강제).
+  **`store_display`(스토어 페이지 인기/추천/신상품 하이라이트)는 처음엔
+  "VendorConfiguration 테이블 없음"을 근거로 스코프컷했다가, 사용자가 직접
+  "왜 스코프아웃됐나" 질문 → 그 근거가 Phase 8 이후 스테일해진 것으로 확인 →
+  사용자 지시로 즉시 구현**: `store.ts`의 `getStoreSections()` + `/vendor/store`에
+  진열 타입 select 3개([[migration_deferred_items]] 참고). 상품랭킹통계는
+  여전히 미착수(그룹G).
 - **매출통계/매출상세**(`sales_statistics.php`/`sales_detail.php` — 결제완료
   기준, 정산과 별개), **정산통계/정산상세**(`calculate_statistics.php`/
   `calculate_detail.php`) 부재 — `/vendor/settlement`는 정산내역 목록
