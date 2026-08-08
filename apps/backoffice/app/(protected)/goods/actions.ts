@@ -128,6 +128,7 @@ export async function buildGoodsInput(
     keyword: str(formData, "keyword"),
     cate_hide: checked(formData, "cate_hide"),
     vendor_hide: checked(formData, "vendor_hide"),
+    engine_use: checked(formData, "engine_use"),
   };
 
   return { ok: true, input };

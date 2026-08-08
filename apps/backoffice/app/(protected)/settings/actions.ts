@@ -77,6 +77,8 @@ export async function updateGoodsConfigAction(_prevState: ActionState, formData:
   await updateGoodsConfig({
     priceLimit1: Number(formData.get("priceLimit1") ?? 0) || 0,
     priceLimit2: Number(formData.get("priceLimit2") ?? 0) || 0,
+    engineNaver: formData.get("engineNaver") === "on",
+    engineDaum: formData.get("engineDaum") === "on",
     deliveryInfo: str(formData, "deliveryInfo"),
     refundInfo: str(formData, "refundInfo"),
     exchangeInfo: str(formData, "exchangeInfo"),

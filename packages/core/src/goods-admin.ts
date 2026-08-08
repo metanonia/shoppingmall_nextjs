@@ -58,6 +58,7 @@ export type GoodsFormInput = {
   keyword: string;
   cate_hide: boolean;
   vendor_hide: boolean;
+  engine_use: boolean;
 };
 
 function toGoodsData(input: GoodsFormInput) {
@@ -109,6 +110,7 @@ function toGoodsData(input: GoodsFormInput) {
     keyword: input.keyword,
     cate_hide: input.cate_hide ? 1 : 0,
     vendor_hide: input.vendor_hide ? 1 : 0,
+    engine_use: input.engine_use ? 1 : 0,
   };
 }
 
@@ -281,6 +283,7 @@ export async function getAdminGoodsDetail(uid: number): Promise<AdminGoodsDetail
     keyword: row.keyword,
     cate_hide: row.cate_hide === 1,
     vendor_hide: row.vendor_hide === 1,
+    engine_use: row.engine_use === 1,
     options: options.map((o) => ({
       uid: o.uid,
       value: o.value,

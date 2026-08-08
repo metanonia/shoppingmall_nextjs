@@ -182,6 +182,20 @@ export function GoodsConfigForm({ config }: { config: ShopConfig }) {
       </fieldset>
 
       <fieldset style={{ border: "1px solid #eee", padding: 12, borderRadius: 6 }}>
+        <legend>쇼핑 검색 노출</legend>
+        <div style={{ fontSize: 12, color: "#999", marginBottom: 8 }}>
+          체크하면 각 채널의 상품 피드(<code>/feed/naver</code>, <code>/feed/daum</code>)가 열립니다.
+          상품별로는 상품등록 화면의 &quot;쇼핑 검색 노출&quot; 항목으로 제외할 수 있습니다.
+        </div>
+        <label style={{ marginRight: 16 }}>
+          <input type="checkbox" name="engineNaver" defaultChecked={config.goodsEngineNaver} /> 네이버 쇼핑
+        </label>
+        <label>
+          <input type="checkbox" name="engineDaum" defaultChecked={config.goodsEngineDaum} /> 다음(카카오) 쇼핑
+        </label>
+      </fieldset>
+
+      <fieldset style={{ border: "1px solid #eee", padding: 12, borderRadius: 6 }}>
         <legend>상품 기본 안내문구(직영 상품 공통)</legend>
         <div style={{ fontSize: 12, color: "#999", marginBottom: 8 }}>
           상품등록 시 &quot;환경설정 사용&quot;으로 지정한 직영(입점사 없음) 상품에 공통 적용됩니다.

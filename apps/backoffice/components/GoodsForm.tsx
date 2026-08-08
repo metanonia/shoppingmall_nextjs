@@ -177,6 +177,9 @@ export function GoodsForm({
           <label>
             <input type="checkbox" name="vendor_hide" defaultChecked={initial?.vendor_hide} /> 입점사 스토어에서 숨김
           </label>
+          <label>
+            <input type="checkbox" name="engine_use" defaultChecked={initial ? initial.engine_use : true} /> 쇼핑 검색 노출(네이버/다음 피드 — 설정에서 채널별로도 켜야 함)
+          </label>
         </div>
       </fieldset>
 

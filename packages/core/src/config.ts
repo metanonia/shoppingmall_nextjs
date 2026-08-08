@@ -43,6 +43,8 @@ export async function getShopConfig() {
     mobileYn: row.mobile_yn,
     goodsPriceLimit1: row.goods_price_limit1,
     goodsPriceLimit2: row.goods_price_limit2,
+    goodsEngineNaver: row.goods_engine_naver === 1,
+    goodsEngineDaum: row.goods_engine_daum === 1,
     goodsDeliveryInfo: row.goods_delivery_info,
     goodsRefundInfo: row.goods_refund_info,
     goodsExchangeInfo: row.goods_exchange_info,
@@ -175,9 +177,11 @@ export async function updatePaymentConfig(input: UpdatePaymentConfigInput): Prom
 
 // Port of managers/config/goods_info.php, scoped down to the fields with a
 // real consumer in this migration: price limits (already read via
-// getShopConfig/priceLimitConfigFrom) and the 4 shop-wide policy guide
-// texts (detail.ts falls back to these for direct/직영 products —
-// vendor.ts's VendorConfiguration already has the per-vendor equivalent).
+// getShopConfig/priceLimitConfigFrom), the 4 shop-wide policy guide texts
+// (detail.ts falls back to these for direct/직영 products — vendor.ts's
+// VendorConfiguration already has the per-vendor equivalent), and the
+// naver/daum shopping-feed toggles (app/feed/{naver,daum}/route.ts, added
+// alongside this screen in Group I — these two were dead config until now).
 // Left out: goods_soldout (no listing query in this repo branches on it —
 // wiring it would mean threading a config value through every
 // VISIBLE_GOODS_WHERE call site for a display toggle nothing currently
@@ -189,13 +193,16 @@ export async function updatePaymentConfig(input: UpdatePaymentConfigInput): Prom
 export type UpdateGoodsConfigInput = {
   priceLimit1: number;
   priceLimit2: number;
+  engineNaver: boolean;
+  engineDaum: boolean;
   deliveryInfo: string;
   refundInfo: string;
   exchangeInfo: string;
   asInfo: string;
 };
 
-// Read side is just getShopConfig()'s goodsPriceLimit1/2 and
+// Read side is just getShopConfig()'s goodsPriceLimit1/2,
+// goodsEngineNaver/goodsEngineDaum, and
 // goodsDeliveryInfo/goodsRefundInfo/goodsExchangeInfo/goodsAsInfo fields —
 // no separate getter needed.
 export async function updateGoodsConfig(input: UpdateGoodsConfigInput): Promise<void> {
@@ -204,6 +211,8 @@ export async function updateGoodsConfig(input: UpdateGoodsConfigInput): Promise<
     data: {
       goods_price_limit1: input.priceLimit1,
       goods_price_limit2: input.priceLimit2,
+      goods_engine_naver: input.engineNaver ? 1 : 0,
+      goods_engine_daum: input.engineDaum ? 1 : 0,
       goods_delivery_info: sanitizeRichText(input.deliveryInfo),
       goods_refund_info: sanitizeRichText(input.refundInfo),
       goods_exchange_info: sanitizeRichText(input.exchangeInfo),

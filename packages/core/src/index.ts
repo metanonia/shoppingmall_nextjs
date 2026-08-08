@@ -41,6 +41,7 @@ export * from "./access-log";
 export * from "./db-error-log";
 export * from "./goods-display";
 export * from "./search-keyword";
+export * from "./shopping-feed";
 export * from "./sitemap";
 export * from "./social";
 export * from "./pricing";

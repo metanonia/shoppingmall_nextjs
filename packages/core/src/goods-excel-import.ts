@@ -325,6 +325,7 @@ export async function importGoodsExcelRow(
     keyword: row.keyword,
     cate_hide: cateRow.used === 0,
     vendor_hide: opts.vendorHide,
+    engine_use: true,
   };
 
   const result = await createGoods(input, { autoApprove: opts.autoApprove });
