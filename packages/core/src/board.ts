@@ -205,11 +205,12 @@ function isPostOwner(
 // narrowing — see listing.ts's keywordWhere).
 export async function getPostList(
   boardId: BoardId,
-  options: { page?: number; keyword?: string; category?: number; viewerId?: string | null } = {},
+  options: { page?: number; keyword?: string; category?: number; viewerId?: string | null; authorId?: string } = {},
 ): Promise<PostListResult> {
   const where = {
     board: boardId,
     ...(options.category !== undefined ? { category: options.category } : {}),
+    ...(options.authorId ? { id: options.authorId } : {}),
     ...(options.keyword
       ? { OR: [{ subject: { contains: options.keyword } }, { content: { contains: options.keyword } }] }
       : {}),

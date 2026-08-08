@@ -3,9 +3,9 @@ import { getMemberProfile } from "@shoppingmall/core";
 import { getSession } from "@/lib/auth";
 
 // Port of php/mypage.php, scoped down to what's actually built: profile
-// summary + account-management + favorites/inquiry links. Legacy's
-// mileage/coupon/recent-view/review/counsel widgets each still need their
-// own not-yet-built table — see MIGRATION.md — so they're left out rather
+// summary + account-management + favorites/inquiry/coupon/mileage/counsel
+// links. Legacy's recent-view/review widgets still need their own
+// not-yet-built table — see MIGRATION.md — so those are left out rather
 // than linked to dead pages.
 export default async function MyPage() {
   const session = await getSession();
@@ -59,6 +59,21 @@ export default async function MyPage() {
         <li>
           <a href="/my_inquiry" className="underLine">
             상품문의내역
+          </a>
+        </li>
+        <li>
+          <a href="/my_coupon" className="underLine">
+            쿠폰함
+          </a>
+        </li>
+        <li>
+          <a href="/my_mileage" className="underLine">
+            마일리지 내역
+          </a>
+        </li>
+        <li>
+          <a href="/my_counsel" className="underLine">
+            내가 쓴 1:1문의
           </a>
         </li>
       </ul>

@@ -107,6 +107,41 @@ export async function getMyCoupons(memberId: string): Promise<MyCouponItem[]> {
     .filter((c): c is MyCouponItem => c !== null);
 }
 
+export type MyCouponHistoryItem = MyCouponItem & { status: "available" | "used" | "expired"; usedate: number; signdate: number };
+
+// Port of php/my_coupon.php's 사용가능/사용완료/만료 tabs — unlike
+// getMyCoupons (order-time usable-only list, cart scope g_uid=0), this
+// returns every coupon regardless of status so the mypage screen can show
+// all three tabs from one query.
+export async function getMyCouponHistory(memberId: string): Promise<MyCouponHistoryItem[]> {
+  const rows = await prisma.coupon.findMany({ where: { id: memberId }, orderBy: { uid: "desc" } });
+  if (rows.length === 0) return [];
+
+  const templates = await prisma.couponManager.findMany({ where: { uid: { in: rows.map((r) => r.c_uid) } } });
+  const byUid = new Map(templates.map((t) => [t.uid, t]));
+
+  return rows
+    .map((r) => {
+      const t = byUid.get(r.c_uid);
+      if (!t) return null;
+      const status: "available" | "used" | "expired" = r.status === 1 ? "used" : r.status === 2 ? "expired" : "available";
+      return {
+        couponUid: r.uid,
+        name: t.name,
+        discount: t.discount,
+        discountType: t.discount_type,
+        discountLimit: t.discount_limit,
+        useLimit: t.use_limit,
+        eDate: r.e_date,
+        goodsUid: r.g_uid,
+        status,
+        usedate: r.usedate,
+        signdate: r.signdate,
+      };
+    })
+    .filter((c): c is MyCouponHistoryItem => c !== null);
+}
+
 export type DownloadableCoupon = { couponManagerUid: number; name: string; discount: number; discountType: "P" | "W" };
 
 // Product-detail "쿠폰 다운로드" button data — coupon_manager.type=4 rows
