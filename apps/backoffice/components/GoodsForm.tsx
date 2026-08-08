@@ -23,12 +23,17 @@ export function GoodsForm({
   vendors,
   actions,
   vendorLocked,
+  masterValues,
 }: {
   initial: AdminGoodsDetail | null;
   categoryTree: AdminCategoryNode[];
   vendors: VendorOption[];
   actions?: { create: GoodsFormAction; update: GoodsFormAction };
   vendorLocked?: string;
+  // Vendor's own brand/제조사/원산지 suggestion lists (settings/store, H5) —
+  // <datalist> only, not an enforced picker, so admin (no masterValues
+  // passed) keeps the plain free-text fields it's always had.
+  masterValues?: { brands: string[]; makes: string[]; origins: string[] };
 }) {
   const action = initial ? (actions?.update ?? updateGoodsAction) : (actions?.create ?? createGoodsAction);
   const [state, formAction, pending] = useActionState<ActionState, FormData>(action, {});
@@ -84,10 +89,29 @@ export function GoodsForm({
           <input type="text" name="price_ment" placeholder="가격 대체문구(예: 상담 후 결정)" defaultValue={initial?.price_ment} />
           <div style={{ display: "flex", gap: 6 }}>
             <input type="text" name="model" placeholder="모델명" defaultValue={initial?.model} />
-            <input type="text" name="brand" placeholder="브랜드" defaultValue={initial?.brand} />
-            <input type="text" name="make" placeholder="제조사" defaultValue={initial?.make} />
-            <input type="text" name="origin" placeholder="원산지" defaultValue={initial?.origin} />
+            <input type="text" name="brand" placeholder="브랜드" defaultValue={initial?.brand} list={masterValues ? "brandOptions" : undefined} />
+            <input type="text" name="make" placeholder="제조사" defaultValue={initial?.make} list={masterValues ? "makeOptions" : undefined} />
+            <input type="text" name="origin" placeholder="원산지" defaultValue={initial?.origin} list={masterValues ? "originOptions" : undefined} />
           </div>
+          {masterValues && (
+            <>
+              <datalist id="brandOptions">
+                {masterValues.brands.map((v) => (
+                  <option key={v} value={v} />
+                ))}
+              </datalist>
+              <datalist id="makeOptions">
+                {masterValues.makes.map((v) => (
+                  <option key={v} value={v} />
+                ))}
+              </datalist>
+              <datalist id="originOptions">
+                {masterValues.origins.map((v) => (
+                  <option key={v} value={v} />
+                ))}
+              </datalist>
+            </>
+          )}
         </div>
       </fieldset>
 

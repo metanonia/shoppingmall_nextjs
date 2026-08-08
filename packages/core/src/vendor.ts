@@ -294,17 +294,33 @@ export type VendorConfigurationInput = {
   displayBest: number;
   displayReco: number;
   displayNew: number;
+  // Suggestion lists (not enforced pickers — GoodsForm's brand/origin fields
+  // stay free text either way, see H5) for this vendor's own product form,
+  // one value per line in the admin textarea.
+  brandInfo: string[];
+  makeInfo: string[];
+  originInfo: string[];
 };
 
 export type VendorConfigurationView = VendorConfigurationInput;
 
+function splitMultiValue(raw: string): string[] {
+  return raw
+    .split("|*|")
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
 // Subset of mallRN_vendor_configuration this migration exposes for editing —
 // CS hours, return address, the 4 policy guide texts (used as this vendor's
-// default when creating a new product, see goods-admin.ts), and the 3
+// default when creating a new product, see goods-admin.ts), the 3
 // store_display section toggles (store.ts's getStoreSections, added once
-// store_display was un-scoped-out — see goods-display.ts's header comment).
-// Delivery pricing overrides and push tokens stay admin-only-unused, same
-// precedent as Configuration's leftover columns.
+// store_display was un-scoped-out — see goods-display.ts's header comment),
+// and the brand/manufacturer/origin suggestion lists (goods_option_info is
+// still left out — nothing in this repo's simplified GoodsOptionBuilder
+// consumes an option-name suggestion list the way brand/make/origin's plain
+// text inputs now do). Delivery pricing overrides and push tokens stay
+// admin-only-unused, same precedent as Configuration's leftover columns.
 export async function getVendorConfiguration(vendorId: string): Promise<VendorConfigurationView | null> {
   const row = await prisma.vendorConfiguration.findFirst({ where: { vendor: vendorId } });
   if (!row) return null;
@@ -323,7 +339,20 @@ export async function getVendorConfiguration(vendorId: string): Promise<VendorCo
     displayBest: row.design_main_display1,
     displayReco: row.design_main_display2,
     displayNew: row.design_main_display3,
+    brandInfo: splitMultiValue(row.goods_brand_info),
+    makeInfo: splitMultiValue(row.goods_make_info),
+    originInfo: splitMultiValue(row.goods_origin_info),
   };
+}
+
+export type VendorGoodsMasterValues = { brands: string[]; makes: string[]; origins: string[] };
+
+// Convenience read used by the vendor goods-form pages (new/edit) — same
+// data as getVendorConfiguration, narrowed to what GoodsForm's masterValues
+// prop needs.
+export async function getVendorGoodsMasterValues(vendorId: string): Promise<VendorGoodsMasterValues> {
+  const config = await getVendorConfiguration(vendorId);
+  return { brands: config?.brandInfo ?? [], makes: config?.makeInfo ?? [], origins: config?.originInfo ?? [] };
 }
 
 export type VendorConfigResult = { ok: true } | { ok: false; error: string };
@@ -344,6 +373,9 @@ export async function updateVendorConfiguration(vendorId: string, input: VendorC
     design_main_display1: input.displayBest,
     design_main_display2: input.displayReco,
     design_main_display3: input.displayNew,
+    goods_brand_info: input.brandInfo.join("|*|"),
+    goods_make_info: input.makeInfo.join("|*|"),
+    goods_origin_info: input.originInfo.join("|*|"),
   };
 
   const existing = await prisma.vendorConfiguration.findFirst({ where: { vendor: vendorId } });

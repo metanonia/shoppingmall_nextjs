@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getAdminCategoryTree, getAdminGoodsDetail } from "@shoppingmall/core";
+import { getAdminCategoryTree, getAdminGoodsDetail, getVendorGoodsMasterValues } from "@shoppingmall/core";
 import { requireVendor } from "@/lib/auth";
 import { GoodsForm } from "@/components/GoodsForm";
 import { GoodsOptionBuilder } from "@/components/GoodsOptionBuilder";
@@ -17,7 +17,11 @@ export default async function EditVendorGoodsPage({ params }: { params: Promise<
   const uid = Number(uidParam);
   if (!Number.isInteger(uid)) notFound();
 
-  const [goods, categoryTree] = await Promise.all([getAdminGoodsDetail(uid), getAdminCategoryTree()]);
+  const [goods, categoryTree, masterValues] = await Promise.all([
+    getAdminGoodsDetail(uid),
+    getAdminCategoryTree(),
+    getVendorGoodsMasterValues(session.vendorId ?? ""),
+  ]);
   if (!goods || goods.vendor !== session.vendorId) notFound();
 
   return (
@@ -29,6 +33,7 @@ export default async function EditVendorGoodsPage({ params }: { params: Promise<
         vendors={[]}
         vendorLocked={session.vendorId ?? ""}
         actions={{ create: createVendorGoodsAction, update: updateVendorGoodsAction }}
+        masterValues={masterValues}
       />
       <div className="empty30" />
       <GoodsOptionBuilder

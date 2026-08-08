@@ -57,6 +57,23 @@ export function VendorStoreConfigForm({ config }: { config: VendorConfigurationV
         ))}
       </fieldset>
 
+      <fieldset style={{ border: "1px solid #eee", padding: 12, borderRadius: 6 }}>
+        <legend>상품 등록 시 추천값</legend>
+        <div style={{ fontSize: 12, color: "#999", marginBottom: 8 }}>
+          한 줄에 하나씩 입력하면 상품등록 화면의 브랜드/제조사/원산지 입력창에서 자동완성으로
+          제안됩니다(자유 입력은 그대로 가능).
+        </div>
+        <textarea name="brandInfo" placeholder="브랜드(줄바꿈으로 구분)" defaultValue={config?.brandInfo.join("\n")} rows={3} style={{ width: "100%" }} />
+        <textarea name="makeInfo" placeholder="제조사(줄바꿈으로 구분)" defaultValue={config?.makeInfo.join("\n")} rows={3} style={{ width: "100%", marginTop: 6 }} />
+        <textarea
+          name="originInfo"
+          placeholder="원산지(줄바꿈으로 구분)"
+          defaultValue={config?.originInfo.join("\n")}
+          rows={3}
+          style={{ width: "100%", marginTop: 6 }}
+        />
+      </fieldset>
+
       {state.error && <div style={{ color: "#e02020" }}>{state.error}</div>}
       {state.success && <div style={{ color: "#2a8" }}>저장되었습니다.</div>}
       <button type="submit" disabled={pending} style={{ alignSelf: "flex-start" }}>

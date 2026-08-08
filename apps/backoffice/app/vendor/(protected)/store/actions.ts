@@ -6,6 +6,13 @@ import { requireVendor } from "@/lib/auth";
 
 export type ActionState = { error?: string; success?: boolean };
 
+function multiline(formData: FormData, key: string): string[] {
+  return String(formData.get(key) ?? "")
+    .split("\n")
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
 export async function updateVendorConfigurationAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const session = await requireVendor();
 
@@ -24,6 +31,9 @@ export async function updateVendorConfigurationAction(_prevState: ActionState, f
     displayBest: Number(formData.get("displayBest") ?? 0) || 0,
     displayReco: Number(formData.get("displayReco") ?? 0) || 0,
     displayNew: Number(formData.get("displayNew") ?? 0) || 0,
+    brandInfo: multiline(formData, "brandInfo"),
+    makeInfo: multiline(formData, "makeInfo"),
+    originInfo: multiline(formData, "originInfo"),
   });
   if (!result.ok) return { error: result.error };
 
