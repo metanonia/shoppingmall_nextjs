@@ -1,14 +1,17 @@
 "use client";
 
 import { useActionState } from "react";
-import type { ShopConfig, AgreementPages } from "@shoppingmall/core";
+import type { ShopConfig, AgreementPages, MemberFormConfig, SocialConfigItem } from "@shoppingmall/core";
 import {
   updateAgreementAction,
   updateBasicConfigAction,
   updateDeliveryConfigAction,
+  updateMemberConfigAction,
   updatePaymentConfigAction,
   type ActionState,
 } from "@/app/(protected)/settings/actions";
+
+const SOCIAL_LABELS: Record<string, string> = { NAVER: "네이버", KAKAO: "카카오", GOOGLE: "구글", PAYCO: "페이코" };
 
 function SavedNotice({ state }: { state: ActionState }) {
   if (state.error) return <div style={{ color: "#e02020", fontSize: 12 }}>{state.error}</div>;
@@ -87,6 +90,76 @@ export function PaymentConfigForm({ config }: { config: ShopConfig }) {
       <input type="text" name="paymentCp" placeholder="PG사 코드(예: ARONHUB)" defaultValue={config.paymentCp} />
       <input type="text" name="paymentShopId" placeholder="가맹점 ID" defaultValue={config.paymentShopId} />
       <input type="text" name="paymentShopKey" placeholder="가맹점 키" defaultValue={config.paymentShopKey} />
+      <SavedNotice state={state} />
+      <button type="submit" disabled={pending} style={{ alignSelf: "flex-start" }}>
+        저장
+      </button>
+    </form>
+  );
+}
+
+const REQUIRED_LABELS: Record<0 | 1 | 2, string> = { 0: "사용 안 함", 1: "선택 입력", 2: "필수 입력" };
+
+export function MemberConfigForm({ config, socialConfigs }: { config: MemberFormConfig; socialConfigs: SocialConfigItem[] }) {
+  const [state, formAction, pending] = useActionState<ActionState, FormData>(updateMemberConfigAction, {});
+  return (
+    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 520 }}>
+      <fieldset style={{ border: "1px solid #eee", padding: 12, borderRadius: 6 }}>
+        <legend>가입 항목</legend>
+        {(
+          [
+            ["telRequired", "전화번호", config.telRequired],
+            ["cellRequired", "휴대폰번호", config.cellRequired],
+            ["addressRequired", "주소", config.addressRequired],
+          ] as const
+        ).map(([name, label, value]) => (
+          <div key={name} style={{ marginBottom: 6 }}>
+            <label style={{ marginRight: 8 }}>{label}</label>
+            <select name={name} defaultValue={value}>
+              {([0, 1, 2] as const).map((v) => (
+                <option key={v} value={v}>
+                  {REQUIRED_LABELS[v]}
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
+        <label style={{ display: "block" }}>
+          <input type="checkbox" name="maillingEnabled" defaultChecked={config.maillingEnabled} /> 이메일 수신동의 항목 표시
+        </label>
+        <label style={{ display: "block" }}>
+          <input type="checkbox" name="smsEnabled" defaultChecked={config.smsEnabled} /> SMS 수신동의 항목 표시
+        </label>
+      </fieldset>
+
+      <fieldset style={{ border: "1px solid #eee", padding: 12, borderRadius: 6 }}>
+        <legend>가입 승인</legend>
+        <label>
+          <input type="checkbox" name="memberAuthAuto" defaultChecked={config.memberAuthAuto} /> 자동 승인(체크 해제 시 관리자 수동승인 필요)
+        </label>
+      </fieldset>
+
+      <fieldset style={{ border: "1px solid #eee", padding: 12, borderRadius: 6 }}>
+        <legend>로그인 제한</legend>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input type="number" name="loginLimitCount" placeholder="실패 허용 횟수(0=제한없음)" defaultValue={config.loginLimitCount} />
+          <input type="number" name="loginLimitMinutes" placeholder="제한 시간(분)" defaultValue={config.loginLimitMinutes} />
+        </div>
+      </fieldset>
+
+      <fieldset style={{ border: "1px solid #eee", padding: 12, borderRadius: 6 }}>
+        <legend>소셜 로그인</legend>
+        {socialConfigs.map((s) => (
+          <div key={s.site} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
+            <label style={{ width: 60 }}>
+              <input type="checkbox" name={`social_${s.site}_used`} defaultChecked={s.used} /> {SOCIAL_LABELS[s.site]}
+            </label>
+            <input type="text" name={`social_${s.site}_apiId`} placeholder="Client ID" defaultValue={s.apiId} style={{ flex: 1 }} />
+            <input type="text" name={`social_${s.site}_apiKey`} placeholder="Client Secret" defaultValue={s.apiKey} style={{ flex: 1 }} />
+          </div>
+        ))}
+      </fieldset>
+
       <SavedNotice state={state} />
       <button type="submit" disabled={pending} style={{ alignSelf: "flex-start" }}>
         저장

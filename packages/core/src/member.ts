@@ -92,6 +92,26 @@ export async function getMemberFormConfig(): Promise<MemberFormConfig> {
   };
 }
 
+export type UpdateMemberFormConfigInput = Omit<MemberFormConfig, "agreementTerms" | "agreementPrivacy">;
+
+// Admin-facing write side of getMemberFormConfig — same field scope (the
+// long-tail fields are still out per that function's comment).
+export async function updateMemberFormConfig(input: UpdateMemberFormConfigInput): Promise<void> {
+  await prisma.configuration.update({
+    where: { uid: 2 },
+    data: {
+      member_form_tel: input.telRequired,
+      member_form_cell: input.cellRequired,
+      member_form_address: input.addressRequired,
+      member_form_mailling: input.maillingEnabled ? 1 : 0,
+      member_form_sms: input.smsEnabled ? 1 : 0,
+      member_auth: input.memberAuthAuto ? "A" : "P",
+      member_limit_count: input.loginLimitCount,
+      member_limit_minute: input.loginLimitMinutes,
+    },
+  });
+}
+
 export type AgreementPages = { terms: string; privacy: string };
 
 // Port of php/agreement.php / privacy.php's source rows — full-page rich

@@ -1,7 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { updateAgreementPages, updateBasicConfig, updateDeliveryConfig, updatePaymentConfig } from "@shoppingmall/core";
+import {
+  updateAgreementPages,
+  updateBasicConfig,
+  updateDeliveryConfig,
+  updateMemberFormConfig,
+  updatePaymentConfig,
+  updateSocialConfig,
+} from "@shoppingmall/core";
 
 export type ActionState = { error?: string; success?: boolean };
 
@@ -62,5 +69,36 @@ export async function updatePaymentConfigAction(_prevState: ActionState, formDat
 export async function updateAgreementAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   await updateAgreementPages({ terms: str(formData, "terms"), privacy: str(formData, "privacy") });
   revalidatePath("/settings/agreement");
+  return { success: true };
+}
+
+const SOCIAL_SITES = ["NAVER", "KAKAO", "GOOGLE", "PAYCO"] as const;
+
+export async function updateMemberConfigAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const requiredLevel = (key: string): 0 | 1 | 2 => {
+    const n = Number(formData.get(key) ?? 0);
+    return n === 1 || n === 2 ? n : 0;
+  };
+
+  await updateMemberFormConfig({
+    telRequired: requiredLevel("telRequired"),
+    cellRequired: requiredLevel("cellRequired"),
+    addressRequired: requiredLevel("addressRequired"),
+    maillingEnabled: formData.get("maillingEnabled") === "on",
+    smsEnabled: formData.get("smsEnabled") === "on",
+    memberAuthAuto: formData.get("memberAuthAuto") === "on",
+    loginLimitCount: Number(formData.get("loginLimitCount") ?? 0) || 0,
+    loginLimitMinutes: Number(formData.get("loginLimitMinutes") ?? 0) || 0,
+  });
+
+  for (const site of SOCIAL_SITES) {
+    await updateSocialConfig(site, {
+      used: formData.get(`social_${site}_used`) === "on",
+      apiId: str(formData, `social_${site}_apiId`),
+      apiKey: str(formData, `social_${site}_apiKey`),
+    });
+  }
+
+  revalidatePath("/settings/member");
   return { success: true };
 }
