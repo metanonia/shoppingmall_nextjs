@@ -17,6 +17,7 @@ export * from "./favorite";
 export * from "./footer";
 export * from "./goods";
 export * from "./goods-admin";
+export * from "./goods-excel-import";
 export * from "./home";
 export * from "./inquiry";
 export * from "./listing";

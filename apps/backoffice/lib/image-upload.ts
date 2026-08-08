@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fetchImageSafely } from "./safe-fetch-image";
 
 // Product/banner/popup/exhibition/add_page images are served by the
 // STOREFRONT app (customers browse there, not the backoffice) — both apps
@@ -20,6 +21,16 @@ function extensionOf(filename: string): string {
 
 export type SaveImageResult = { ok: true; filename: string } | { ok: false; error: string };
 
+async function writeImageBuffer(folder: string, buffer: Buffer, ext: string, subfolder?: string | number): Promise<SaveImageResult> {
+  const dir =
+    subfolder !== undefined ? path.join(STOREFRONT_PUBLIC, "image", folder, String(subfolder)) : path.join(STOREFRONT_PUBLIC, "image", folder);
+  await mkdir(dir, { recursive: true });
+
+  const filename = `${crypto.randomUUID()}.${ext}`;
+  await writeFile(path.join(dir, filename), buffer);
+  return { ok: true, filename };
+}
+
 // `folder` is the /image/{folder} segment (e.g. "goods", "banner", "popup").
 // `subfolder`, when given, adds the per-uid segment banner/popup/add_page
 // use on the read side (goods/exhibition stay flat — see their own
@@ -29,12 +40,16 @@ export async function saveImage(folder: string, file: File, subfolder?: string |
   if (!ALLOWED_EXTENSIONS.has(ext)) return { ok: false, error: `허용되지 않는 이미지 형식입니다: ${file.name}` };
   if (file.size > MAX_FILE_SIZE) return { ok: false, error: "이미지는 5MB 이하만 업로드 가능합니다." };
 
-  const dir =
-    subfolder !== undefined ? path.join(STOREFRONT_PUBLIC, "image", folder, String(subfolder)) : path.join(STOREFRONT_PUBLIC, "image", folder);
-  await mkdir(dir, { recursive: true });
-
-  const filename = `${crypto.randomUUID()}.${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(dir, filename), buffer);
-  return { ok: true, filename };
+  return writeImageBuffer(folder, buffer, ext, subfolder);
+}
+
+// Excel bulk-import's "이미지경로" columns give a URL instead of a browser
+// File — fetchImageSafely does the SSRF-hardened download (DNS/redirect
+// re-validation, size cap, content-type allowlist), this just writes the
+// result using the same sharded-folder scheme as saveImage.
+export async function saveImageFromUrl(folder: string, url: string, subfolder?: string | number): Promise<SaveImageResult> {
+  const fetched = await fetchImageSafely(url);
+  if (!fetched.ok) return { ok: false, error: fetched.error };
+  return writeImageBuffer(folder, fetched.buffer, fetched.ext, subfolder);
 }

@@ -5,6 +5,7 @@ const NAV_ITEMS = [
   { href: "/vendor/goods", label: "상품관리" },
   { href: "/vendor/goods/display", label: "스토어 진열관리" },
   { href: "/vendor/goods/bulk-edit", label: "상품 일괄수정" },
+  { href: "/vendor/goods/import", label: "엑셀 일괄등록" },
   { href: "/vendor/orders", label: "주문관리" },
   { href: "/vendor/settlement", label: "정산" },
   { href: "/vendor/store", label: "스토어설정" },

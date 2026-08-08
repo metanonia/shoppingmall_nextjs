@@ -14,6 +14,7 @@
   "dependencies": {
     "@shoppingmall/auth": "workspace:*",
     "@shoppingmall/db": "workspace:*",
+    "exceljs": "^4.4.0",
     "nodemailer": "^9.0.5",
     "sanitize-html": "^2.17.6"
   },
