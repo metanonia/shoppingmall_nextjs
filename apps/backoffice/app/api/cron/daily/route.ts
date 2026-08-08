@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { runDailyBatch } from "@shoppingmall/core";
+import { logDbError, runDailyBatch } from "@shoppingmall/core";
 import { isAuthorizedCronRequest } from "@/lib/cron-auth";
 
 // Node equivalent of legacy's self-pinged async_day_proc.php — meant to be
@@ -10,6 +10,11 @@ import { isAuthorizedCronRequest } from "@/lib/cron-auth";
 export async function GET(request: Request): Promise<NextResponse> {
   if (!isAuthorizedCronRequest(request)) return new NextResponse("", { status: 401 });
 
-  const result = await runDailyBatch();
-  return NextResponse.json(result);
+  try {
+    const result = await runDailyBatch();
+    return NextResponse.json(result);
+  } catch (err) {
+    await logDbError("cron/daily", err);
+    return new NextResponse("", { status: 500 });
+  }
 }

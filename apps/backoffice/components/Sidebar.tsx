@@ -56,6 +56,7 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string }[] }[
     ],
   },
   { title: "통계", items: [{ href: "/stats/sales", label: "매출통계" }] },
+  { title: "개발자", items: [{ href: "/db-error-log", label: "오류 로그" }] },
   { title: "입점사", items: [{ href: "/vendors", label: "입점사관리" }] },
 ];
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pollDeliveryTracking } from "@shoppingmall/core";
+import { logDbError, pollDeliveryTracking } from "@shoppingmall/core";
 import { isAuthorizedCronRequest } from "@/lib/cron-auth";
 
 // Node equivalent of legacy's self-pinged async_tracker.php — see
@@ -8,6 +8,11 @@ import { isAuthorizedCronRequest } from "@/lib/cron-auth";
 export async function GET(request: Request): Promise<NextResponse> {
   if (!isAuthorizedCronRequest(request)) return new NextResponse("", { status: 401 });
 
-  const result = await pollDeliveryTracking();
-  return NextResponse.json(result);
+  try {
+    const result = await pollDeliveryTracking();
+    return NextResponse.json(result);
+  } catch (err) {
+    await logDbError("cron/tracker", err);
+    return new NextResponse("", { status: 500 });
+  }
 }
