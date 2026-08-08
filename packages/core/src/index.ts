@@ -24,6 +24,7 @@ export * from "./inquiry";
 export * from "./listing";
 export * from "./member";
 export * from "./member-admin";
+export * from "./member-excel-import";
 export * from "./mailer";
 export * from "./mileage";
 export * from "./notification";
