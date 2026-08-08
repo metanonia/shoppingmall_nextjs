@@ -366,3 +366,111 @@ export async function getVendorOptions(): Promise<VendorOption[]> {
   const rows = await prisma.vendor.findMany({ where: { auth: "Y" }, select: { id: true, comp_name: true }, orderBy: { comp_name: "asc" } });
   return rows.map((r) => ({ id: r.id, name: r.comp_name }));
 }
+
+export type GoodsBulkEditItem = {
+  uid: number;
+  name: string;
+  price: number;
+  origPrice: number;
+  consumerPrice: number;
+  commissionType: number;
+  commission: number;
+  qtyType: number;
+  qty: number;
+  optionUse: boolean;
+  orderPriority: number;
+};
+
+export type GoodsBulkEditListResult = { items: GoodsBulkEditItem[]; total: number; page: number; totalPages: number };
+
+const GOODS_BULK_EDIT_PAGE_SIZE = 30;
+
+// Port of managers/goods/goods_modify_list.php's grid — a wider field set
+// than AdminGoodsListItem (price/stock/commission bulk-edit needs columns
+// the regular list doesn't fetch), scoped to admin/vendor via the same
+// `vendor` filter pattern as getAdminGoodsList.
+export async function getGoodsBulkEditList(filters: { keyword?: string; vendor?: string }, page = 1): Promise<GoodsBulkEditListResult> {
+  const where = {
+    ...(filters.keyword ? { OR: [{ name: { contains: filters.keyword } }, { goods_code: { contains: filters.keyword } }] } : {}),
+    ...(filters.vendor !== undefined ? { vendor: filters.vendor } : {}),
+  };
+
+  const total = await prisma.goods.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / GOODS_BULK_EDIT_PAGE_SIZE));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+
+  const rows = await prisma.goods.findMany({
+    where,
+    orderBy: { uid: "desc" },
+    skip: (safePage - 1) * GOODS_BULK_EDIT_PAGE_SIZE,
+    take: GOODS_BULK_EDIT_PAGE_SIZE,
+  });
+
+  return {
+    items: rows.map((r) => ({
+      uid: r.uid,
+      name: r.name,
+      price: r.price,
+      origPrice: r.orig_price,
+      consumerPrice: r.consumer_price,
+      commissionType: r.commission_type,
+      commission: r.commission,
+      qtyType: r.qty_type,
+      qty: r.qty,
+      optionUse: r.option_use === 1,
+      orderPriority: r.order_priority,
+    })),
+    total,
+    page: safePage,
+    totalPages,
+  };
+}
+
+export type GoodsBulkPricingRow = {
+  uid: number;
+  price: number;
+  origPrice: number;
+  consumerPrice: number;
+  commissionType: number;
+  commission: number;
+  qtyType: number;
+  qty: number;
+};
+
+export type GoodsBulkResult = { ok: true } | { ok: false; error: string };
+
+// Option-managed products keep their stock on GoodsOption rows (per-
+// combination), so `qty`/`qtyType` here are ignored for those — same rule
+// the option builder UI already enforces on the single-product edit form.
+export async function bulkUpdateGoodsPricing(rows: GoodsBulkPricingRow[], vendorId?: string): Promise<GoodsBulkResult> {
+  const uids = rows.map((r) => r.uid);
+  const existing = await prisma.goods.findMany({ where: { uid: { in: uids }, ...(vendorId ? { vendor: vendorId } : {}) } });
+  if (existing.length !== uids.length) return { ok: false, error: "권한이 없거나 존재하지 않는 상품이 포함되어 있습니다." };
+  const optionUseByUid = new Map(existing.map((g) => [g.uid, g.option_use === 1]));
+
+  await prisma.$transaction(
+    rows.map((r) =>
+      prisma.goods.update({
+        where: { uid: r.uid },
+        data: {
+          price: r.price,
+          orig_price: r.origPrice,
+          consumer_price: r.consumerPrice,
+          commission_type: r.commissionType,
+          commission: r.commission,
+          ...(optionUseByUid.get(r.uid) ? {} : { qty_type: r.qtyType, qty: r.qty }),
+        },
+      }),
+    ),
+  );
+  return { ok: true };
+}
+
+export async function bulkUpdateOrderPriority(uids: number[], priority: number, vendorId?: string): Promise<GoodsBulkResult> {
+  const updated = await prisma.goods.updateMany({
+    where: { uid: { in: uids }, ...(vendorId ? { vendor: vendorId } : {}) },
+    data: { order_priority: priority },
+  });
+  if (updated.count === 0) return { ok: false, error: "권한이 없거나 존재하지 않는 상품입니다." };
+  return { ok: true };
+}
