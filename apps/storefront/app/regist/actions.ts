@@ -41,5 +41,5 @@ export async function registerAction(_prevState: { error?: string }, formData: F
   const guestCartId = await peekGuestCartId();
   await createSession({ userId: result.profile.id, role: "member", level: result.profile.level });
   if (guestCartId) await mergeGuestCartOnLogin(guestCartId, result.profile.id);
-  redirect("/");
+  redirect(`/regist/complete?name=${encodeURIComponent(result.profile.name)}`);
 }
