@@ -25,10 +25,20 @@ export default async function BoardDetailPage({ params }: { params: Promise<{ bo
       <h2 className="contentTitle">{config.name}</h2>
       <div className="empty30" />
 
-      {detail.viewable ? <BoardPostBody boardId={boardId} detail={detail} /> : <SecretPostUnlock boardId={boardId} uid={uid} />}
+      {detail.viewable ? (
+        <BoardPostBody boardId={boardId} detail={detail} />
+      ) : (
+        <SecretPostUnlock boardId={boardId} uid={uid} showComments={config.comments} canWriteComment={config.commentAuthor !== "admin"} />
+      )}
 
       {config.comments && detail.viewable && (
-        <BoardCommentSection boardId={boardId} postUid={uid} comments={comments} isMember={Boolean(session)} />
+        <BoardCommentSection
+          boardId={boardId}
+          postUid={uid}
+          comments={comments}
+          isMember={Boolean(session)}
+          canWrite={config.commentAuthor !== "admin"}
+        />
       )}
 
       <div className="empty20">

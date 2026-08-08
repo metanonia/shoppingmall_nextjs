@@ -98,6 +98,20 @@ async function main() {
     ],
   });
 
+  // Phase 7 backoffice login: id=admin / password=admin1234 (pre-hashed
+  // below, same rationale as the Phase 6 guest board password — seed.js has
+  // no @node-rs/argon2 dependency of its own, see that comment for why).
+  await prisma.member.create({
+    data: {
+      id: "admin",
+      name: "관리자",
+      passwd: "$argon2id$v=19$m=19456,t=2,p=1$B/MisCNlbL9gBaiDUoa7yQ$gd7W1qxfUgdYEvh0EMqeFmTEVKCG6Jtc0PPbuG1qF80",
+      email: "admin@example.com",
+      level: 100,
+      signdate: now,
+    },
+  });
+
   await prisma.cate.createMany({
     data: [
       { uid: 1, cate: 100n, cate_name: "여성의류", cate_dep: 1, cate_parent: 0n, cate_sub: 1, used: 1, sequence: 1 },

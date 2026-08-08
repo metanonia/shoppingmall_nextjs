@@ -4,15 +4,33 @@ import { useActionState } from "react";
 import type { BoardId } from "@shoppingmall/core";
 import { unlockSecretPostAction, type UnlockPostFormState } from "@/app/board/[boardId]/actions";
 import { BoardPostBody } from "@/components/BoardPostBody";
+import { BoardCommentSection } from "@/components/BoardCommentSection";
 
 // Guest-side counterpart to a member's automatic ownership unlock (handled
 // server-side in getPostDetail) — same password-gate pattern as
 // GuestOrderLookup.tsx.
-export function SecretPostUnlock({ boardId, uid }: { boardId: BoardId; uid: number }) {
+export function SecretPostUnlock({
+  boardId,
+  uid,
+  showComments,
+  canWriteComment,
+}: {
+  boardId: BoardId;
+  uid: number;
+  showComments: boolean;
+  canWriteComment: boolean;
+}) {
   const [state, formAction, pending] = useActionState<UnlockPostFormState, FormData>(unlockSecretPostAction, {});
 
   if (state.detail) {
-    return <BoardPostBody boardId={boardId} detail={state.detail} />;
+    return (
+      <>
+        <BoardPostBody boardId={boardId} detail={state.detail} />
+        {showComments && (
+          <BoardCommentSection boardId={boardId} postUid={uid} comments={state.comments ?? []} isMember={false} canWrite={canWriteComment} />
+        )}
+      </>
+    );
   }
 
   return (

@@ -9,6 +9,12 @@ export type BoardConfigEntry = {
   secretType: "none" | "optional" | "always";
   categories: readonly string[] | null;
   comments: boolean;
+  // Who's allowed to write a comment on this board, when comments=true.
+  // gallery: any customer (member or guest) — legacy's actual customer-facing
+  // comment feature. counsel: admin-only — this is really "관리자 답변", not
+  // a customer discussion thread, reusing the comment mechanism the same way
+  // legacy's board_post.php does (see createComment's comment below).
+  commentAuthor: "customer" | "admin" | null;
   hasFiles: boolean;
   hasContact: boolean;
 };
@@ -19,13 +25,23 @@ export type BoardConfigEntry = {
 // boards that don't need a vendor login are in scope (vnotice/vcounsel need
 // Phase 8's vendor session).
 export const BOARD_CONFIG: Record<BoardId, BoardConfigEntry> = {
-  notice: { name: "공지사항", writable: false, secretType: "optional", categories: null, comments: false, hasFiles: false, hasContact: false },
+  notice: {
+    name: "공지사항",
+    writable: false,
+    secretType: "optional",
+    categories: null,
+    comments: false,
+    commentAuthor: null,
+    hasFiles: false,
+    hasContact: false,
+  },
   faq: {
     name: "자주 찾는 질문",
     writable: false,
     secretType: "none",
     categories: ["주문/결제", "배송", "교환/반품/환불", "회원", "상품", "기타"],
     comments: false,
+    commentAuthor: null,
     hasFiles: false,
     hasContact: false,
   },
@@ -34,11 +50,21 @@ export const BOARD_CONFIG: Record<BoardId, BoardConfigEntry> = {
     writable: true,
     secretType: "always",
     categories: ["배송문의", "입금/계산서문의", "회원정보문의", "교환문의", "반품/취소문의"],
-    comments: false,
+    comments: true,
+    commentAuthor: "admin",
     hasFiles: false,
     hasContact: true,
   },
-  gallery: { name: "갤러리", writable: true, secretType: "none", categories: null, comments: true, hasFiles: true, hasContact: false },
+  gallery: {
+    name: "갤러리",
+    writable: true,
+    secretType: "none",
+    categories: null,
+    comments: true,
+    commentAuthor: "customer",
+    hasFiles: true,
+    hasContact: false,
+  },
 };
 
 export function isBoardId(value: string): value is BoardId {
@@ -76,10 +102,19 @@ export type CreatePostInput = {
 
 export type CreatePostResult = { ok: true; uid: number } | { ok: false; error: string };
 
-// Port of board/board_post.php's write path.
-export async function createPost(boardId: BoardId, author: PostAuthor, input: CreatePostInput): Promise<CreatePostResult> {
+// Port of board/board_post.php's write path. `actingAsAdmin` bypasses the
+// `config.writable` gate for notice/faq — that flag means "customers can't
+// write here", not "nobody can": the backoffice app writes notice/faq posts
+// as an authenticated admin, using this same function rather than a
+// parallel one.
+export async function createPost(
+  boardId: BoardId,
+  author: PostAuthor,
+  input: CreatePostInput,
+  opts: { actingAsAdmin?: boolean } = {},
+): Promise<CreatePostResult> {
   const config = BOARD_CONFIG[boardId];
-  if (!config.writable) return { ok: false, error: "글쓰기가 허용되지 않는 게시판입니다." };
+  if (!config.writable && !opts.actingAsAdmin) return { ok: false, error: "글쓰기가 허용되지 않는 게시판입니다." };
   if (!input.subject.trim() || !input.content.trim()) return { ok: false, error: "제목과 내용을 입력해 주세요." };
   if (config.hasContact && !input.contact?.trim()) return { ok: false, error: "연락처를 입력해 주세요." };
 
@@ -104,6 +139,27 @@ export async function createPost(boardId: BoardId, author: PostAuthor, input: Cr
     },
   });
   return { ok: true, uid: post.uid };
+}
+
+export type UpdatePostInput = { subject: string; content: string; category?: number; notice?: boolean };
+export type UpdatePostResult = { ok: true } | { ok: false; error: string };
+
+// Admin-only edit/delete (Phase 7) — customer-side edit/delete stays
+// scoped out per Phase 6's decision (inquiry.ts has the same restriction).
+// No `writable` gate here: the admin backend edits notice/faq (customer
+// writable=false) same as it creates them.
+export async function updatePost(uid: number, input: UpdatePostInput): Promise<UpdatePostResult> {
+  if (!input.subject.trim() || !input.content.trim()) return { ok: false, error: "제목과 내용을 입력해 주세요." };
+  const updated = await prisma.boardPost.updateMany({
+    where: { uid },
+    data: { subject: input.subject, content: input.content, category: input.category ?? 0, notice: input.notice ? 1 : 0 },
+  });
+  if (updated.count === 0) return { ok: false, error: "존재하지 않는 게시물입니다." };
+  return { ok: true };
+}
+
+export async function deletePost(uid: number): Promise<void> {
+  await prisma.$transaction([prisma.boardComment.deleteMany({ where: { post_uid: uid } }), prisma.boardPost.delete({ where: { uid } })]);
 }
 
 // Called after the caller has saved attachment files to disk under the
@@ -226,18 +282,21 @@ export type PostComment = {
 // the caller supplies. View count increments on the initial page fetch,
 // matching legacy (no de-dupe by viewer) — pass incrementView:false for a
 // guest's password-retry attempt so a wrong guess doesn't inflate it.
+// `bypassSecret` is for the backoffice app — an admin reading a counsel
+// post to answer it isn't the author and has no guest password, so the
+// normal ownership checks below would always fail for them otherwise.
 export async function getPostDetail(
   boardId: BoardId,
   uid: number,
   viewer: PostViewer,
-  options: { incrementView?: boolean } = {},
+  options: { incrementView?: boolean; bypassSecret?: boolean } = {},
 ): Promise<PostDetail | null> {
   const row = await prisma.boardPost.findFirst({ where: { uid, board: boardId } });
   if (!row) return null;
 
   const secret = row.secret === 1;
-  let viewable = !secret;
-  if (secret && viewer) {
+  let viewable = !secret || Boolean(options.bypassSecret);
+  if (secret && !options.bypassSecret && viewer) {
     if ("memberId" in viewer) {
       viewable = row.id === viewer.memberId;
     } else if (!row.id) {
@@ -276,17 +335,24 @@ export async function getPostComments(postUid: number): Promise<PostComment[]> {
 
 export type CreateCommentResult = { ok: true } | { ok: false; error: string };
 
-// Port of board/board_post.php's comment path, restricted to gallery in the
-// UI (the only in-scope board where legacy actually exposes customer
-// comments) — flat, no reply-to-comment nesting (see 009_phase6_board.sql).
+// Port of board/board_post.php's comment path — flat, no reply-to-comment
+// nesting (see 009_phase6_board.sql). Doubles as the counsel "관리자 답변"
+// mechanism (commentAuthor:"admin"), same as legacy reuses its generic
+// comment_write/comment_reply branch for board answers regardless of board
+// type. `actingAsAdmin` must be true for an admin-only board — a customer
+// session (or no session at all) is rejected, matching config.commentAuthor.
 export async function createComment(
   boardId: BoardId,
   postUid: number,
   author: PostAuthor,
   content: string,
+  opts: { actingAsAdmin?: boolean } = {},
 ): Promise<CreateCommentResult> {
   const config = BOARD_CONFIG[boardId];
   if (!config.comments) return { ok: false, error: "댓글을 작성할 수 없는 게시판입니다." };
+  if (config.commentAuthor === "admin" && !opts.actingAsAdmin) {
+    return { ok: false, error: "관리자만 답변을 작성할 수 있습니다." };
+  }
   if (!content.trim()) return { ok: false, error: "댓글 내용을 입력해 주세요." };
 
   const post = await prisma.boardPost.findFirst({ where: { uid: postUid, board: boardId } });

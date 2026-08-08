@@ -87,3 +87,16 @@ export function renderOrderPaidSms(params: { shopName: string; orderName: string
 export function renderVendorPaidSms(params: { shopName: string; orderName: string }): string {
   return `[${params.shopName}] ${params.orderName}님이 주문한 상품의 결제가 완료되었습니다.`;
 }
+
+// Port of lib.Shop.php's status3Sms()/mallRN_sms_auto type='delivery'
+// template (ORDER_NAME/GOODS_NAME/DELIVERY_NAME/DELIVERY_NUM placeholders),
+// hardcoded per this file's existing no-admin-template-table principle.
+export function renderOrderShippedSms(params: {
+  shopName: string;
+  orderName: string;
+  itemName: string;
+  carrier: string;
+  trackingNumber: string;
+}): string {
+  return `[${params.shopName}] ${params.orderName}님 주문하신 상품(${params.itemName})이 발송되었습니다. (${params.carrier} ${params.trackingNumber})`;
+}

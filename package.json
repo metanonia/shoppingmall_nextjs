@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "dev:storefront": "pnpm --filter storefront dev",
+    "dev:backoffice": "pnpm --filter backoffice dev",
     "db:up": "docker compose up -d mysql",
     "db:down": "docker compose down"
   },

@@ -1,0 +1,34 @@
+/*
+ * Intentionally minimal, same rationale as apps/storefront/app/globals.css:
+ * no CSS framework, plain semantic HTML + inline styles. Unlike storefront,
+ * there's no legacy skin stylesheet to inherit pixel fidelity from (admin
+ * screens aren't a pixel-parity target), so this just resets box model.
+ */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  font-family: -apple-system, "Malgun Gothic", sans-serif;
+  font-size: 14px;
+  color: #222;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 8px;
+  border-bottom: 1px solid #eee;
+  text-align: left;
+}

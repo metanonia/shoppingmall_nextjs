@@ -8,6 +8,7 @@ import { type MileageValidityConfig, getMileageBalance, saveMileage, useMileage 
 import type { Device } from "./device";
 import { type PgPayType, getPaymentGateway } from "./payment";
 import { notifyOrderCreated, notifyOrderPaid } from "./notification";
+import { renderOrderShippedSms, sendSms } from "./sms";
 
 type Tx = Prisma.TransactionClient;
 
@@ -15,13 +16,16 @@ function now(): number {
   return Math.floor(Date.now() / 1000);
 }
 
-// Port of order_list.php / order_detail.php's status_array.
-const STATUS_LABELS: Record<number, string> = {
+// Port of order_list.php / order_detail.php's status_array (verified against
+// both files directly — they agree). Exported so admin list/detail views can
+// render the same labels without re-declaring this table.
+export const STATUS_LABELS: Record<number, string> = {
   0: "입금대기중",
   1: "결제완료",
   2: "배송준비중",
   3: "배송중",
   4: "배송완료",
+  5: "구매확정",
   7: "교환",
   8: "반품",
   9: "취소",
@@ -232,7 +236,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
 
       if (input.couponUid) await consumeCoupon(input.couponUid, tx);
       if (input.useMileage > 0 && input.memberId) {
-        await useMileage(input.memberId, input.useMileage, "상품구입 마일리지 사용", orderNum, tx);
+        await useMileage(input.memberId, input.useMileage, "상품구입 마일리지 사용", orderNum, "", tx);
       }
 
       if (input.payType === "M" && grandTotal === 0) {
@@ -288,6 +292,272 @@ export async function orderStatus1(orderNum: string, actorId: string, db: Tx | t
     });
   }
   await db.orderInfo.update({ where: { order_num: orderNum }, data: { sales_issued: 1, pay_status: "C", status_date: now() } });
+}
+
+export type OrderActionResult = { ok: true } | { ok: false; error: string };
+
+// Port of lib.Shop.php:1467 orderStatus1() B-order twin — legacy's admin
+// order_post.php `secStatus1`/`status1` modes call orderStatus1() directly
+// for a bank-transfer order once staff confirm the deposit; this just wraps
+// that with the notifyOrderPaid() call the M/C/H paths already get
+// automatically (see notification.ts's "나중에 확인할 사항" note this
+// resolves).
+export async function confirmBankTransferPayment(orderNum: string, actorId: string): Promise<OrderActionResult> {
+  const order = await prisma.orderInfo.findFirst({ where: { order_num: orderNum, reals: 1 } });
+  if (!order) return { ok: false, error: "존재하지 않는 주문입니다." };
+  if (order.pay_type !== "B") return { ok: false, error: "무통장입금 주문만 이 방법으로 확인할 수 있습니다." };
+  if (order.pay_status === "C") return { ok: false, error: "이미 결제완료된 주문입니다." };
+
+  await orderStatus1(orderNum, actorId);
+  await notifyOrderPaid(orderNum).catch(() => {});
+  return { ok: true };
+}
+
+// Port of lib.Shop.php:1757 orderStatus4() — delivery received/completed,
+// operates on one order-goods line (og_uid) at a time, same granularity as
+// legacy's admin checkbox-per-line UI. The `status==7 && status2==4`
+// exchange-in-progress branch isn't ported — exchanges are out of scope
+// (see MIGRATION.md).
+export async function orderStatus4(orderNum: string, ogUid: number, actorId: string): Promise<OrderActionResult> {
+  return prisma.$transaction(async (tx) => {
+    const line = await tx.orderGoods.findFirst({ where: { order_num: orderNum, uid: ogUid, reals: 1 } });
+    if (!line) return { ok: false, error: "존재하지 않는 주문상품입니다." };
+    if (line.status !== 3) return { ok: false, error: "배송중 상태일 때만 수취확인이 가능합니다." };
+
+    await tx.orderGoods.update({ where: { uid: ogUid }, data: { status: 4, status2: 0, status_date: now() } });
+    await tx.orderLog.create({
+      data: {
+        order_num: orderNum,
+        og_uid: ogUid,
+        id: actorId,
+        prev_status: line.status,
+        prev_status2: line.status2,
+        status: 4,
+        signdate: now(),
+      },
+    });
+    return { ok: true };
+  });
+}
+
+// Port of lib.Shop.php:1800 orderStatus5() — purchase confirmed, the point
+// at which per-line mileage is actually earned. First real caller of the
+// earn path this repo's `saveMileage` already supported — see
+// migration_deferred_items memory's Phase 4 "나중에 확인할 사항". The
+// `mallRN_order_sales.confirmation` bookkeeping legacy also does here isn't
+// ported (admin sales-reporting table, out of scope).
+export async function orderStatus5(orderNum: string, ogUid: number, actorId: string): Promise<OrderActionResult> {
+  return prisma.$transaction(async (tx) => {
+    const line = await tx.orderGoods.findFirst({ where: { order_num: orderNum, uid: ogUid, reals: 1 } });
+    if (!line) return { ok: false, error: "존재하지 않는 주문상품입니다." };
+    if (line.status !== 3 && line.status !== 4) {
+      return { ok: false, error: "배송중 또는 배송완료 상태일 때만 구매확정이 가능합니다." };
+    }
+
+    await tx.orderGoods.update({ where: { uid: ogUid }, data: { status: 5, status2: 0, status_date: now() } });
+    await tx.orderLog.create({
+      data: {
+        order_num: orderNum,
+        og_uid: ogUid,
+        id: actorId,
+        prev_status: line.status,
+        prev_status2: line.status2,
+        status: 5,
+        signdate: now(),
+      },
+    });
+
+    if (line.mileage > 0) {
+      const order = await tx.orderInfo.findFirst({ where: { order_num: orderNum, reals: 1 } });
+      if (order?.id) {
+        // Dedup guard matching legacy's own re-entrancy check (a line can
+        // only earn its purchase-confirm mileage once).
+        const alreadyEarned = await tx.mileage.count({ where: { id: order.id, order_num: orderNum, goods_uid: String(ogUid) } });
+        if (alreadyEarned === 0) {
+          const config = await loadMileageValidityConfig(tx);
+          await saveMileage(order.id, line.mileage, `${line.g_name} 상품구매 마일리지 적립`, config, orderNum, String(ogUid), "", tx);
+        }
+      }
+    }
+    return { ok: true };
+  });
+}
+
+export type DeliveryProgressInput =
+  | { status: 2 }
+  | { status: 3; carrier: string; trackingNumber: string };
+
+// Port of order_post.php's `statusChange`/`statusChange2` modes (배송준비중→
+// 배송중 progression). Legacy sends the "배송이 시작되었습니다" SMS via a
+// DB-driven mallRN_sms_auto template (`status3Sms`) — this repo already
+// decided (Phase 5) to hardcode SMS copy as TS functions instead of adding
+// an admin-managed template table, so this reuses that same principle.
+export async function updateDeliveryProgress(
+  orderNum: string,
+  ogUids: number[],
+  actorId: string,
+  input: DeliveryProgressInput,
+): Promise<OrderActionResult> {
+  const lines = await prisma.orderGoods.findMany({ where: { order_num: orderNum, uid: { in: ogUids }, reals: 1 } });
+  if (lines.length === 0) return { ok: false, error: "존재하지 않는 주문상품입니다." };
+
+  await prisma.$transaction(async (tx) => {
+    for (const line of lines) {
+      await tx.orderGoods.update({
+        where: { uid: line.uid },
+        data: {
+          status: input.status,
+          status_date: now(),
+          ...(input.status === 3 ? { delivery_info: `${input.carrier}|${input.trackingNumber}` } : {}),
+        },
+      });
+      await tx.orderLog.create({
+        data: {
+          order_num: orderNum,
+          og_uid: line.uid,
+          id: actorId,
+          prev_status: line.status,
+          prev_status2: line.status2,
+          status: input.status,
+          signdate: now(),
+        },
+      });
+    }
+  });
+
+  if (input.status === 3) {
+    const order = await prisma.orderInfo.findFirst({ where: { order_num: orderNum } });
+    if (order) {
+      const config = await getShopConfig();
+      const itemName = lines.length > 1 ? `${lines[0].g_name} 외 ${lines.length - 1}건` : lines[0].g_name;
+      await sendSms(
+        {
+          to: order.cell,
+          text: renderOrderShippedSms({
+            shopName: config.basicName,
+            orderName: order.name,
+            itemName,
+            carrier: input.carrier,
+            trackingNumber: input.trackingNumber,
+          }),
+        },
+        config,
+      ).catch(() => {});
+    }
+  }
+
+  return { ok: true };
+}
+
+export type MileageRefundSplit = { restore: number; bonus: number; remainingUseMileage: number };
+
+// Port of orderStatus95_partial()'s mileage branch (lib.Shop.php:2101-2129),
+// extracted as a pure function so the arithmetic is unit-testable without a
+// DB. `net` (mileage - refundFee) is applied against the order's original
+// use_mileage: if it fits entirely within what was already used, that much
+// is simply restored as spendable balance ("환원") and use_mileage shrinks
+// by the same amount. If it exceeds the original usage, the original usage
+// is restored in full and the excess becomes a brand-new bonus grant
+// ("환불금액 마일리지 적립") instead — because there's no more "usage" left
+// to un-spend, so anything beyond that is new money, not a reversal.
+export function calcMileageRefundSplit(originalUseMileage: number, mileage: number, refundFee: number): MileageRefundSplit {
+  const net = mileage - refundFee;
+  if (net <= 0) return { restore: 0, bonus: 0, remainingUseMileage: originalUseMileage };
+  if (originalUseMileage < net) {
+    return { restore: originalUseMileage, bonus: net - originalUseMileage, remainingUseMileage: 0 };
+  }
+  return { restore: net, bonus: 0, remainingUseMileage: originalUseMileage - net };
+}
+
+export type PartialRefundInput = {
+  refund: number; // total value refunded (added to refund_total)
+  mileage: number; // mileage-related portion of the refund, before the fee below
+  refundFee: number; // fee subtracted from `mileage` before restoring/crediting it
+  coupon: number; // coupon amount being restored to pay_total
+};
+
+// Port of lib.Shop.php:2018 orderStatus95_partial() — cancels ONE order-goods
+// line after payment, with the refund broken down across cash/mileage/
+// coupon. Legacy reads that breakdown from 5 global variables the caller
+// must set beforehand ($refund/$mileage/$refund_fee/$coupon/$delivery) — a
+// real footgun (a caller that forgets to reset one between calls silently
+// reuses the previous request's numbers). This repo makes the breakdown an
+// explicit argument instead, wrapped in one transaction (same "real DB
+// transaction" principle as every other order.ts mutation, see MIGRATION.md).
+// `$delivery`(배송비 환급) isn't ported: legacy's only use of it is writing a
+// mallRN_order_sales ledger row, and that table itself is out of scope
+// (admin sales reporting, see MIGRATION.md) — there's nothing to persist it
+// into.
+export async function partialRefundOrder(
+  orderNum: string,
+  ogUid: number,
+  input: PartialRefundInput,
+  actorId: string,
+): Promise<OrderActionResult> {
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.orderInfo.findFirst({ where: { order_num: orderNum, reals: 1 } });
+    if (!order) return { ok: false, error: "존재하지 않는 주문입니다." };
+    if (order.pay_status !== "C") return { ok: false, error: "결제완료 상태일 때만 부분환불이 가능합니다." };
+
+    const line = await tx.orderGoods.findFirst({ where: { order_num: orderNum, uid: ogUid, reals: 1 } });
+    if (!line) return { ok: false, error: "존재하지 않는 주문상품입니다." };
+
+    // Legacy only actually flips status2=5 (환불처리완료) when the line was
+    // already mid exchange/return (status 8/9) — a plain "cancel this paid
+    // line" click reaches this function with status still at whatever it
+    // was (e.g. 1/2/3/4), and legacy leaves that status untouched, relying
+    // purely on the refund bookkeeping below. This mirrors that.
+    if (line.status === 9 || line.status === 8) {
+      await tx.orderGoods.update({ where: { uid: ogUid }, data: { status2: 5, status_date: now() } });
+      await tx.orderLog.create({
+        data: {
+          order_num: orderNum,
+          og_uid: ogUid,
+          id: actorId,
+          prev_status: line.status,
+          prev_status2: line.status2,
+          status: line.status,
+          status2: 5,
+          signdate: now(),
+        },
+      });
+      await restoreStock(tx, line);
+      if (line.use_coupon > 0 && line.coupon_uid > 0) await restoreCoupon(line.coupon_uid, tx);
+    }
+
+    await tx.orderInfo.update({ where: { order_num: orderNum }, data: { refund_total: { increment: input.refund } } });
+
+    if (order.use_mileage > 0 && input.mileage > 0) {
+      const split = calcMileageRefundSplit(order.use_mileage, input.mileage, input.refundFee);
+      const config = await loadMileageValidityConfig(tx);
+      if (split.restore > 0) await saveMileage(order.id, split.restore, "주문취소에 따른 마일리지 사용 환원", config, orderNum, "", "", tx);
+      if (split.bonus > 0) await saveMileage(order.id, split.bonus, "주문취소에 따른 환불금액 마일리지 적립", config, orderNum, "", "", tx);
+      // A bonus grant means the restore didn't cover the full net amount —
+      // legacy only bumps pay_total/refund_total back up in the opposite
+      // case, where the restore fits entirely within the original usage
+      // (see calcMileageRefundSplit's doc comment for why).
+      const payTotalIncrement = split.bonus > 0 ? 0 : split.restore;
+      if (split.restore > 0 || split.bonus > 0) {
+        await tx.orderInfo.update({
+          where: { order_num: orderNum },
+          data: {
+            use_mileage: split.remainingUseMileage,
+            ...(payTotalIncrement > 0 ? { pay_total: { increment: payTotalIncrement }, refund_total: { increment: payTotalIncrement } } : {}),
+          },
+        });
+      }
+    }
+
+    if (order.use_coupon > 0 && input.coupon > 0) {
+      if (order.coupon_uid > 0) await restoreCoupon(order.coupon_uid, tx);
+      await tx.orderInfo.update({
+        where: { order_num: orderNum },
+        data: { pay_total: { increment: input.coupon }, refund_total: { increment: input.coupon }, use_coupon: { decrement: input.coupon } },
+      });
+    }
+
+    return { ok: true };
+  });
 }
 
 export type ConfirmPgPaymentResult = { ok: true; alreadyProcessed: boolean } | { ok: false; reason: string };
@@ -384,7 +654,7 @@ export async function orderStatus9(orderNum: string, actorId: string): Promise<C
     if (order.coupon_uid > 0) await restoreCoupon(order.coupon_uid, tx);
     if (order.use_mileage > 0) {
       const config = await loadMileageValidityConfig(tx);
-      await saveMileage(order.id, order.use_mileage, "주문취소에 따른 마일리지 사용 환원", config, orderNum, "", tx);
+      await saveMileage(order.id, order.use_mileage, "주문취소에 따른 마일리지 사용 환원", config, orderNum, "", "", tx);
     }
 
     await tx.orderInfo.update({
@@ -440,7 +710,7 @@ export async function orderStatus95(orderNum: string, actorId: string): Promise<
     if (order.coupon_uid > 0) await restoreCoupon(order.coupon_uid, tx);
     if (order.use_mileage > 0) {
       const config = await loadMileageValidityConfig(tx);
-      await saveMileage(order.id, order.use_mileage, "주문취소에 따른 마일리지 사용 환원", config, orderNum, "", tx);
+      await saveMileage(order.id, order.use_mileage, "주문취소에 따른 마일리지 사용 환원", config, orderNum, "", "", tx);
     }
 
     const restoredPayTotal = order.pay_total + order.use_mileage + order.use_coupon;

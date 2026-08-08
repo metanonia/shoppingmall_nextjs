@@ -99,6 +99,10 @@ export async function getAgreementPages(): Promise<AgreementPages> {
   return { terms: row?.agreement_info1 ?? "", privacy: row?.agreement_info2 ?? "" };
 }
 
+export async function updateAgreementPages(input: AgreementPages): Promise<void> {
+  await prisma.configuration.update({ where: { uid: 2 }, data: { agreement_info1: input.terms, agreement_info2: input.privacy } });
+}
+
 export type RegisterMemberInput = {
   id: string;
   password: string;

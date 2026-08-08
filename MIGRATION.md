@@ -11,7 +11,7 @@
 ```
 apps/
   storefront/   Next.js 16 — 고객 화면 (PC+모바일)
-  backoffice/   관리자+입점사 (아직 착수 전, Phase 7-8)
+  backoffice/   관리자 백엔드 (Phase 7 완료, PC 전용). 입점사 role 분기는 Phase 8 대기.
 packages/
   db/           Prisma 스키마(레거시 mallRN_* 테이블을 install_post.php DDL 기준으로
                 1:1 이식) + MariaDB 드라이버 어댑터
@@ -35,14 +35,19 @@ docker compose up -d                        # MySQL 기동 (호스트 3307)
 pnpm install
 cd packages/db && node prisma/seed.js       # 개발용 시드 데이터 (기존 데이터 삭제 후 재삽입)
 cd ../../apps/storefront && pnpm dev        # http://localhost:3000
+cd ../backoffice && pnpm dev                # http://localhost:3001 (관리자, PC 전용)
 ```
 
-- `apps/storefront/.env.local`에 `DATABASE_URL`, `AUTH_SECRET`가 필요합니다(레포에는
-  커밋되어 있지 않음 — 없으면 각자 새로 생성: `AUTH_SECRET`은 임의의 긴 랜덤 문자열,
-  `DATABASE_URL`은 `mysql://root:root@localhost:3307/shoppingmall`).
-- 관리자 계정: 시드에는 실제 로그인 가능한 관리자 회원이 없습니다 — `/regist`로
-  가입하면 기본적으로 `level=1`(일반회원)로 생성됩니다. 관리자 기능 자체는 Phase 7
-  전까지 없으므로 지금은 상관없습니다.
+- `apps/storefront/.env.local`, `apps/backoffice/.env.local` 둘 다 `DATABASE_URL`,
+  `AUTH_SECRET`가 필요합니다(레포에는 커밋되어 있지 않음 — 없으면 각자 새로 생성:
+  `AUTH_SECRET`은 임의의 긴 랜덤 문자열, `DATABASE_URL`은
+  `mysql://root:root@localhost:3307/shoppingmall`, 두 앱 모두 같은 값 사용).
+  `apps/backoffice/.env.local`에는 추가로 `NEXT_PUBLIC_STOREFRONT_URL`(기본
+  `http://localhost:3000`)이 필요합니다 — 상품/배너/팝업 이미지가 storefront의
+  `public/`에 저장되므로 관리자 화면의 미리보기 이미지가 storefront 쪽 절대 URL을
+  가리켜야 합니다.
+- 관리자 계정: 시드에 `id=admin / password=admin1234`(level=100)로 로그인 가능한
+  계정이 포함되어 있습니다 — `apps/backoffice`에서 로그인.
 - Playwright로 스크린샷 검증할 때는 설치된 `playwright` npm 패키지가 기대하는
   브라우저 리비전과 실제 캐시된 빌드가 다를 수 있어
   `chromium.launch({ executablePath: '~/Library/Caches/ms-playwright/chromium-1208/...' })`처럼
@@ -58,8 +63,8 @@ cd ../../apps/storefront && pnpm dev        # http://localhost:3000
 | 4 | 카트/주문 엔진 | ✅ 완료 (무통장입금/마일리지결제만, 아래 참고) |
 | 5 | 결제/알림 | ✅ 완료 (아론허브 PG만, 이메일+SMS, 아래 참고) |
 | 6 | 게시판/CMS | ✅ 완료 (notice/faq/counsel/gallery만, 아래 참고) |
-| 7 | 관리자 백엔드 | ⬜ **다음 작업** (미착수) |
-| 8 | 입점사 백엔드 | ⬜ 미착수 |
+| 7 | 관리자 백엔드 | ✅ 완료 (풀스코프, 아래 참고) |
+| 8 | 입점사 백엔드 | ⬜ **다음 작업** (미착수) |
 | 9 | 하드닝/정규화/마무리 | ⬜ 미착수 |
 
 커밋 로그가 각 Phase의 실제 작업 내역이니 `git log`로 확인하세요.
@@ -154,6 +159,100 @@ Prisma 스키마로 그대로 옮길 수 없습니다. 이 저장소는 `BoardPo
 DB 상태 대조로 확인. `/agreement`·`/privacy`가 `{PLACEHOLDER}` 치환까지 끝난
 상태로 렌더되는지, 시드된 `add_page`가 `/page/1`에서 렌더되는지도 확인했습니다.
 
+## Phase 7 완료 요약 (관리자 백엔드)
+
+계획 문서: `~/.claude/plans/smooth-finding-ullman.md`. 사용자 확정 스코프: **풀스코프**
+(회원관리 전체/마일리지조정/통계/입점사 승인 포함) + **부분환불 포함**. 새
+`apps/backoffice` Next.js 16 앱(포트 3001, PC 전용, 반응형/모바일 분기 없음)을
+이번에 처음 만들었습니다 — Phase 8(입점사 백엔드)이 같은 앱에 vendor role
+분기를 추가할 예정입니다.
+
+**인증**: 레거시는 회원 테이블을 공유하되 `level>=99`만 관리자로 취급하고
+자체 쿠키(`my_id`+`sid`)로 로그인 상태를 판별합니다. 이 저장소는 별도 로직 없이
+기존 `authenticateMember()`(회원 로그인과 동일 함수)를 재사용하고 `level>=99`
+검사 후 `role:"admin"` 세션을 발급합니다. **세션 쿠키는 storefront와 이름을
+분리**(`shoppingmall_admin_session`)했습니다 — 로컬 개발에서 두 앱이 포트만
+다른 같은 호스트(`localhost`)라 브라우저가 쿠키를 포트로 구분하지 않아, 이름이
+같으면 관리자 로그인이 같은 브라우저의 회원 세션을 덮어쓰는 사고가 날 수
+있습니다.
+
+**주문관리**: `order.ts`에 `orderStatus4`(배송완료)/`orderStatus5`(구매확정+
+마일리지 적립)/`updateDeliveryProgress`(배송준비중→배송중 전환+SMS)/
+`confirmBankTransferPayment`(무통장입금 확인, `orderStatus1`+`notifyOrderPaid`
+래핑)를 추가해 [[migration_deferred_items]]의 "Phase 7 대기" 항목 대부분을
+해소했습니다. **부분환불**(`partialRefundOrder`)은 레거시
+`orderStatus95_partial()`의 `global $refund/$mileage/$refund_fee/$coupon/
+$delivery` 전역변수 계약을 명시적 함수 인자로 재설계 — 마일리지 환원/추가적립
+분배 로직은 `calcMileageRefundSplit()`으로 순수함수 분리해 vitest로 검증.
+관리자 전용 목록/상세는 `order-admin.ts`(비밀번호 게이팅 없는 admin 조회,
+매출통계 `getSalesStats`도 여기 포함).
+
+**상품/카테고리**: `goods-admin.ts`(약 47개 필드의 상품 등록/수정, 다차원 옵션
+카티션곱 생성기 `generateOptionCombinations` 1000개 캡, vitest 검증),
+`category-admin.ts`(카테고리 CRUD — 레거시의 4단계×3자리 숫자 인코딩을 버리고
+`cate`를 위치 의미 없는 단순 유니크 id로 재설계, 트리 구조는 전부
+`cate_parent`/`cate_dep`/`sequence`로 표현), `exhibition-admin.ts`(기획전
+CRUD, 레거시의 `cate_info` 서브그룹 기능은 미지원 — 플랫 상품목록만).
+
+**회원관리**: `member-admin.ts`(목록/등급 일괄변경/쿠폰 대량발급/마일리지
+수동조정). `saveMileage`/`useMileage`(mileage.ts)에 `procId` 파라미터를
+추가해 관리자 수동 조정 시 처리자 id가 `mallRN_mileage.proc_id`에 남도록
+했습니다(기존 호출부 전부 `""` 전달로 하위호환 유지). **탈퇴회원 목록은
+스코프아웃** — `withdrawMember()`가 하드 delete라 감사(audit) 테이블 자체가
+없어 보여줄 데이터가 없습니다.
+
+**게시판 관리자 답변**: `BOARD_CONFIG`에 `commentAuthor: "customer"|"admin"|null`
+추가 — gallery는 기존대로 고객 댓글, **counsel은 댓글을 관리자 전용으로 켜서
+"1:1문의 답변" 기능으로 재사용**(레거시도 동일한 댓글 메커니즘을 답변에 재사용).
+`createPost`에 `actingAsAdmin` 우회 옵션을 추가해 admin이 notice/faq에 쓸 수
+있게 했고, `updatePost`/`deletePost`(admin 전용)도 신규 추가. **storefront
+쪽도 함께 수정**해야 했음: `BoardCommentSection`에 `canWrite` prop을 추가해
+counsel에서는 답변만 읽고 쓰기 폼은 숨기도록 했고, 게스트가 비밀글을 클라이언트
+쪽에서 잠금해제(`SecretPostUnlock`)하는 경로에도 댓글(관리자 답변)이 같이
+보이도록 `unlockSecretPostAction`이 댓글도 함께 반환하게 확장 — 이 부분을
+놓쳤으면 게스트로 작성한 1:1문의는 답변이 영원히 안 보이는 버그가 났을 것.
+
+**디자인/설정**: `design-admin.ts`(배너/팝업 CRUD, PC/모바일 device 분기는
+`popup.ts`의 기존 읽기 패턴과 동일하게 명시적 분기), `add-page.ts`에 CRUD
+추가. `config.ts`에 `updateBasicConfig`/`updateDeliveryConfig`/
+`updatePaymentConfig`, `member.ts`에 `updateAgreementPages` 추가.
+
+**이미지 업로드는 앱 경계를 넘습니다**: 상품/배너/팝업/기획전/add_page 이미지는
+고객이 보는 `apps/storefront`의 `public/image/...`에서 서빙되므로,
+`apps/backoffice`의 업로드 유틸(`lib/image-upload.ts`)이 `process.cwd()`
+기준으로 `../storefront/public/image/...`에 직접 파일을 씁니다(한 호스트에서
+두 앱을 함께 운영하는 현재 구조 전제 — 멀티호스트 배포 시 공유 스토리지로
+교체 필요). 관리자 화면의 미리보기 썸네일은 반대로 storefront 쪽 절대 URL
+(`NEXT_PUBLIC_STOREFRONT_URL`)을 가리켜야 해서 `lib/image-url.ts`로 분리
+(Phase 6의 "서버전용 유틸과 순수 유틸 분리" 교훈을 그대로 적용).
+
+**입점사 최소 관리**: `vendor-admin.ts`(목록+승인/거절 토글만). 정산/통계는
+`mallRN_sales_calculate` 등 정산 전용 테이블이 없어 Phase 8 스코프로 유지.
+
+**스코프 제외 항목**(범위 논의 시 이미 문서화, 재검토 불필요): 방문자/키워드
+통계(추적 인프라 자체가 없음), 배송 송장 엑셀 일괄업로드(단건 입력만 지원),
+관리자 대시보드 위젯 20종(핵심 지표 3개로 축소), 게시글 삭제는 admin 전용(고객
+편집/삭제는 계속 스코프아웃, Phase 6 결정 유지).
+
+**이번 Phase는 새 테이블이 없습니다** — 주문/상품/카테고리/회원/쿠폰/마일리지/
+게시판/배너/팝업/add_page/입점사 테이블이 전부 Phase 1~6에서 이미 스키마에
+있었고(마일리지의 `proc_id`도 이미 존재), Phase 4~6의 "새 테이블 추가
+체크리스트"는 이번엔 필요 없었습니다.
+
+**Playwright E2E로 실제 검증 완료**: 관리자 로그인(레벨 미달 계정 거부 포함)/
+로그아웃/보호된 라우트 리다이렉트, 주문 전체 사이클(무통장입금확인→배송준비→
+배송중(송장)→배송완료→구매확정, 마일리지 적립 DB 대조 확인), 부분환불(마일리지
+환원 계산 DB 대조), 주문 전체취소, 상품 등록(옵션 2축 포함)→storefront에서
+이름/가격/옵션 정상 노출 확인, 카테고리 생성→storefront 상단 카테고리 목록에
+즉시 반영 확인, 기획전 생성+상품 추가, 회원 등급 일괄변경, 쿠폰 발급, 마일리지
+수동조정(`proc_id` 기록 확인), notice 작성, counsel 답변→게스트가 비밀번호로
+잠금해제 시 답변이 보이고 댓글 작성폼은 숨겨지는지(gallery는 반대로 계속 보임,
+회귀 없음 확인), 배너/팝업/add_page CRUD(스토어프론트 앱 경계 넘어 이미지 업로드
+포함), 설정 저장→storefront `/agreement` 즉시 반영, 입점사 승인/거절 토글까지
+DB 상태 대조로 확인. 이 과정에서 실제 버그 1건 발견/수정: `CategoryTree.tsx`에서
+수정용 `<form>`과 삭제용 `<form>`을 중첩시켜(잘못된 HTML) React hydration이
+깨졌던 것 — 두 폼을 형제 요소로 분리.
+
 ## 핵심 설계 결정 (다시 논의하지 않아도 되는 것들)
 
 - **DB**: 기존 71개 테이블 중 실제로 필요한 것만 그때그때 추가. `install_post.php`의
@@ -226,7 +325,10 @@ OAuth2 authorization-code flow(인증 URL 생성/토큰 교환/프로필 조회,
 단순화**: 레거시는 비회원도 비밀번호 입력으로 작성 가능(`mallRN_inquiry.passwd`,
 `popup_passwd.php`)하지만, 이 저장소는 이미 완성된 회원 인증(Phase 3)만 사용 —
 비회원 비밀번호 검증 플로우는 구현하지 않음. 답변 작성(관리자/입점사 UI)은 여전히
-Phase 7/8 대기 중이라 `answer`는 항상 빈 값("답변대기중")으로만 보임.
+미착수라 `answer`는 항상 빈 값("답변대기중")으로만 보임 — Phase 7은 게시판 엔진의
+counsel(1:1문의 게시판, `board.ts`)만 admin 답변 기능을 추가했고, 이 `mallRN_inquiry`
+(상품문의, 게시판과 무관한 별도 테이블)는 범위에 포함되지 않았음. 입점사 답변이
+필요할 수 있어 Phase 8에서 함께 재검토할 것.
 
 ### 카트/주문 — ✅ Phase 4에서 처리
 `mallRN_cart`/`mallRN_order_info`/`mallRN_order_goods`/`mallRN_order_log`/
@@ -237,13 +339,15 @@ Phase 7/8 대기 중이라 `answer`는 항상 빈 값("답변대기중")으로�
 취소까지 실사용 가능. **단순화/스코프컷한 부분**:
 - **결제수단은 무통장입금(B)/마일리지 전액결제(M)/카드(C)/휴대폰(H)** — 실시간계좌이체/
   가상계좌는 아론허브가 지원하지 않아(아래 "결제(PG)/알림" 항목 참고) 여전히 미지원.
-- **무통장입금은 레거시처럼 입금대기(status=0)로 남김** — 관리자 입금확인 화면이
-  Phase 7까지 없어 결제완료 전환 수단이 아직 없음(아래 "나중에 확인할 사항" 참고).
-- **배송상태 진행(배송준비중/배송중/배송완료)과 구매확정은 전부 Phase 7/8 대기** —
-  `orderStatus4`/`orderStatus5` 함수는 포팅되어 있으나 호출하는 UI가 없음.
-- **부분환불(`orderStatus95_partial`)은 스코프아웃** — 호출자가 전역변수를 미리
-  세팅해야 하는 레거시 안티패턴이고, 그 호출부(admin 부분환불 화면)가 Phase 7 스코프.
-  전액취소(`orderStatus9`/`orderStatus95`)만 지원.
+- ~~무통장입금은 레거시처럼 입금대기(status=0)로 남김~~ — ✅ Phase 7에서 처리
+  (`confirmBankTransferPayment`, admin이 `/orders/[orderNum]`에서 "입금확인" 클릭).
+- ~~배송상태 진행(배송준비중/배송중/배송완료)과 구매확정은 전부 Phase 7/8 대기~~ —
+  ✅ Phase 7에서 처리(`orderStatus4`/`orderStatus5`/`updateDeliveryProgress`,
+  admin `/orders/[orderNum]`에서 호출. 마일리지 적립 로직도 여기서 처음 실사용
+  검증됨).
+- ~~부분환불(`orderStatus95_partial`)은 스코프아웃~~ — ✅ Phase 7에서 처리
+  (`partialRefundOrder`, 전역변수 계약을 명시적 인자로 재설계 — Phase 7 완료 요약
+  참고). 전액취소(`orderStatus9`/`orderStatus95`)도 계속 지원.
 - **쿠폰발급은 상품상세 "다운로드"(`coupon_manager.type=4`)만 연결** — 관리자수동/
   가입시/첫주문시/생일 자동발급은 각각 admin 화면·훅·배치잡이 필요해 미착수.
 - **게스트 체크아웃 지원** — `mallRN_order_info.passwd`(argon2id 해시, 레거시는
@@ -262,19 +366,16 @@ Phase 7/8 대기 중이라 `answer`는 항상 빈 값("답변대기중")으로�
   이 저장소는 조회(`getCartLine`)와 실제 DB 반영(`validateAndSyncCart`)을 분리함.
 
 **나중에 확인할 사항** (지금은 검증 불가 — 잊지 말고 아래 시점에 확인):
-- **[Phase 7] 무통장입금 → 결제완료 전환 경로 없음.** B 주문은 영원히 입금대기
-  상태에 머무름 — Phase 7에서 관리자 "입금확인" 액션을 만들 때 `order.ts`의
-  `orderStatus1(orderNum, adminId, tx)`를 호출하도록 연결할 것(함수는 이미 있음).
-- **[Phase 7] `orderStatus95`(결제후 취소)가 B 주문 실사용 경로로 검증되지 않음.**
-  Phase 4 시점엔 M(마일리지 전액) 주문만 결제완료에 도달(Playwright로 검증 완료).
-  Phase 7에서 관리자 입금확인 기능이 생긴 뒤 B 주문도 한 번 더 확인할 것.
-- **[Phase 7/8] `orderStatus4`/`orderStatus5`(배송완료/구매확정) 호출 지점 없음.**
-  마일리지 적립 로직(`saveMileage` 경유)이 이때 처음 실사용 검증됨.
+- ~~**[Phase 7] 무통장입금 → 결제완료 전환 경로 없음.**~~ ✅ Phase 7에서 처리
+  (`confirmBankTransferPayment`).
+- ~~**[Phase 7] `orderStatus95`가 B 주문 실사용 경로로 검증되지 않음.**~~ ✅ Phase 7
+  Playwright E2E로 B 주문 입금확인→전체취소 경로까지 확인 완료.
+- ~~**[Phase 7/8] `orderStatus4`/`orderStatus5` 호출 지점 없음.**~~ ✅ Phase 7에서
+  admin `/orders/[orderNum]` 화면에 연결, 마일리지 적립까지 DB 대조로 검증 완료.
 - ~~**[Phase 5] 카드/PG 결제 경로.**~~ ✅ Phase 5에서 아론허브(C/H)로 처리됨 — 아래
   "결제(PG)/알림" 항목 참고.
-- **[발견 시] 부분환불 재검토.** Phase 7에서 admin 부분환불 화면(legacy
-  `php/admin/*order*cancel*` 계열로 추정, 미확인)을 먼저 찾아 읽고 `orderStatus95_partial`
-  포팅 여부 재판단할 것.
+- ~~**[발견 시] 부분환불 재검토.**~~ ✅ Phase 7에서 `partialRefundOrder`로 처리
+  (전역변수 계약 대신 명시적 인자로 재설계 — Phase 7 완료 요약 참고).
 - **[발견 시] `order_list_guest.php` 실물 미확인.** `/my_order/guest`를 목록형으로
   확장하려면 그 파일을 먼저 읽고 `guest_where` 쿠키 유도 조건을 확인할 것.
 
@@ -293,8 +394,10 @@ Phase 7/8 대기 중이라 `answer`는 항상 빈 값("답변대기중")으로�
   설계되어 있어 추가 시 기존 코드 변경 없이 새 어댑터만 추가하면 됨.
 - **현금영수증(`cashReceiptsApply`) 완전 스코프아웃** — 레거시에서도 B/V/R 전용
   기능이라 이번에 구현한 C/H와 무관.
-- **배송완료/구매확정 알림 없음** — Phase 4와 동일한 이유(`orderStatus4/5` 호출
-  UI가 Phase 7/8 대기)로 알림도 같이 대기.
+- ~~배송완료/구매확정 알림 없음~~ — Phase 7에서 `orderStatus4/5`에 admin UI가
+  연결됐지만, 이 두 전환 자체에 대한 별도 SMS/이메일 알림은 레거시에도 없어
+  추가하지 않음(주문접수/결제완료 알림만 유지, 배송 시작 시점 SMS는 Phase 7의
+  `updateDeliveryProgress`가 새로 추가함 — 아래 Phase 7 완료 요약 참고).
 - **관리자 알림 on/off 토글 하드코딩** — 레거시 `mallRN_sms_auto.ck_message1/2`,
   `mallRN_auto_mail.send` 같은 관리자 설정 UI가 없어 "항상 시도"로 단순화.
   SMS/이메일 템플릿도 DB 테이블(`mallRN_sms_auto`/`mallRN_auto_mail`) 대신 TS
@@ -307,10 +410,9 @@ Phase 7/8 대기 중이라 `answer`는 항상 빈 값("답변대기중")으로�
   검증됨 — 실제 가맹점 자격증명이 생기면 `AronhubPaymentGateway`의 요청/콜백/취소
   흐름을 실제 PG로 한 번 더 확인할 것(특히 콜백에 서명검증이 없다는 레거시 특성상
   `confirmPgPayment`의 금액검증이 실제로 걸리는지).
-- **[Phase 7] 무통장입금 결제완료 시에도 `notifyOrderPaid` 연결 필요.** 관리자
-  "입금확인" 액션이 `orderStatus1`을 호출할 때 알림도 같이 트리거되도록 반드시
-  연결할 것(자동으로 안 붙게 설계되어 있어 잊기 쉬움 — Phase 4의 기존 "나중에
-  확인할 사항"과 동일한 함정).
+- ~~**[Phase 7] 무통장입금 결제완료 시에도 `notifyOrderPaid` 연결 필요.**~~ ✅
+  Phase 7의 `confirmBankTransferPayment`가 `orderStatus1` 호출 직후
+  `notifyOrderPaid`도 함께 호출하도록 구현됨.
 
 ### 회원등급 할인가 — ✅ Phase 3에서 처리
 `packages/core/src/member.ts`의 `getMemberDiscountPct()` + `pricing.ts`의
@@ -360,12 +462,15 @@ Phase 7/8 대기 중이라 `answer`는 항상 빈 값("답변대기중")으로�
 - 페이지네이션: 레거시의 `jquery.timeliny.js` "pageline" 스크러버 대신 번호형 페이지네이션
 - "결과 내 검색": 다중 키워드 AND 좁히기 대신 단일 키워드로 단순화
 
-### 게시판/CMS — ✅ Phase 6에서 처리
+### 게시판/CMS — ✅ Phase 6에서 처리, 관리자 답변/작성은 ✅ Phase 7에서 처리
 notice/faq/counsel/gallery 4개만 구현. 판매사 전용 게시판(vnotice/vcounsel)은
-벤더 로그인(`v_my_id`)이 있어야 하는데 아직 없어 Phase 8로 미룸. 게시글
-수정/삭제 기능은 스코프아웃(v1) — `inquiry.ts`도 없다는 기존 전례를 따름.
-게시판별 관리 권한(`mallRN_board_manager`)도 테이블 없이 `BOARD_CONFIG` TS
-상수로 하드코딩(관리 UI 자체가 없음). 상세는 위 "Phase 6 완료 요약" 참고.
+벤더 로그인(`v_my_id`)이 있어야 하는데 아직 없어 Phase 8로 미룸. ~~게시글
+수정/삭제 기능은 스코프아웃(v1)~~ — ✅ Phase 7에서 admin 전용으로 추가
+(`updatePost`/`deletePost`); **고객 쪽 수정/삭제는 여전히 스코프아웃**
+(`inquiry.ts`도 없다는 기존 전례를 따름). 게시판별 관리 권한
+(`mallRN_board_manager`)도 테이블 없이 `BOARD_CONFIG` TS 상수로 하드코딩(관리
+UI 자체가 없다는 원칙은 유지 — `commentAuthor` 필드로 counsel 답변만 admin
+전용으로 게이팅). 상세는 위 "Phase 6/7 완료 요약" 참고.
 
 **[나중에 확인]** `/agreement`·`/privacy`의 `{JOINFORM}`/`{DELIVERYNAME}`/
 `{PGNAME}` 플레이스홀더는 각각 `member_config`의 회원가입 항목 토글, 배송사
@@ -373,8 +478,14 @@ notice/faq/counsel/gallery 4개만 구현. 판매사 전용 게시판(vnotice/vc
 또는 하드코딩된 상수(PGNAME="NHN한국사이버결제 주식회사")로 대체함 — 해당
 테이블/설정 UI가 생기면 다시 확인할 것.
 
-### 관리자 백엔드, 입점사 백엔드
-Phase 7/8 — 전체 미착수.
+### 관리자 백엔드 — ✅ Phase 7에서 처리
+상세는 위 "Phase 7 완료 요약" 참고. 방문자/키워드 통계, 배송송장 엑셀
+일괄업로드, 대시보드 위젯 20종, 탈퇴회원 목록(감사 테이블 없음)은 스코프아웃
+— 각 항목의 이유는 Phase 7 완료 요약 하단 참고.
+
+### 입점사 백엔드
+Phase 8 — 전체 미착수(admin의 최소 승인/거절 토글만 Phase 7에서 먼저 처리됨,
+`vendor-admin.ts`).
 
 ## 검증 방법
 
@@ -427,6 +538,20 @@ Phase 7/8 — 전체 미착수.
   실제 조립된 메일 전체가 콘솔에 찍힘)로 확인. `EMAIL_DEV_TRANSPORT=ethereal`을
   `.env.local`에 설정하면 실제로 발송되는 무료 테스트 SMTP로 전환되고 미리보기
   URL이 로그에 남음(수동 1회 확인용, 자동 테스트에서는 기본값 그대로 둘 것).
+- **(Phase 7부터) 관리자 화면 검증은 `apps/storefront`(3000)와 `apps/backoffice`
+  (3001) 두 dev 서버를 동시에 띄워야 함** — 상품/배너/팝업 이미지가 backoffice에서
+  storefront의 `public/`으로 업로드되므로, storefront가 안 떠 있으면 업로드는
+  성공해도 결과를 확인할 수 없음.
+- **`<form>` 안에 다른 `<form>`을 중첩하면 안 됨(잘못된 HTML)** — React가
+  hydration mismatch로 감지해 클라이언트에서 트리를 통째로 재생성하며, 안쪽
+  `<form>`의 서버 액션이 조용히 동작하지 않는 것처럼 보일 수 있음(Phase 7에서
+  실제로 겪음: 카테고리 관리 화면의 수정 폼 안에 삭제 폼을 넣었다가 발견). 같은
+  행에 독립된 액션 두 개가 필요하면 형제 `<form>`으로 분리할 것 — 여러 `<button
+  type="submit" name="..." value="...">`를 한 폼 안에 두는 것(입점사 승인/거절
+  버튼 등)은 유효한 HTML이라 문제 없음.
+- **admin 계정은 `apps/backoffice`에서 로그인**(`id=admin`/`password=admin1234`,
+  시드에 포함) — 세션 쿠키 이름이 storefront와 다르므로(`shoppingmall_admin_
+  session`) 두 앱에 동시에 다른 사용자로 로그인해 있어도 서로 간섭하지 않음.
 
 ## 새 테이블 추가 시 체크리스트 (Phase 4부터 그대로 재사용)
 
@@ -439,7 +564,8 @@ Phase 7/8 — 전체 미착수.
    지워버림 — 위 "핵심 설계 결정" 참고)
 6. `pnpm exec prisma format && pnpm exec prisma generate`
 7. 실행 중인 `next dev`를 반드시 재시작
-8. `pnpm exec tsc --noEmit` (packages/core, packages/db, apps/storefront 각각)
+8. `pnpm exec tsc --noEmit` (packages/core, packages/db, apps/storefront,
+   apps/backoffice 각각 — Phase 7부터 backoffice도 추가)
 
 ## 세션 인수인계 체크리스트
 

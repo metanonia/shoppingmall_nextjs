@@ -28,6 +28,7 @@ export async function useMileage(
   amount: number,
   content: string,
   orderNum = "",
+  procId = "", // admin actor id for a manual deduction (member-admin.ts); empty for purchase-time spends
   db: DbClient = prisma,
 ): Promise<void> {
   if (amount <= 0) return;
@@ -48,7 +49,7 @@ export async function useMileage(
   }
 
   await db.mileage.create({
-    data: { id: memberId, content, use_mileage: amount, order_num: orderNum, signdate: now() },
+    data: { id: memberId, content, use_mileage: amount, order_num: orderNum, proc_id: procId, signdate: now() },
   });
 
   await getMileageBalance(memberId, db);
@@ -79,6 +80,7 @@ export async function saveMileage(
   config: MileageValidityConfig,
   orderNum = "",
   goodsUid = "",
+  procId = "", // admin actor id for a manual grant (member-admin.ts); empty for order-driven earns/refunds
   db: DbClient = prisma,
 ): Promise<void> {
   if (amount <= 0) return;
@@ -95,6 +97,7 @@ export async function saveMileage(
       expired_date: expiredDate,
       order_num: orderNum,
       goods_uid: goodsUid,
+      proc_id: procId,
       signdate: now(),
     },
   });

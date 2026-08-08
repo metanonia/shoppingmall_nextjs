@@ -24,11 +24,18 @@ describe("BOARD_CONFIG", () => {
     expect(BOARD_CONFIG.gallery.writable).toBe(true);
   });
 
-  it("only gallery allows comments", () => {
+  it("gallery and counsel allow comments, notice/faq don't", () => {
     expect(BOARD_CONFIG.gallery.comments).toBe(true);
+    expect(BOARD_CONFIG.counsel.comments).toBe(true);
     expect(BOARD_CONFIG.notice.comments).toBe(false);
     expect(BOARD_CONFIG.faq.comments).toBe(false);
-    expect(BOARD_CONFIG.counsel.comments).toBe(false);
+  });
+
+  it("gallery comments are customer-authored, counsel comments are admin-only (관리자 답변)", () => {
+    expect(BOARD_CONFIG.gallery.commentAuthor).toBe("customer");
+    expect(BOARD_CONFIG.counsel.commentAuthor).toBe("admin");
+    expect(BOARD_CONFIG.notice.commentAuthor).toBeNull();
+    expect(BOARD_CONFIG.faq.commentAuthor).toBeNull();
   });
 });
 

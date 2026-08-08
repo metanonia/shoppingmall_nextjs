@@ -2,7 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { BOARD_CONFIG, type PostDetail, createComment, createPost, getMemberProfile, getPostDetail, isBoardId, setPostFiles } from "@shoppingmall/core";
+import {
+  BOARD_CONFIG,
+  type PostComment,
+  type PostDetail,
+  createComment,
+  createPost,
+  getMemberProfile,
+  getPostComments,
+  getPostDetail,
+  isBoardId,
+  setPostFiles,
+} from "@shoppingmall/core";
 import { getSession } from "@/lib/auth";
 import { saveBoardFiles } from "@/lib/board-upload";
 
@@ -52,12 +63,15 @@ export async function createPostAction(_prevState: CreatePostFormState, formData
   redirect(`/board/${boardId}/${result.uid}`);
 }
 
-export type UnlockPostFormState = { error?: string; detail?: PostDetail };
+export type UnlockPostFormState = { error?: string; detail?: PostDetail; comments?: PostComment[] };
 
 // Guest twin of a member's automatic ownership unlock in getPostDetail —
 // used by SecretPostGate.tsx when the page's initial (unauthenticated)
 // fetch came back blanked. incrementView:false so repeated wrong guesses
 // don't inflate the counter beyond the one increment from the page load.
+// Also returns comments (the admin's counsel reply, if any) since the
+// parent page's own comment fetch only runs for the server-side-viewable
+// case and never sees this client-side unlock.
 export async function unlockSecretPostAction(_prevState: UnlockPostFormState, formData: FormData): Promise<UnlockPostFormState> {
   const boardId = String(formData.get("boardId") ?? "");
   if (!isBoardId(boardId)) return { error: "존재하지 않는 게시판입니다." };
@@ -68,7 +82,9 @@ export async function unlockSecretPostAction(_prevState: UnlockPostFormState, fo
 
   const detail = await getPostDetail(boardId, uid, { guestPasswordPlain }, { incrementView: false });
   if (!detail || !detail.viewable) return { error: "비밀번호가 일치하지 않습니다." };
-  return { detail };
+
+  const comments = BOARD_CONFIG[boardId].comments ? await getPostComments(uid) : [];
+  return { detail, comments };
 }
 
 export type CreateCommentFormState = { error?: string; success?: boolean };

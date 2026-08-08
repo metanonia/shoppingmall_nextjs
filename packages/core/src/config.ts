@@ -71,3 +71,99 @@ export async function getShopConfig() {
     signDate: row.signdate,
   };
 }
+
+// Port of managers/conf/base_info.php.
+export type UpdateBasicConfigInput = {
+  basicName: string;
+  basicTitle: string;
+  basicDescription: string;
+  basicKeyword: string;
+  basicUrl: string;
+  basicAdmin: string;
+  basicEmail: string;
+  compName: string;
+  compOwner: string;
+  compTel: string;
+  compFax: string;
+  compAddress1: string;
+  compAddress2: string;
+  csTime1: string;
+  csTime2: string;
+  csTime3: string;
+  csTime4: string;
+};
+
+export async function updateBasicConfig(input: UpdateBasicConfigInput): Promise<void> {
+  await prisma.configuration.update({
+    where: { uid: 1 },
+    data: {
+      basic_name: input.basicName,
+      basic_title: input.basicTitle,
+      basic_description: input.basicDescription,
+      basic_keyword: input.basicKeyword,
+      basic_url: input.basicUrl,
+      basic_admin: input.basicAdmin,
+      basic_email: input.basicEmail,
+      comp_name: input.compName,
+      comp_owner: input.compOwner,
+      comp_tel: input.compTel,
+      comp_fax: input.compFax,
+      comp_address1: input.compAddress1,
+      comp_address2: input.compAddress2,
+      basic_cs_time1: input.csTime1,
+      basic_cs_time2: input.csTime2,
+      basic_cs_time3: input.csTime3,
+      basic_cs_time4: input.csTime4,
+    },
+  });
+}
+
+// Port of managers/conf/delivery_info.php.
+export type UpdateDeliveryConfigInput = {
+  deliveryType: "F" | "D" | "P";
+  deliveryDPrice: number;
+  deliveryPPrice1: number;
+  deliveryPPrice2: number;
+};
+
+export async function updateDeliveryConfig(input: UpdateDeliveryConfigInput): Promise<void> {
+  await prisma.configuration.update({
+    where: { uid: 1 },
+    data: {
+      delivery_type: input.deliveryType,
+      delivery_d_price: input.deliveryDPrice,
+      delivery_p_price1: input.deliveryPPrice1,
+      delivery_p_price2: input.deliveryPPrice2,
+    },
+  });
+}
+
+// Port of managers/conf/payment_info.php, trimmed to the fields this repo's
+// PaymentGateway abstraction actually reads (payment_cp/payment_shop_id/
+// payment_shop_key gate which gateway getPaymentGateway() selects — see
+// payment.ts). Legacy's cash-receipts/nicepay-specific fields aren't ported
+// (out of scope, see MIGRATION.md).
+export type UpdatePaymentConfigInput = {
+  paymentTypeB: boolean;
+  paymentTypeC: boolean;
+  paymentTypeH: boolean;
+  paymentCp: string;
+  paymentShopId: string;
+  paymentShopKey: string;
+  paymentBankInfo: string;
+};
+
+export async function updatePaymentConfig(input: UpdatePaymentConfigInput): Promise<void> {
+  await prisma.configuration.update({
+    where: { uid: 1 },
+    data: {
+      payment_type_b: input.paymentTypeB ? 1 : 0,
+      payment_type_c: input.paymentTypeC ? 1 : 0,
+      payment_type_h: input.paymentTypeH ? 1 : 0,
+      payment_cp: input.paymentCp,
+      payment_shop_id: input.paymentShopId,
+      payment_shop_key: input.paymentShopKey,
+      payment_bank_info: input.paymentBankInfo,
+    },
+  });
+}
