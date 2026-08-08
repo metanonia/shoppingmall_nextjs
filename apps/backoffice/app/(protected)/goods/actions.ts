@@ -1,7 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import {
+  approveGoodsAuth,
   createGoods,
   createGoodsOptions,
   deleteGoodsOption,
@@ -10,6 +12,13 @@ import {
   type GoodsFormInput,
 } from "@shoppingmall/core";
 import { saveImage } from "@/lib/image-upload";
+
+export async function approveGoodsAuthAction(formData: FormData): Promise<void> {
+  const uid = Number(formData.get("uid"));
+  const authCk = String(formData.get("authCk") ?? "Y") as "Y" | "N";
+  await approveGoodsAuth(uid, authCk);
+  revalidatePath("/goods");
+}
 
 export type ActionState = { error?: string };
 
@@ -44,7 +53,10 @@ async function uploadMultiple(formData: FormData, key: string): Promise<{ ok: tr
   return { ok: true, filenames };
 }
 
-async function buildGoodsInput(
+// Exported so app/vendor/(protected)/goods/actions.ts can reuse the same
+// parsing/upload logic and only override the vendor/auto-approve pieces —
+// see this repo's GoodsForm.tsx `actions` prop for the matching UI split.
+export async function buildGoodsInput(
   formData: FormData,
   existing: { image1: string; image2: string; image3: string; otherImages: string[]; detailImages: string[] },
 ): Promise<{ ok: true; input: GoodsFormInput } | { ok: false; error: string }> {

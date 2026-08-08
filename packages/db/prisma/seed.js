@@ -61,6 +61,7 @@ async function main() {
       design_main_display3: 1, // new: 리스트형 (swiper 비활성)
       design_main_category: 2, // cate: 상품이동형
       design_main_category_info: "100|1|1",
+      design_vendor_link: 1, // Phase 8: footer "입점신청"/"입점사로그인" 링크 노출
       design_main_custom_code: 1,
       design_main_custom_code_info: "<p style='text-align:center;padding:40px 0;'>이번 시즌 신규 입점 브랜드를 만나보세요</p>",
       mobile_top_menu:

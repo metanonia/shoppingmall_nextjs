@@ -436,7 +436,7 @@ model Vendor {
   sell            mallRN_vendor_sell       @default(R)
   delivery_type   Int                      @default(0) @db.UnsignedTinyInt
   id              String                   @default("") @db.VarChar(50)
-  passwd          String                   @default("") @db.VarChar(50)
+  passwd          String                   @default("") @db.VarChar(100)
   comp_name       String                   @default("") @db.VarChar(100)
   comp_owner      String                   @default("") @db.VarChar(20)
   comp_license_no String                   @default("") @db.VarChar(50)
@@ -882,6 +882,86 @@ model BoardPost {
   @@map("mallRN_board_post")
 }
 
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model OrderSales {
+  uid               Int    @id @default(autoincrement()) @db.UnsignedInt
+  order_num         String @default("") @db.VarChar(32)
+  og_uid            Int    @default(0) @db.UnsignedInt
+  vendor            String @default("") @db.VarChar(50)
+  g_name            String @default("") @db.VarChar(100)
+  price             Int    @default(0) @db.UnsignedInt
+  qty               Int    @default(0) @db.UnsignedInt
+  commission_pct    Float  @default(0) @db.Float
+  commission_amount Int    @default(0)
+  confirmed         Int    @default(0) @db.UnsignedTinyInt
+  confirm_date      Int    @default(0) @db.UnsignedInt
+  settled           Int    @default(0) @db.UnsignedTinyInt
+  signdate          Int    @default(0) @db.UnsignedInt
+
+  @@index([order_num], map: "order_num")
+  @@index([vendor], map: "vendor")
+  @@map("mallRN_order_sales")
+}
+
+model SalesCalculate {
+  uid              Int    @id @default(autoincrement()) @db.UnsignedInt
+  vendor           String @default("") @db.VarChar(50)
+  vendor_name      String @default("") @db.VarChar(100)
+  date_from        String @default("") @db.VarChar(20)
+  date_to          String @default("") @db.VarChar(20)
+  goods_total      Int    @default(0)
+  commission_total Int    @default(0)
+  payout_total     Int    @default(0)
+  bank_name        String @default("") @db.VarChar(20)
+  bank_num         String @default("") @db.VarChar(20)
+  bank_owner       String @default("") @db.VarChar(20)
+  signdate         Int    @default(0) @db.UnsignedInt
+
+  @@index([vendor], map: "vendor")
+  @@map("mallRN_sales_calculate")
+}
+
+model VendorConfiguration {
+  uid                           Int                                       @id @default(autoincrement()) @db.UnsignedInt
+  vendor                        String                                    @default("") @db.VarChar(50)
+  basic_name                    String                                    @default("") @db.VarChar(100)
+  basic_cs_time1                String                                    @default("") @db.VarChar(50)
+  basic_cs_time2                String                                    @default("") @db.VarChar(50)
+  basic_cs_time3                String                                    @default("") @db.VarChar(50)
+  basic_cs_time4                String                                    @default("") @db.VarChar(50)
+  comp_rtn_postcode             String                                    @default("") @db.VarChar(10)
+  comp_rtn_address1             String                                    @default("") @db.VarChar(100)
+  comp_rtn_address2             String                                    @default("") @db.VarChar(100)
+  delivery_type                 mallRN_vendor_configuration_delivery_type @default(P)
+  delivery_d_price              Int                                       @default(0) @db.UnsignedInt
+  delivery_p_type               String                                    @default("order") @db.VarChar(20)
+  delivery_p_price1             Int                                       @default(0) @db.UnsignedInt
+  delivery_p_price2             Int                                       @default(0) @db.UnsignedInt
+  delivery_info                 String                                    @default("") @db.Text
+  goods_option_info             String                                    @default("") @db.Text
+  goods_brand_info              String                                    @default("") @db.Text
+  goods_make_info               String                                    @default("") @db.Text
+  goods_origin_info             String                                    @default("") @db.Text
+  goods_delivery_info           String                                    @default("") @db.Text
+  goods_refund_info             String                                    @default("") @db.Text
+  goods_exchange_info           String                                    @default("") @db.Text
+  goods_as_info                 String                                    @default("") @db.Text
+  design_main_display1          Int                                       @default(0) @db.UnsignedTinyInt
+  design_main_display2          Int                                       @default(0) @db.UnsignedTinyInt
+  design_main_display3          Int                                       @default(0) @db.UnsignedTinyInt
+  design_main_custom_code       Int                                       @default(0) @db.UnsignedTinyInt
+  design_main_custom_code_image String                                    @default("") @db.Text
+  design_main_custom_code_info  String                                    @default("") @db.Text
+  design_main_display_order     String                                    @default("") @db.Text
+  push_yn                       mallRN_vendor_configuration_push_yn       @default(N)
+  token_pc                      String                                    @default("") @db.VarChar(250)
+  token_mobile                  String                                    @default("") @db.VarChar(250)
+  widget_info                   String                                    @default("") @db.Text
+
+  @@index([vendor], map: "vendor")
+  @@map("mallRN_vendor_configuration")
+}
+
 enum mallRN_exhibition_discount_yn {
   N
   Y
@@ -1027,6 +1107,17 @@ enum mallRN_order_info_pay_status {
 }
 
 enum mallRN_order_info_mobile {
+  Y
+  N
+}
+
+enum mallRN_vendor_configuration_delivery_type {
+  F
+  D
+  P
+}
+
+enum mallRN_vendor_configuration_push_yn {
   Y
   N
 }

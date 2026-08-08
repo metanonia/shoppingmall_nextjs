@@ -47,6 +47,7 @@ export default async function VendorsPage({ searchParams }: { searchParams: Prom
                     </button>
                   )}
                 </form>
+                <a href={`/vendors/${v.uid}/settlement`}>정산</a>
               </td>
             </tr>
           ))}

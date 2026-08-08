@@ -121,12 +121,17 @@ async function syncGoodsCate(guid: number, cateList: bigint[], repCate: bigint, 
 
 export type CreateGoodsResult = { ok: true; uid: number } | { ok: false; error: string };
 
-export async function createGoods(input: GoodsFormInput): Promise<CreateGoodsResult> {
+// `autoApprove` defaults true (admin-authored products need no gate).
+// apps/backoffice's vendor pages pass `Vendor.goods_auth==='A'` here instead
+// — port of managers/goods/goods_post.php's `case "auth_ck"` companion
+// check in vendor/goods/goods_post.php (see vendor.ts callers).
+export async function createGoods(input: GoodsFormInput, opts: { autoApprove?: boolean } = {}): Promise<CreateGoodsResult> {
   if (!input.name.trim()) return { ok: false, error: "상품명을 입력해 주세요." };
   if (input.cateList.length === 0) return { ok: false, error: "분류를 하나 이상 선택해 주세요." };
 
+  const authCk = (opts.autoApprove ?? true) ? "Y" : "N";
   const uid = await prisma.$transaction(async (tx) => {
-    const created = await tx.goods.create({ data: toGoodsData(input) });
+    const created = await tx.goods.create({ data: { ...toGoodsData(input), auth_ck: authCk } });
     await syncGoodsCate(created.uid, input.cateList, input.repCate, tx);
     return created.uid;
   });
@@ -154,6 +159,7 @@ export type AdminGoodsListItem = {
   qty: number;
   displayUse: boolean;
   saleUse: boolean;
+  authCk: "Y" | "N";
   signdate: number;
 };
 
@@ -163,10 +169,14 @@ const ADMIN_GOODS_PAGE_SIZE = 20;
 
 // Port of managers/goods/goods_list.php, keyword-only search (this repo's
 // established single-field simplification, see listing.ts's keywordWhere).
-export async function getAdminGoodsList(filters: { keyword?: string }, page = 1): Promise<AdminGoodsListResult> {
-  const where = filters.keyword
-    ? { OR: [{ name: { contains: filters.keyword } }, { goods_code: { contains: filters.keyword } }] }
-    : {};
+// `vendor`/`authCk` filters power both the vendor-scoped "my products" list
+// (apps/backoffice/app/vendor) and the admin "pending approval" queue.
+export async function getAdminGoodsList(filters: { keyword?: string; vendor?: string; authCk?: "Y" | "N" }, page = 1): Promise<AdminGoodsListResult> {
+  const where = {
+    ...(filters.keyword ? { OR: [{ name: { contains: filters.keyword } }, { goods_code: { contains: filters.keyword } }] } : {}),
+    ...(filters.vendor !== undefined ? { vendor: filters.vendor } : {}),
+    ...(filters.authCk ? { auth_ck: filters.authCk } : {}),
+  };
 
   const total = await prisma.goods.count({ where });
   const totalPages = Math.max(1, Math.ceil(total / ADMIN_GOODS_PAGE_SIZE));
@@ -188,12 +198,23 @@ export async function getAdminGoodsList(filters: { keyword?: string }, page = 1)
       qty: r.qty,
       displayUse: r.display_use === 1,
       saleUse: r.sale_use === 1,
+      authCk: r.auth_ck,
       signdate: r.signdate,
     })),
     total,
     page: safePage,
     totalPages,
   };
+}
+
+export type GoodsAuthResult = { ok: true } | { ok: false; error: string };
+
+// Port of managers/goods/goods_post.php's `case "auth_ck"` — admin approves
+// or rejects a vendor-submitted product still pending display.
+export async function approveGoodsAuth(uid: number, authCk: "Y" | "N"): Promise<GoodsAuthResult> {
+  const updated = await prisma.goods.updateMany({ where: { uid }, data: { auth_ck: authCk } });
+  if (updated.count === 0) return { ok: false, error: "존재하지 않는 상품입니다." };
+  return { ok: true };
 }
 
 export type AdminGoodsOptionRow = { uid: number; value: string; price: number; qtyType: number; qty: number; used: boolean; code: string; sequence: number };

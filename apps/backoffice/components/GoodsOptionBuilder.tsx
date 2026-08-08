@@ -9,8 +9,19 @@ import {
   type OptionActionState,
 } from "@/app/(protected)/goods/actions";
 
-export function GoodsOptionBuilder({ guid, options }: { guid: number; options: AdminGoodsOptionRow[] }) {
-  const [state, formAction, pending] = useActionState<OptionActionState, FormData>(createGoodsOptionsAction, {});
+type OptionActions = {
+  create: (prevState: OptionActionState, formData: FormData) => Promise<OptionActionState>;
+  update: (prevState: OptionActionState, formData: FormData) => Promise<OptionActionState>;
+  delete: (formData: FormData) => Promise<void>;
+};
+
+const DEFAULT_ACTIONS: OptionActions = { create: createGoodsOptionsAction, update: updateGoodsOptionAction, delete: deleteGoodsOptionAction };
+
+// Shared by admin (/goods) and vendor (/vendor/goods) — vendor pages pass
+// their own vendor-scoped actions (ownership-checked server-side) instead
+// of the admin defaults.
+export function GoodsOptionBuilder({ guid, options, actions = DEFAULT_ACTIONS }: { guid: number; options: AdminGoodsOptionRow[]; actions?: OptionActions }) {
+  const [state, formAction, pending] = useActionState<OptionActionState, FormData>(actions.create, {});
 
   return (
     <div>
@@ -46,7 +57,7 @@ export function GoodsOptionBuilder({ guid, options }: { guid: number; options: A
           </thead>
           <tbody>
             {options.map((o) => (
-              <OptionRow key={o.uid} guid={guid} option={o} />
+              <OptionRow key={o.uid} guid={guid} option={o} actions={actions} />
             ))}
           </tbody>
         </table>
@@ -55,8 +66,8 @@ export function GoodsOptionBuilder({ guid, options }: { guid: number; options: A
   );
 }
 
-function OptionRow({ guid, option }: { guid: number; option: AdminGoodsOptionRow }) {
-  const [state, formAction, pending] = useActionState<OptionActionState, FormData>(updateGoodsOptionAction, {});
+function OptionRow({ guid, option, actions }: { guid: number; option: AdminGoodsOptionRow; actions: OptionActions }) {
+  const [state, formAction, pending] = useActionState<OptionActionState, FormData>(actions.update, {});
 
   return (
     <tr>
@@ -79,7 +90,7 @@ function OptionRow({ guid, option }: { guid: number; option: AdminGoodsOptionRow
           </button>
           {state.error && <span style={{ color: "#e02020", fontSize: 12 }}>{state.error}</span>}
         </form>
-        <form action={deleteGoodsOptionAction} style={{ display: "inline" }}>
+        <form action={actions.delete} style={{ display: "inline" }}>
           <input type="hidden" name="uid" value={option.uid} />
           <input type="hidden" name="guid" value={guid} />
           <button type="submit">삭제</button>

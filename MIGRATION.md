@@ -11,7 +11,8 @@
 ```
 apps/
   storefront/   Next.js 16 — 고객 화면 (PC+모바일)
-  backoffice/   관리자 백엔드 (Phase 7 완료, PC 전용). 입점사 role 분기는 Phase 8 대기.
+  backoffice/   관리자+입점사 백엔드 (Phase 7/8 완료, PC 전용). URL 네임스페이스로
+                admin(`/`)과 vendor(`/vendor`) role 분기.
 packages/
   db/           Prisma 스키마(레거시 mallRN_* 테이블을 install_post.php DDL 기준으로
                 1:1 이식) + MariaDB 드라이버 어댑터
@@ -64,8 +65,8 @@ cd ../backoffice && pnpm dev                # http://localhost:3001 (관리자, 
 | 5 | 결제/알림 | ✅ 완료 (아론허브 PG만, 이메일+SMS, 아래 참고) |
 | 6 | 게시판/CMS | ✅ 완료 (notice/faq/counsel/gallery만, 아래 참고) |
 | 7 | 관리자 백엔드 | ✅ 완료 (풀스코프, 아래 참고) |
-| 8 | 입점사 백엔드 | ⬜ **다음 작업** (미착수) |
-| 9 | 하드닝/정규화/마무리 | ⬜ 미착수 |
+| 8 | 입점사 백엔드 | ✅ 완료 (정산 포함 풀스코프, 아래 참고) |
+| 9 | 하드닝/정규화/마무리 | ⬜ **다음 작업** (미착수) |
 
 커밋 로그가 각 Phase의 실제 작업 내역이니 `git log`로 확인하세요.
 
@@ -119,7 +120,9 @@ Mock의 `cancelPayment` 호출 경유 확인, 환불 반영), 결제 포기(팝�
 별도 용어가 아니라 (1) 범용 게시판 엔진(공지사항/FAQ/1:1문의/갤러리), (2) 이용약관·
 개인정보처리방침 전체 페이지, (3) 관리자가 만드는 정적 페이지(`mallRN_add_page`)
 세 가지를 가리킵니다. 판매사 전용 게시판(vnotice/vcounsel)은 벤더 로그인이 아직
-없어 Phase 8로 미룸.
+없어 Phase 8로 미뤘었으나, Phase 8에서 벤더 로그인은 생겼지만 vnotice/vcounsel
+게시판 자체는 승인된 스코프(입점신청/상품/주문/정산/스토어설정)에 없어 여전히
+미착수 — 필요해지면 Phase 9 이후 재검토.
 
 **게시판 테이블 통합**: 레거시는 게시판 인스턴스마다 런타임에
 `CREATE TABLE mallRN_board_{id}`를 동적 생성하는 구조(zeroboard 계열)라 정적
@@ -227,7 +230,8 @@ counsel에서는 답변만 읽고 쓰기 폼은 숨기도록 했고, 게스트�
 (Phase 6의 "서버전용 유틸과 순수 유틸 분리" 교훈을 그대로 적용).
 
 **입점사 최소 관리**: `vendor-admin.ts`(목록+승인/거절 토글만). 정산/통계는
-`mallRN_sales_calculate` 등 정산 전용 테이블이 없어 Phase 8 스코프로 유지.
+`mallRN_sales_calculate` 등 정산 전용 테이블이 없어 Phase 8 스코프로 유지 —
+✅ Phase 8에서 처리(아래 "Phase 8 완료 요약" 참고).
 
 **스코프 제외 항목**(범위 논의 시 이미 문서화, 재검토 불필요): 방문자/키워드
 통계(추적 인프라 자체가 없음), 배송 송장 엑셀 일괄업로드(단건 입력만 지원),
@@ -252,6 +256,99 @@ counsel에서는 답변만 읽고 쓰기 폼은 숨기도록 했고, 게스트�
 DB 상태 대조로 확인. 이 과정에서 실제 버그 1건 발견/수정: `CategoryTree.tsx`에서
 수정용 `<form>`과 삭제용 `<form>`을 중첩시켜(잘못된 HTML) React hydration이
 깨졌던 것 — 두 폼을 형제 요소로 분리.
+
+## Phase 8 완료 요약 (입점사 백엔드)
+
+계획 문서: `~/.claude/plans/smooth-finding-ullman.md`. 사용자 확정 스코프: **정산
+포함 풀스코프** — 입점신청(공개 셀프서비스)+로그인+본인 상품관리(승인게이트
+포함)+본인 주문관리(배송처리만)+스토어설정+정산. `apps/backoffice`는 Phase 7의
+admin에 이어 이번에 vendor role을 같은 앱에 추가했습니다(새 앱을 만들지 않음
+— `packages/auth`의 `SessionPayload.role`/`vendorId`가 애초에 이 구조로
+설계돼 있었음).
+
+**라우팅/세션**: admin은 `app/(protected)/...`(URL 프리픽스 없음), vendor는
+`app/vendor/(protected)/...`(URL `/vendor/...`) 그룹. 로그인 페이지는
+`app/vendor/page.tsx`(실제 폴더) — storefront `Footer.tsx`에 이미 하드코딩돼
+있던 `/vendor/` 링크(`design_vendor_link` 플래그로 노출 제어, 시드에서 1로 켬)와
+충돌하지 않도록 보호 라우트 그룹을 그 안에 중첩시켰습니다. 세션 쿠키는 admin과
+공용(`shoppingmall_admin_session`) — `getSession()`이 `role==="admin"||
+role==="vendor"`를 모두 허용하고 `requireAdmin()`/`requireVendor()`가 각각의
+role만 통과시킵니다.
+
+**입점사 가입/로그인**: `packages/core/src/vendor.ts`(`registerMember`와 동일
+패턴의 공개 셀프서비스 — `registerVendor`/`authenticateVendor`/
+`getVendorProfile`). 가입 시 `auth='R'`(승인대기)/`sell='R'`/`goods_auth='A'`
+강제, 승인은 Phase 7에서 이미 만든 `/vendors` 화면(`updateVendorAuth`) 재사용.
+`apps/storefront/app/regist_vendor/`(공개 가입 폼). **버그 1건**: 레거시
+`Vendor.passwd`가 `varchar(50)`(MD5용)라 argon2id 해시(~97자)가 안 들어가
+Playwright 테스트 중 P2000 에러로 발견 — `varchar(100)`으로 확장
+(`012_phase8_widen_vendor_passwd.sql`). `Member.passwd`는 이전 Phase에서 이미
+넓혀뒀었는데 `Vendor.passwd`는 이번에 처음 실사용되면서 드러남.
+
+**상품관리**: `goods-admin.ts`는 순수 CRUD로 유지하고 `createGoods`에
+`autoApprove` 옵션만 추가(vendor의 `goods_auth==='A'`면 자동승인, 아니면
+승인대기 `auth_ck='N'`). 목록 필터에 `vendor`/`authCk` 추가. `GoodsForm`/
+`GoodsOptionBuilder`에 `actions`/`vendorLocked` prop을 추가해 admin/vendor가
+같은 컴포넌트를 재사용(vendor는 `vendor` select 대신 hidden으로 세션 vendorId
+강제). vendor 액션 레이어는 클라이언트가 보낸 `vendor` 필드를 절대 신뢰하지
+않고 세션 값으로 강제 덮어쓰며, 수정/옵션 조작 전 소유권(`existingGoods.vendor
+=== vendorId`) 검사 — Playwright로 타 입점사 상품 수정 URL 접근 시 404 확인.
+admin `/goods`에 승인대기 필터+승인 버튼 추가(`approveGoodsAuth`).
+
+**주문관리**: 새 `packages/core/src/vendor-order.ts`(`getVendorOrderList`/
+`getVendorOrderDetail` — `OrderGoods.vendor_delivery`로 스코프, admin의
+`order-admin.ts`와 동일 페이지네이션 패턴). 상태변경은 새 core 함수를 만들지
+않고 Phase 7의 `updateDeliveryProgress`/`orderStatus4`/`orderStatus5`를 그대로
+호출하되, vendor 액션 레이어(`assertOwnsOrderLines`)가 매 요청마다 `og_uid`가
+자기 `vendor_delivery` 소속인지 검증 후 위임. 입금확인/전체취소/부분환불 버튼은
+vendor 페이지에 아예 렌더하지 않음(레거시도 UI 자체가 없음). Playwright로
+배송처리(송장입력)→배송완료→구매확정 전체 사이클과, 타 입점사 주문 상세
+접근 시 404를 확인.
+
+**정산**: 레거시 `mallRN_order_sales`(23컬럼 범용 매출 리포팅)/
+`mallRN_sales_calculate`(세금계산서/상태 수동토글 워크플로)를 그대로 포팅하지
+않고 목적에 맞게 축소 재설계(게시판/카테고리 코드와 같은 재설계 원칙,
+테이블명은 유지). `OrderSales`는 `createOrder`가 라인 생성 시 커미션 스냅샷과
+함께 자동 insert(`commission_pct = goods.commission_type===0 ? vendor.
+commission : goods.commission`, 레거시 `order_post.php:269-272`와 동일 규칙),
+`orderStatus5`(구매확정) 시점에 `confirmed=1`로 갱신(레거시가
+`mallRN_order_sales.confirmation`을 세팅하는 시점과 동일). 관리자가
+`/vendors/[uid]/settlement`에서 기간을 선택하면 확정·미정산(`confirmed=1
+&& settled=0`) 라인을 집계 미리보기 → 확정 버튼으로 `SalesCalculate` insert +
+해당 `OrderSales.settled=1` 갱신을 하나의 트랜잭션으로 처리(레거시
+`calculate_post_json.php`의 `adjustment=1`과 동일 원자성). 입점사는
+`/vendor/settlement`에서 자기 `SalesCalculate` 이력만 읽기전용 조회. **세금계산서
+발행여부/정산상태(대기→지급완료) 수동토글, 정산유형(현금/계좌) 구분은
+스코프아웃**(사용자 확정 스코프) — Playwright로 커미션 10% 상품 판매→구매확정→
+관리자 정산확정(상품금액/수수료/정산액 계산 정확성)→입점사 조회 화면 반영까지
+DB 대조로 검증.
+
+**스토어 설정**: `mallRN_vendor_configuration` DDL 그대로 적용,
+`VendorConfiguration`으로 매핑. CS시간 4종/반품지주소/상품 기본 안내문구(배송·
+환불·교환·AS) 4종만 vendor가 `/vendor/store`에서 편집 — 진열순서 커스터마이징
+등 디자인 커스텀 컬럼은 admin 백엔드 없이 미사용 컬럼으로 남김(`Configuration`의
+기존 미사용 컬럼과 같은 원칙). `store.ts`의 `getStoreInfo`가 CS시간을
+`VendorConfiguration` 값 우선, 없으면 기존 하드코딩 폴백으로 사용하도록 수정.
+**추가로 발견해 처리한 연결고리**: `mallRN_goods.information_use`(레거시 컬럼,
+기존엔 어디서도 안 읽힘) — legacy `view.php:155-167`가 이 값이 1이면 상품별
+배송/환불/교환/AS 안내 대신 벤더의 공통 안내문구를 보여주는 토글이라는 걸
+확인하고 `detail.ts`의 `getGoodsDetail`에 동일 분기를 추가(기본값 1 = 벤더
+설정 사용, 벤더가 설정을 안 했으면 기존처럼 상품별 필드로 폴백 — 기존 상품
+전부가 안전하게 폴백되는지 확인). GoodsForm에 이 토글 UI 자체는 추가하지 않음
+(항상 1, 상품별 커스텀은 계속 상품 텍스트 필드로만 가능 — 스코프컷).
+
+**Playwright E2E로 실제 검증 완료**: 입점신청(공개)→admin 승인→vendor
+로그인→상품 등록(자동승인/승인대기 분기)→admin 승인→storefront 노출,
+상품 수정/옵션 관리 소유권 경계(404), 주문 배송처리 전체 사이클→구매확정 시
+`OrderSales.confirmed` 갱신, 주문 상세 소유권 경계(404), 정산 확정(커미션
+계산 정확성 DB 대조)→입점사 조회 반영, 스토어 설정 저장→`/store` 페이지 및
+상품상세 안내문구 반영까지 확인. vitest는 57개 그대로 통과(이번 Phase는 새
+순수함수를 분리하지 않음 — 커미션 계산은 `order.ts`의 트랜잭션 안에 인라인).
+
+**새 테이블 3개**: `mallRN_vendor_configuration`(레거시 DDL 그대로),
+`mallRN_order_sales`/`mallRN_sales_calculate`(재설계, 위 "정산" 참고) —
+`packages/db/sql/011_phase8_vendor.sql`. `Vendor.passwd` 폭 확장은
+`012_phase8_widen_vendor_passwd.sql`.
 
 ## 핵심 설계 결정 (다시 논의하지 않아도 되는 것들)
 
@@ -327,8 +424,9 @@ OAuth2 authorization-code flow(인증 URL 생성/토큰 교환/프로필 조회,
 비회원 비밀번호 검증 플로우는 구현하지 않음. 답변 작성(관리자/입점사 UI)은 여전히
 미착수라 `answer`는 항상 빈 값("답변대기중")으로만 보임 — Phase 7은 게시판 엔진의
 counsel(1:1문의 게시판, `board.ts`)만 admin 답변 기능을 추가했고, 이 `mallRN_inquiry`
-(상품문의, 게시판과 무관한 별도 테이블)는 범위에 포함되지 않았음. 입점사 답변이
-필요할 수 있어 Phase 8에서 함께 재검토할 것.
+(상품문의, 게시판과 무관한 별도 테이블)는 범위에 포함되지 않았음. Phase 8도
+입점신청/상품/주문/정산/스토어설정만 승인된 스코프라 상품문의 답변 UI는 여전히
+미착수 — 필요해지면 Phase 9 이후 재검토.
 
 ### 카트/주문 — ✅ Phase 4에서 처리
 `mallRN_cart`/`mallRN_order_info`/`mallRN_order_goods`/`mallRN_order_log`/
@@ -420,8 +518,10 @@ counsel(1:1문의 게시판, `board.ts`)만 admin 답변 기능을 추가했고,
 검색/베스트/신상/모음전/스토어/상품상세 전부 반영). 쿠폰 적용가는 ✅ Phase 4에서
 `coupon.ts`로 처리됨(위 "카트/주문" 항목 참고).
 
-### 입점사 사이트 설정 (`mallRN_vendor_configuration`)
-테이블 없음. `/store` 페이지는 항상 쇼핑몰 전체 기본값(CS 시간, 노출순서)으로 폴백.
+### 입점사 사이트 설정 (`mallRN_vendor_configuration`) — ✅ Phase 8에서 처리
+CS시간/반품지주소/상품 기본 안내문구(배송·환불·교환·AS)만 vendor가 편집.
+노출순서 커스터마이징 등 디자인 컬럼은 여전히 admin/vendor UI 없이 미사용 —
+상세는 위 "Phase 8 완료 요약" 참고.
 
 ### 홈/공통 위젯 (Phase 1)
 - ~~팝업 표시~~ — ✅ Phase 3에서 처리. `packages/core/src/popup.ts` +
@@ -464,7 +564,8 @@ counsel(1:1문의 게시판, `board.ts`)만 admin 답변 기능을 추가했고,
 
 ### 게시판/CMS — ✅ Phase 6에서 처리, 관리자 답변/작성은 ✅ Phase 7에서 처리
 notice/faq/counsel/gallery 4개만 구현. 판매사 전용 게시판(vnotice/vcounsel)은
-벤더 로그인(`v_my_id`)이 있어야 하는데 아직 없어 Phase 8로 미룸. ~~게시글
+Phase 8에서 벤더 로그인이 생겼지만 승인된 스코프에 없어 여전히 미착수(Phase 9
+이후 재검토). ~~게시글
 수정/삭제 기능은 스코프아웃(v1)~~ — ✅ Phase 7에서 admin 전용으로 추가
 (`updatePost`/`deletePost`); **고객 쪽 수정/삭제는 여전히 스코프아웃**
 (`inquiry.ts`도 없다는 기존 전례를 따름). 게시판별 관리 권한
@@ -483,9 +584,11 @@ UI 자체가 없다는 원칙은 유지 — `commentAuthor` 필드로 counsel �
 일괄업로드, 대시보드 위젯 20종, 탈퇴회원 목록(감사 테이블 없음)은 스코프아웃
 — 각 항목의 이유는 Phase 7 완료 요약 하단 참고.
 
-### 입점사 백엔드
-Phase 8 — 전체 미착수(admin의 최소 승인/거절 토글만 Phase 7에서 먼저 처리됨,
-`vendor-admin.ts`).
+### 입점사 백엔드 — ✅ Phase 8에서 처리
+상세는 위 "Phase 8 완료 요약" 참고. 세금계산서 발행여부/정산상태 수동토글,
+정산유형(현금/계좌) 구분, 판매사 전용 게시판(vnotice/vcounsel), 입점사
+대시보드 위젯(admin 위젯의 vendor 필터판), 상품 승인대기 알림(admin에게
+푸시/이메일 알림 없이 `/goods?pending=1` 필터로만 확인)은 스코프아웃.
 
 ## 검증 방법
 

@@ -32,20 +32,28 @@ export async function destroySession(): Promise<void> {
 
 // cache()'d so a page that calls this more than once in one request (layout
 // + page) only verifies the cookie once. Returns null for a valid session
-// whose role isn't "admin" — a member/vendor token that wandered in via the
-// shared-host cookie situation above should never be treated as logged in
-// here, only ever explicitly rejected.
+// whose role isn't "admin" or "vendor" — a member token that wandered in via
+// the shared-host cookie situation above should never be treated as logged
+// in here, only ever explicitly rejected. Phase 7 only ever issued "admin"
+// sessions; Phase 8 adds "vendor" ones (same app, same cookie, role-branched
+// route groups — see app/(protected) vs app/vendor).
 export const getSession = cache(async (): Promise<SessionPayload | null> => {
   const store = await cookies();
   const token = store.get(ADMIN_SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
   const payload = await verifySession(token, SECRET);
-  if (!payload || payload.role !== "admin") return null;
+  if (!payload || (payload.role !== "admin" && payload.role !== "vendor")) return null;
   return payload;
 });
 
 export async function requireAdmin(): Promise<SessionPayload> {
   const session = await getSession();
-  if (!session) redirect("/login");
+  if (!session || session.role !== "admin") redirect("/login");
+  return session;
+}
+
+export async function requireVendor(): Promise<SessionPayload> {
+  const session = await getSession();
+  if (!session || session.role !== "vendor") redirect("/vendor");
   return session;
 }

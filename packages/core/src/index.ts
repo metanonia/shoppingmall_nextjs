@@ -35,4 +35,6 @@ export * from "./search-keyword";
 export * from "./social";
 export * from "./pricing";
 export * from "./store";
+export * from "./vendor";
 export * from "./vendor-admin";
+export * from "./vendor-order";

@@ -133,6 +133,10 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
       const goodsRows = await tx.goods.findMany({ where: { uid: { in: goodsUids } } });
       const goodsByUid = new Map(goodsRows.map((g) => [g.uid, g]));
 
+      const vendorIds = Array.from(new Set(summary.lines.map((l) => l.vendor).filter(Boolean)));
+      const vendorRows = vendorIds.length ? await tx.vendor.findMany({ where: { id: { in: vendorIds } } }) : [];
+      const vendorById = new Map(vendorRows.map((v) => [v.id, v]));
+
       let memberLevelMileagePct = 0;
       if (input.memberId) {
         const member = await tx.member.findFirst({ where: { id: input.memberId }, select: { level: true } });
@@ -181,7 +185,7 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
       for (const line of summary.lines) {
         const goods = goodsByUid.get(line.goodsUid);
         const mileagePct = goods ? calcLineMileagePct(goods, memberLevelMileagePct) : 0;
-        await tx.orderGoods.create({
+        const createdLine = await tx.orderGoods.create({
           data: {
             vendor: line.vendor,
             vendor_delivery: line.vendorDelivery,
@@ -204,6 +208,29 @@ export async function createOrder(input: CreateOrderInput): Promise<CreateOrderR
             signdate: now(),
           },
         });
+
+        // Phase 8 settlement snapshot — Port of order_post.php:269-272's
+        // commission-rate lookup (commission_type===0 means "use the
+        // vendor's own default rate", anything else means "this product
+        // overrides it"). Direct-sold lines (no vendor) don't get an
+        // OrderSales row at all — settlement is vendor-only reporting.
+        if (line.vendor) {
+          const commissionPct = goods && goods.commission_type !== 0 ? goods.commission : (vendorById.get(line.vendor)?.commission ?? 0);
+          const commissionAmount = Math.round((line.lineTotal * commissionPct) / 100);
+          await tx.orderSales.create({
+            data: {
+              order_num: orderNum,
+              og_uid: createdLine.uid,
+              vendor: line.vendor,
+              g_name: line.goodsName,
+              price: line.unitPrice,
+              qty: line.qty,
+              commission_pct: commissionPct,
+              commission_amount: commissionAmount,
+              signdate: now(),
+            },
+          });
+        }
 
         // Port of lib.Shop.php:1345 goodsOrderQtyChange() — decrement stock
         // for finite-stock items now (B/M both commit stock immediately,
@@ -379,6 +406,12 @@ export async function orderStatus5(orderNum: string, ogUid: number, actorId: str
         }
       }
     }
+
+    // Phase 8: this is the exact moment legacy marks mallRN_order_sales.
+    // confirmation=1 too — a line only becomes eligible for vendor
+    // settlement once the customer has confirmed the purchase.
+    await tx.orderSales.updateMany({ where: { order_num: orderNum, og_uid: ogUid }, data: { confirmed: 1, confirm_date: now() } });
+
     return { ok: true };
   });
 }

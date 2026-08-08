@@ -9,16 +9,28 @@ function flattenTree(nodes: AdminCategoryNode[], depth = 0): { node: AdminCatego
   return nodes.flatMap((node) => [{ node, depth }, ...flattenTree(node.children, depth + 1)]);
 }
 
+type GoodsFormAction = (prevState: ActionState, formData: FormData) => Promise<ActionState>;
+
+// Shared by both admin (/goods) and vendor (/vendor/goods) pages — the only
+// difference is which server actions get called and whether the vendor
+// picker is editable. `vendorLocked` (passed by the vendor pages) hides the
+// <select> and pins the field to the caller's own vendor id via a hidden
+// input instead — the actual server-side enforcement lives in
+// app/vendor/(protected)/goods/actions.ts, this is just the matching UI.
 export function GoodsForm({
   initial,
   categoryTree,
   vendors,
+  actions,
+  vendorLocked,
 }: {
   initial: AdminGoodsDetail | null;
   categoryTree: AdminCategoryNode[];
   vendors: VendorOption[];
+  actions?: { create: GoodsFormAction; update: GoodsFormAction };
+  vendorLocked?: string;
 }) {
-  const action = initial ? updateGoodsAction : createGoodsAction;
+  const action = initial ? (actions?.update ?? updateGoodsAction) : (actions?.create ?? createGoodsAction);
   const [state, formAction, pending] = useActionState<ActionState, FormData>(action, {});
   const flatCategories = flattenTree(categoryTree);
   const selectedCates = new Set((initial?.cateList ?? []).map((c) => c.toString()));
@@ -49,14 +61,18 @@ export function GoodsForm({
       <fieldset>
         <legend>기본정보</legend>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <select name="vendor" defaultValue={initial?.vendor ?? ""}>
-            <option value="">직영 (입점사 없음)</option>
-            {vendors.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
-          </select>
+          {vendorLocked ? (
+            <input type="hidden" name="vendor" value={vendorLocked} />
+          ) : (
+            <select name="vendor" defaultValue={initial?.vendor ?? ""}>
+              <option value="">직영 (입점사 없음)</option>
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+          )}
           <input type="text" name="name" placeholder="상품명" defaultValue={initial?.name} required />
           <input type="text" name="name_code_able" placeholder="검색용 상품명(선택)" defaultValue={initial?.name_code_able} />
           <input type="text" name="goods_code" placeholder="자체상품코드" defaultValue={initial?.goods_code} />

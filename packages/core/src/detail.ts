@@ -86,6 +86,15 @@ export async function getGoodsDetail(
   const row = await prisma.goods.findFirst({ where: { uid, display_use: 1 } });
   if (!row) return null;
 
+  // Port of view.php:155-167's information_use switch — 1 means "use my
+  // vendor's reusable default guide text" (mallRN_vendor_configuration,
+  // set up on /vendor/store), anything else means this product wrote its
+  // own delivery/refund/exchange/AS text.
+  const vendorConfig =
+    row.information_use === 1 && row.vendor
+      ? await prisma.vendorConfiguration.findFirst({ where: { vendor: row.vendor } })
+      : null;
+
   const eventDiscounts = await getActiveEventDiscounts();
   const priceLimitConfig = priceLimitConfigFrom(config);
 
@@ -240,13 +249,13 @@ export async function getGoodsDetail(
     relatedGoods: relatedRows.map((r) => toGoodsCard(r, eventDiscounts, priceLimitConfig, memberDiscountPct)),
     reviewCount,
     inquiryCount,
-    deliveryInfo: row.delivery_info,
-    refundInfo: row.refund_info,
-    exchangeInfo: row.exchange_info,
+    deliveryInfo: vendorConfig ? vendorConfig.goods_delivery_info : row.delivery_info,
+    refundInfo: vendorConfig ? vendorConfig.goods_refund_info : row.refund_info,
+    exchangeInfo: vendorConfig ? vendorConfig.goods_exchange_info : row.exchange_info,
     vendor: row.vendor,
     vendorName,
     vendorGoods,
-    asInfo: row.as_info,
+    asInfo: vendorConfig ? vendorConfig.goods_as_info : row.as_info,
   };
 }
 
