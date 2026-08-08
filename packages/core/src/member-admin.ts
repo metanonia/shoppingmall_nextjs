@@ -2,6 +2,10 @@ import { prisma } from "@shoppingmall/db";
 import { issueCoupon } from "./coupon";
 import { type MileageValidityConfig, getMileageBalance, saveMileage, useMileage } from "./mileage";
 
+function now(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
 export type AdminMemberListItem = {
   id: string;
   name: string;
@@ -325,4 +329,153 @@ export async function getMemberSleepList(filters: { keyword?: string }, page = 1
     page: safePage,
     totalPages,
   };
+}
+
+export type MemberLevelListItem = {
+  uid: number;
+  level: number;
+  name: string;
+  discount: number;
+  mileage: number;
+  deliveryFree: boolean;
+  price: number;
+  couponUid: number;
+  memberCount: number;
+};
+
+// Port of managers/config/member_level_info.php's list — this repo doesn't
+// reserve level 90-99 for a separate "auto-tier" concept the way legacy did
+// (no member level here reaches that high without an admin explicitly
+// setting it), so every level defined here participates in both manual
+// assignment (member-admin.ts's changeMemberLevel) and the auto-evaluation
+// batch below.
+// level 99+ is the admin range (see createMemberLevel's comment) — excluded
+// here since this is a member-grade settings screen, not admin management.
+export async function getMemberLevelList(): Promise<MemberLevelListItem[]> {
+  const rows = await prisma.memberLevel.findMany({ where: { level: { lt: 99 } }, orderBy: { level: "asc" } });
+  const counts = await prisma.member.groupBy({ by: ["level"], _count: { level: true } });
+  const countByLevel = new Map(counts.map((c) => [c.level, c._count.level]));
+
+  return rows.map((r) => ({
+    uid: r.uid,
+    level: r.level,
+    name: r.name,
+    discount: r.discount,
+    mileage: r.mileage,
+    deliveryFree: r.delivery_free === 1,
+    price: r.price,
+    couponUid: r.coupon_uid,
+    memberCount: countByLevel.get(r.level) ?? 0,
+  }));
+}
+
+export type MemberLevelInput = { name: string; discount: number; mileage: number; deliveryFree: boolean; price: number; couponUid: number };
+export type MemberLevelResult = { ok: true } | { ok: false; error: string };
+
+export async function createMemberLevel(input: MemberLevelInput): Promise<MemberLevelResult> {
+  if (!input.name.trim()) return { ok: false, error: "등급명을 입력해 주세요." };
+  // level 100 is the admin threshold (ADMIN_LEVEL_THRESHOLD in
+  // apps/backoffice's login action) — new member-facing levels must stay
+  // below it.
+  const top = await prisma.memberLevel.findFirst({ where: { level: { lt: 99 } }, orderBy: { level: "desc" } });
+  const level = (top?.level ?? 0) + 1;
+
+  await prisma.memberLevel.create({
+    data: {
+      level,
+      name: input.name,
+      discount: input.discount,
+      mileage: input.mileage,
+      delivery_free: input.deliveryFree ? 1 : 0,
+      price: input.price,
+      coupon_uid: input.couponUid,
+      signdate: now(),
+    },
+  });
+  return { ok: true };
+}
+
+export async function updateMemberLevel(uid: number, input: MemberLevelInput): Promise<MemberLevelResult> {
+  if (!input.name.trim()) return { ok: false, error: "등급명을 입력해 주세요." };
+  const row = await prisma.memberLevel.findFirst({ where: { uid } });
+  if (!row || row.level >= 99) return { ok: false, error: "존재하지 않는 등급입니다." };
+  await prisma.memberLevel.update({
+    where: { uid },
+    data: {
+      name: input.name,
+      discount: input.discount,
+      mileage: input.mileage,
+      delivery_free: input.deliveryFree ? 1 : 0,
+      price: input.price,
+      coupon_uid: input.couponUid,
+    },
+  });
+  return { ok: true };
+}
+
+// level 1 is this repo's base/default tier (changeMemberLevel and
+// registerMember both default new/reassigned members there) — deleting it
+// would leave those code paths pointing at nothing, so it's blocked the same
+// way legacy blocks its two reserved base levels.
+export async function deleteMemberLevel(uid: number): Promise<MemberLevelResult> {
+  const row = await prisma.memberLevel.findFirst({ where: { uid } });
+  if (!row || row.level >= 99) return { ok: false, error: "존재하지 않는 등급입니다." };
+  if (row.level === 1) return { ok: false, error: "기본 등급은 삭제할 수 없습니다." };
+
+  const memberCount = await prisma.member.count({ where: { level: row.level } });
+  if (memberCount > 0) return { ok: false, error: `이 등급의 회원이 ${memberCount}명 있어 삭제할 수 없습니다.` };
+
+  await prisma.memberLevel.delete({ where: { uid } });
+  return { ok: true };
+}
+
+export type RecalculateMemberLevelsResult = { ok: true; evaluatedCount: number; changedCount: number; couponsIssued: number };
+
+// Port of managers/member/member_level.php + member_level_post.php's
+// cumulative-purchase auto-grading batch. Legacy sums mallRN_order_sales
+// per member with a type/status/confirmation filter this repo's redesigned
+// OrderSales (Phase 8) no longer carries — see admin-stats.ts's header
+// comment for the same schema gap. This instead sums OrderInfo.pay_total
+// per buyer id (same "real, non-cancelled order" predicate getSalesStats
+// already uses), which is the more direct source for "how much has this
+// member actually paid" anyway.
+export async function recalculateMemberLevels(dateFrom: string, dateTo: string): Promise<RecalculateMemberLevelsResult> {
+  const fromUnix = Math.floor(new Date(`${dateFrom}T00:00:00`).getTime() / 1000);
+  const toUnix = Math.floor(new Date(`${dateTo}T23:59:59`).getTime() / 1000);
+
+  const [orders, levels, members] = await Promise.all([
+    prisma.orderInfo.findMany({ where: { reals: 1, signdate: { gte: fromUnix, lte: toUnix } }, select: { id: true, pay_total: true } }),
+    prisma.memberLevel.findMany({ where: { level: { gt: 0 } }, orderBy: { price: "desc" } }),
+    prisma.member.findMany({ where: { level: { lt: 99 } }, select: { id: true, level: true } }),
+  ]);
+  if (levels.length === 0) return { ok: true, evaluatedCount: 0, changedCount: 0, couponsIssued: 0 };
+
+  const baseLevel = levels.reduce((min, l) => (l.level < min.level ? l : min), levels[0]);
+  const spendById = new Map<string, number>();
+  for (const order of orders) {
+    if (!order.id) continue;
+    spendById.set(order.id, (spendById.get(order.id) ?? 0) + order.pay_total);
+  }
+
+  let changedCount = 0;
+  let couponsIssued = 0;
+  for (const member of members) {
+    const spend = spendById.get(member.id) ?? 0;
+    const matched = levels.find((l) => l.price <= spend) ?? baseLevel;
+    if (matched.level === member.level) continue;
+
+    await prisma.member.update({ where: { id: member.id }, data: { level: matched.level } });
+    changedCount++;
+    if (matched.coupon_uid) {
+      const result = await issueCoupon(member.id, matched.coupon_uid);
+      if (result.ok) couponsIssued++;
+    }
+  }
+
+  await prisma.configuration.update({
+    where: { uid: 2 },
+    data: { member_level_time: now(), member_level_date: `${dateFrom} ~ ${dateTo}` },
+  });
+
+  return { ok: true, evaluatedCount: members.length, changedCount, couponsIssued };
 }
