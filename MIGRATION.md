@@ -85,9 +85,12 @@ cd ../backoffice && pnpm dev                # http://localhost:3001 (관리자, 
 완료이지 레거시 전체 기능과의 1:1 패리티를 의미하지 않습니다. **완결성
 재검토(2026-08-08) 결과 각 Phase 진행 중 스코프 논의에서 아예 다뤄지지 않아
 "미뤄둔 것"에 문서화되지 못한 레거시 기능이 다수 발견됐습니다** — 버그가
-아니라 "존재 자체를 몰랐던 누락"입니다. 상세는 아래 "## 마이그레이션
-완결성 감사" 섹션 참고. 이 저장소를 넘겨받는 작업자는 "9단계 완료"라는
-문구만 보고 레거시 기능이 전부 있다고 가정하지 마세요.
+아니라 "존재 자체를 몰랐던 누락"입니다. 사용자 지시로 발견된 항목 전부를
+우선순위 순 그룹(A~I)으로 나눠 구현 중이며, **그룹 A~F(F5까지) 완료** —
+상세는 아래 "## 마이그레이션 완결성 감사" 섹션과 [[migration_completeness_audit]]
+메모리 참고. 이 저장소를 넘겨받는 작업자는 "9단계 완료"라는 문구만 보고
+레거시 기능이 전부 있다고 가정하지 말고, 완결성 감사 섹션에서 아직 취소선이
+안 그어진(미착수) 항목부터 이어서 진행하세요.
 
 커밋 로그가 각 Phase의 실제 작업 내역이니 `git log`로 확인하세요.
 
@@ -478,28 +481,34 @@ Phase 9까지 끝낸 뒤 "레거시 기준으로 정말 빠진 게 없는지"를
 것"에 기록됐는데, 이 재검토에서 **애초에 논의 테이블에 올라온 적도 없어서
 스코프컷인지 단순 누락인지조차 구분 안 됐던 레거시 기능들**이 대량으로
 발견됐습니다. 아래는 그 목록 — 버그가 아니라 "존재를 몰랐던 gap"이므로
-기존 "미뤄둔 것" 섹션과 층위가 다릅니다. 처리 여부/우선순위는 아직 미결정
-(다음 세션에서 사용자와 재확인 필요).
+기존 "미뤄둔 것" 섹션과 층위가 다릅니다.
+
+**처리 방침(2026-08-08 확정)**: 사용자가 "공식적으로 이행 안 해도 된다고 한
+것은 없다, 발견된 것 전부 이행해야 한다"고 명시적으로 지시함 — 아래 목록은
+전부 구현 대상이며, 우선순위 높은 순으로(스토어프론트/입점사 필수 기능 →
+관리자 핵심 운영 → 로그/감사 스키마 → 상품 진열/일괄관리 → 통계 → 환경설정 →
+인프라/SEO) 그룹 A~I로 나눠 순차 진행 중. 완료된 항목은 `~~취소선~~` +
+"✅ 그룹X"로 표시. 상세 계획은 세션 로컬 플랜 파일(`smooth-finding-ullman`)
+참고, 다음 세션은 [[migration_completeness_audit]] 메모리로 진행 상황 파악.
 
 ### 스토어프론트(고객 화면) — 사용자 임팩트 큼
 
-- **아이디/비밀번호 찾기 전체 부재**: `php/id_search_post.php`,
-  `php/passwd_search*.php` 대응 없음. `LoginForm.tsx`에 링크조차 없음.
-  `/member_passwd`는 로그인 상태에서의 비번 변경이라 대체가 안 됨 — 비번을
-  잊은 회원은 복구 경로가 없음.
-- **`/cs_center` 죽은 링크**: `Footer.tsx`가 두 곳에서 링크하지만 라우트
-  자체가 없어 404. 레거시 `php/cs_center.php`(CS 운영시간+FAQ+최신공지 허브)/
-  `php/cs_board.php`(게시판 통합 진입 래퍼) 미이식.
-- **마이페이지 하위 3개 조회 화면 부재**: 쿠폰함(`my_coupon.php`), 마일리지
-  내역(`my_mileage.php`, 적립/사용/소멸예정 탭), 내가 쓴 1:1문의
-  (`my_counsel.php`). 로직(`coupon.ts`/`mileage.ts`)은 있는데 화면이 없음 —
-  `mypage/page.tsx`가 요약 숫자만 보여주고 상세 조회로 이어지는 링크가 없음.
-- **우편번호/주소 검색 미구현**: 회원가입/주문서/벤더가입 전부 postcode가
-  자유 텍스트 입력(`zip_search_json.php` 대응 없음).
+- ~~**아이디/비밀번호 찾기 전체 부재**~~ ✅ 그룹A: `findMemberId`/
+  `requestPasswordResetCode`/`verifyPasswordResetCode`/`resetPasswordWithCode`
+  (member.ts, 기존 `auth_code`/`auth_code_time` 컬럼 재사용) + `/id_search`,
+  `/passwd_search` 라우트, `LoginForm.tsx` 링크 추가.
+- ~~**`/cs_center` 죽은 링크**~~ ✅ 그룹A: 기존 함수만 조합(`getShopConfig`+
+  `getPostList("notice")`+FAQ 카테고리)해 신규 core 로직 없이 구현.
+- ~~**마이페이지 하위 3개 조회 화면 부재**~~ ✅ 그룹C: `/my_coupon`,
+  `/my_mileage`, `/my_counsel` 추가, `mypage/page.tsx`에 링크 연결.
+- ~~**우편번호/주소 검색 미구현**~~ ✅ 그룹A: 다음 우편번호 무료 위젯
+  (`PostcodeSearchButton.tsx`, `next/script` lazyOnload) 스토어프론트+
+  백오피스 양쪽에 추가.
 - 네이버페이 상품 피드(`naverGoodsXml.php` 등 4개 엔드포인트) — UI 버튼만
-  스코프아웃으로 문서화됐었는데 서버측 피드 자체도 없음.
-- (확인 필요) 엑셀 대량 장바구니 담기(`goods_excel_cart_json.php`), 가입완료
-  전용 페이지(`regist_ok.php` — 지금은 그냥 홈으로 리다이렉트).
+  스코프아웃으로 문서화됐었는데 서버측 피드 자체도 없음. (미착수, 그룹I)
+- ~~가입완료 전용 페이지(`regist_ok.php`)~~ ✅ 그룹A: `/regist/complete`
+  신설, `app/regist/actions.ts`의 리다이렉트 대상 변경. 엑셀 대량 장바구니
+  담기(`goods_excel_cart_json.php`)는 여전히 미착수(확인 필요).
 
 ### 관리자 백엔드 — 운영 임팩트 큼
 
@@ -508,49 +517,63 @@ Phase 9까지 끝낸 뒤 "레거시 기준으로 정말 빠진 게 없는지"를
   상품랭킹(`goods_statistics_type.php`), 마일리지통계는 전부 없음. 방문자/
   키워드 통계와 달리 이것들은 **추적 인프라 없이 기존 주문/회원 테이블만으로
   계산 가능**해서 "인프라 없어서 스코프아웃"과는 다른 이유의 누락.
-- **쿠폰 관리 CRUD 전체 부재**: `member-admin.ts`는 기존 쿠폰 조회+회원
-  대상 발급만 하고, **쿠폰 자체(할인율/한도/기간 등)를 만들거나 수정하는
-  화면이 없음**(`coupon_post.php` 대응 없음).
-- 마일리지 내역/삭제로그 조회 화면(`mileage_list.php`,
-  `mileage_log_list.php`) 부재 — 조정(`adjustMileage`)만 있고 이력 조회가 안 됨.
-- **관리자/입점사 접속(행위)로그 부재**(`admin_log_list.php`,
-  `vendor_log_list.php`) — 개인정보보호법상 요구되는 성격의 화면.
-- SMS 발송이력 조회(`sms_list.php`), 자동메일 템플릿 관리(`mail_*.php` 3종 —
-  현재는 TS 하드코딩이라 관리자가 문구를 못 바꿈) 부재.
+  (미착수, 그룹G)
+- ~~**쿠폰 관리 CRUD 전체 부재**~~ ✅ 그룹D: `createCouponManager`/
+  `updateCouponManager`/`getCouponManagerList`(`useType` — 고정일자/상대일수
+  만료 분기 유지) 추가, `/coupons` CRUD 화면 신설.
+- ~~마일리지 내역/삭제로그 조회 화면~~ ✅ 그룹D+E: `/mileage-log` 조회 화면
+  + 소프트삭제(`deleted`/`deleted_proc_id`/`deleted_proc_ip`/`deleted_date`
+  컬럼, 레거시의 별도 스냅샷 테이블 대신 원본 행 플래그 방식으로 단순화)/
+  복구 버튼.
+- ~~**관리자/입점사 접속(행위)로그 부재**~~ ✅ 그룹E: `AccessLog`(관리자+
+  입점사 로그 통합, `actorType` 판별 컬럼 — 레거시 두 테이블이 컬럼 100%
+  동일해서 병합) 신설, `/access-log` 조회 화면, 로그인/로그아웃 지점에 기록.
+- ~~SMS 발송이력 조회~~ ✅ 그룹D: `/sms-log` 조회 화면(`SmsLog`는 Phase 5부터
+  존재). 자동메일 템플릿 관리(`mail_*.php` 3종)는 여전히 미착수(그룹I).
 - 환경설정 4종 부재: 회원정책(`member_info.php`), 회원등급설정
   (`member_level_info.php`), 상품환경설정(`goods_info.php`), 기타정책
-  (`etcs_info.php`).
+  (`etcs_info.php`). (미착수, 그룹H)
 - 회원등급 **자동평가/일괄산정**(`member_level.php`) 부재 — 지금은 수동
-  선택변경만 가능.
-- **휴면회원 관리자 조회/해제 화면 부재**(`member_sleep_list.php`) — Phase
-  9는 cron 전환 로직만 구현, 관리자가 휴면 목록을 볼 화면이 없음.
-- 상품 진열관리(`goods_display.php`), 가격/재고 일괄수정
-  (`goods_modify_list.php`), 엑셀 일괄등록(`goods_adds.php`) 부재.
-- 주문 목록에 **진행단계별 필터**(배송준비중/배송중/교환/반품) 없음 —
-  결제상태/결제수단/기간/키워드만 필터 가능.
-- 회원 엑셀 일괄등록(`member_adds.php`), DB 에러로그 조회
-  (`db_error_log.php`), 배송추적 API 호출 로그 조회
-  (`delivery_api_log_list.php` — 아래 테이블 항목과 연결) 부재.
+  선택변경만 가능. (미착수, 그룹H)
+- ~~**휴면회원 관리자 조회 화면 부재**~~ ✅ 그룹D: `/member-sleep` 조회 화면
+  신설. 재활성화(해제) 버튼은 레거시의 완전히 다른 인증 플로우라 계속 스코프컷
+  유지([[migration_deferred_items]] 참고).
+- ~~상품 진열관리/가격·재고 일괄수정~~ ✅ 그룹F(F1-F3, F5): `/goods/display`
+  (main1/main2/store 3슬롯 — store는 처음엔 스코프컷했다가 사용자 질문으로
+  재검토 후 구현, [[migration_deferred_items]] 참고), `/goods/bulk-edit` +
+  벤더용 `/vendor/goods/display`, `/vendor/goods/bulk-edit`. 엑셀 일괄등록
+  (`goods_adds.php`)은 여전히 미착수(그룹F4).
+- ~~주문 목록에 **진행단계별 필터**~~ ✅ 그룹D: `status` 필터 추가
+  (`order-admin.ts`의 `AdminOrderListFilters`).
+- ~~DB 에러로그 조회, 배송추적 API 호출 로그 조회~~ ✅ 그룹E: `DbErrorLog`
+  (cron 두 라우트의 catch 블록에서 best-effort 기록), `DeliveryApiLog`
+  (`pollDeliveryTracking`이 매 폴링마다 기록) + 각각 조회 화면. 회원 엑셀
+  일괄등록(`member_adds.php`)은 여전히 미착수(그룹H).
 
 ### 입점사 백엔드 — 운영 임팩트 큼
 
-- **업체정보관리 화면 부재(`vendor_info.php`) — 가장 심각**: 입점사가 자기
-  회사정보/사업자번호/**정산 입금계좌(은행명·계좌번호·예금주)**를 직접
-  조회·수정할 방법이 없음. `/vendor/settlement`는 확정된 정산 이력의 계좌만
-  보여줄 뿐, 계좌 자체를 등록/변경하는 화면이 아님.
-- 벤더 비밀번호 변경 기능 부재(`vendor_passwd.php`) — Member엔 있는데 Vendor엔 없음.
+- ~~**업체정보관리 화면 부재(`vendor_info.php`) — 가장 심각**~~ ✅ 그룹B:
+  `getVendorInfo`/`updateVendorInfo`(정산 입금계좌 포함) + `/vendor/profile`
+  화면. 사업자등록증/통장사본 이미지는 레거시와 달리 공개 경로가 아닌 비공개
+  디렉토리+세션게이팅 라우트로 서빙(레거시의 PII 노출 결함 개선).
+- ~~벤더 비밀번호 변경 기능 부재~~ ✅ 그룹B: `changeVendorPassword` +
+  `/vendor/profile`의 비밀번호 변경 폼.
 - 옵션/브랜드/제조사/원산지 **마스터 값 관리**(`goods_info.php`의
   `goods_option_info`/`goods_brand_info`/`goods_make_info`/`goods_origin_info`)
-  부재 — `GoodsForm.tsx`에서 brand/origin이 자유 텍스트.
-- 상품 진열관리/일괄수정/엑셀등록(admin과 동일 패턴, `goods_display.php`/
-  `goods_modify_list.php`/`goods_adds.php`), 상품랭킹 통계 부재.
+  부재 — `GoodsForm.tsx`에서 brand/origin이 자유 텍스트. (미착수, 그룹H)
+- ~~상품 진열관리/일괄수정~~ ✅ 그룹F: `/vendor/goods/display`(main1/main2와
+  동일한 슬롯 시스템에 `store` 슬롯 추가, 벤더 소유권 검증 포함),
+  `/vendor/goods/bulk-edit`(F5). **`store_display`(스토어 페이지 인기/추천/
+  신상품 하이라이트)는 처음엔 "VendorConfiguration 테이블 없음"을 근거로
+  스코프컷했다가, 사용자가 직접 "왜 스코프아웃됐나" 질문 → 그 근거가 Phase 8
+  이후 스테일해진 것으로 확인 → 사용자 지시로 즉시 구현**: `store.ts`의
+  `getStoreSections()` + `/vendor/store`에 진열 타입 select 3개
+  ([[migration_deferred_items]] 참고). 엑셀등록/상품랭킹통계는 여전히
+  미착수(그룹F4/G).
 - **매출통계/매출상세**(`sales_statistics.php`/`sales_detail.php` — 결제완료
   기준, 정산과 별개), **정산통계/정산상세**(`calculate_statistics.php`/
   `calculate_detail.php`) 부재 — `/vendor/settlement`는 정산내역 목록
-  (`calculate_list.php`) 하나에만 대응.
-- (확인 필요·문서 stale) MIGRATION.md 575행 "벤더별 배송정책 차등 없음"의
-  근거가 "`mallRN_vendor_configuration` 테이블이 없어서"였는데, Phase 8에서
-  그 테이블을 실제로 추가했으므로 이 서술은 낡았을 수 있음 — 재확인 필요.
+  (`calculate_list.php`) 하나에만 대응. (미착수, 그룹G)
 
 ### 인프라/SEO/데이터 모델
 
@@ -560,15 +583,15 @@ Phase 9까지 끝낸 뒤 "레거시 기준으로 정말 빠진 게 없는지"를
   피드 생성기(`plugin/engine/naver.php`/`daum.php`) 자체도 미이식.
 - `sitemap.ts`/`robots.ts` 부재 — 레거시 `sitemap.php` 대응 없음(직접 확인
   완료, `find`로 파일 존재 안 함 확인).
-- **`mallRN_delivery_api_log` 테이블이 스키마에 없음**(직접 확인 완료) —
-  Phase 9의 `delivery-tracker.ts`가 스윗트래커 API를 호출은 하지만 호출
-  이력을 남기지 않음. 배치가 실제로 도는지/실패하는지 관측할 방법이 없다는
-  뜻이라 Phase 9 자체의 관측성 공백이기도 함.
-- 감사로그 테이블 5종 미이식: `mallRN_admin_log`(관리자 행위감사 — 로그인/
-  회원정보조회/변경/엑셀다운/주문조회/엑셀다운 등 type 0~7),
-  `mallRN_vendor_log`(입점사판), `mallRN_mileage_log`(마일리지 조정 이력 —
-  Phase 7에서 조정 기능은 구현했는데 이력 테이블이 없어 감사추적 불가),
-  `mallRN_order_cancel_cp_log`(취소 시 쿠폰복원 로그), `mallRN_db_error_log`.
+- ~~**`mallRN_delivery_api_log` 테이블이 스키마에 없음**~~ ✅ 그룹E:
+  `DeliveryApiLog` 추가, `pollDeliveryTracking`이 매 폴링마다 기록 + 조회 화면.
+- ~~감사로그 테이블 5종 미이식~~ ✅ 그룹E(`packages/db/sql/015_completeness_logs.sql`):
+  `mallRN_admin_log`+`mallRN_vendor_log` → `AccessLog` 하나로 통합(컬럼 100%
+  동일해서 병합, `actorType` 판별 컬럼), `mallRN_mileage_log` → 별도 테이블
+  대신 `Mileage`에 소프트삭제 컬럼 추가하는 방식으로 단순화,
+  `mallRN_order_cancel_cp_log` → `OrderCancelCpLog`(레거시 DDL 그대로),
+  `mallRN_db_error_log` → `DbErrorLog`(id 액터 컬럼 등 일부 단순화). 5종 전부
+  대응하는 관리자 조회 화면 포함.
 - `mallRN_admin_configuration`(관리자별 대시보드 위젯 배치 저장소 —
   FCM 토큰 부분은 스코프아웃 문서화됨), `mallRN_list_show_config`(관리자
   목록 화면 노출 컬럼 커스터마이징) 미이식.
