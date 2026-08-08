@@ -86,8 +86,8 @@ cd ../backoffice && pnpm dev                # http://localhost:3001 (관리자, 
 재검토(2026-08-08) 결과 각 Phase 진행 중 스코프 논의에서 아예 다뤄지지 않아
 "미뤄둔 것"에 문서화되지 못한 레거시 기능이 다수 발견됐습니다** — 버그가
 아니라 "존재 자체를 몰랐던 누락"입니다. 사용자 지시로 발견된 항목 전부를
-우선순위 순 그룹(A~I)으로 나눠 구현 중이며, **그룹 A~F 전체(F1~F5) 완료,
-G/H/I 남음** — 상세는 아래 "## 마이그레이션 완결성 감사" 섹션과
+우선순위 순 그룹(A~I)으로 나눠 구현 중이며, **그룹 A~G 전체 완료, H/I 남음**
+— 상세는 아래 "## 마이그레이션 완결성 감사" 섹션과
 [[migration_completeness_audit]] 메모리 참고. 이 저장소를 넘겨받는 작업자는
 "9단계 완료"라는 문구만 보고 레거시 기능이 전부 있다고 가정하지 말고,
 완결성 감사 섹션에서 아직 취소선이 안 그어진(미착수) 항목부터 이어서
@@ -513,12 +513,15 @@ Phase 9까지 끝낸 뒤 "레거시 기준으로 정말 빠진 게 없는지"를
 
 ### 관리자 백엔드 — 운영 임팩트 큼
 
-- **통계 화면 대부분 부재**: 매출통계 1개(`getSalesStats`)만 있고, 마진통계
-  (`margin_statistics*.php` 3종), 회원통계(`member_statistics*.php`),
-  상품랭킹(`goods_statistics_type.php`), 마일리지통계는 전부 없음. 방문자/
-  키워드 통계와 달리 이것들은 **추적 인프라 없이 기존 주문/회원 테이블만으로
-  계산 가능**해서 "인프라 없어서 스코프아웃"과는 다른 이유의 누락.
-  (미착수, 그룹G)
+- ~~**통계 화면 대부분 부재**~~ ✅ 그룹G: 마진통계(`/stats/margin`),
+  회원통계(`/stats/members`), 상품랭킹(`/stats/goods-ranking` —
+  판매금액/판매수량/관심상품저장수), 마일리지통계(`/stats/mileage`) 추가.
+  레거시 대비 스코프 축소 3가지(admin-stats.ts에 문서화): PC/모바일 분리와
+  매출유형별(상품/배송비/마일리지/쿠폰/할인/CP수수료) 세분화 없음(Phase 8이
+  이미 `OrderSales`를 그 컬럼들 없이 재설계함), 상품랭킹의 "클릭수" 열 없음
+  (이 마이그레이션 전체에 클릭/조회 로그 인프라가 아예 없음), 회원통계의
+  "탈퇴" 시계열 없음(`withdrawMember()`가 감사테이블 없이 하드삭제 —
+  완결성 감사에서 이미 검토·인정된 결정).
 - ~~**쿠폰 관리 CRUD 전체 부재**~~ ✅ 그룹D: `createCouponManager`/
   `updateCouponManager`/`getCouponManagerList`(`useType` — 고정일자/상대일수
   만료 분기 유지) 추가, `/coupons` CRUD 화면 신설.
@@ -574,11 +577,14 @@ Phase 9까지 끝낸 뒤 "레거시 기준으로 정말 빠진 게 없는지"를
   "왜 스코프아웃됐나" 질문 → 그 근거가 Phase 8 이후 스테일해진 것으로 확인 →
   사용자 지시로 즉시 구현**: `store.ts`의 `getStoreSections()` + `/vendor/store`에
   진열 타입 select 3개([[migration_deferred_items]] 참고). 상품랭킹통계는
-  여전히 미착수(그룹G).
-- **매출통계/매출상세**(`sales_statistics.php`/`sales_detail.php` — 결제완료
-  기준, 정산과 별개), **정산통계/정산상세**(`calculate_statistics.php`/
-  `calculate_detail.php`) 부재 — `/vendor/settlement`는 정산내역 목록
-  (`calculate_list.php`) 하나에만 대응. (미착수, 그룹G)
+  admin `/stats/goods-ranking`으로 처리 완료(그룹G, 벤더별 필터는 없음 —
+  admin 전용 화면 하나로 충분하다고 판단).
+- ~~**매출통계/매출상세**, **정산통계/정산상세**~~ ✅ 그룹G:
+  `/vendor/stats/sales`+`/sales-detail`(signdate 기준, 확정여부 무관 —
+  `sales_statistics.php`/`sales_detail.php` 대응), `/vendor/stats/settlement`+
+  `/settlement-detail`(confirm_date 기준, confirmed=1만 — `calculate_statistics.php`/
+  `calculate_detail.php` 대응). `/vendor/settlement`(정산내역 목록,
+  `calculate_list.php` 대응)는 Phase 8부터 별도로 존재.
 
 ### 인프라/SEO/데이터 모델
 
