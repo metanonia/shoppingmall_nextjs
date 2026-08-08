@@ -1082,6 +1082,26 @@ model OrderCancelCpLog {
   @@map("mallRN_order_cancel_cp_log")
 }
 
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model AdminConfiguration {
+  uid         Int    @id @default(autoincrement()) @db.UnsignedInt
+  id          String @unique(map: "id") @default("") @db.VarChar(50)
+  widget_info String @default("") @db.Text
+
+  @@map("mallRN_admin_configuration")
+}
+
+model AutoMail {
+  uid      Int    @id @default(autoincrement()) @db.UnsignedInt
+  type     String @unique(map: "type") @default("") @db.VarChar(50)
+  used     Int    @default(0) @db.UnsignedTinyInt
+  subject  String @default("") @db.VarChar(150)
+  content  String @default("") @db.Text
+  signdate Int    @default(0) @db.UnsignedInt
+
+  @@map("mallRN_auto_mail")
+}
+
 enum mallRN_exhibition_discount_yn {
   N
   Y
