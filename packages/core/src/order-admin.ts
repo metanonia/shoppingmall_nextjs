@@ -248,3 +248,64 @@ export async function getSalesStats(dateFrom: string, dateTo: string): Promise<S
     totalSalesTotal: orders.reduce((sum, o) => sum + o.pay_total, 0),
   };
 }
+
+export type OrderCancelCpLogItem = {
+  uid: number;
+  orderNum: string;
+  ogUid: number;
+  price: number;
+  remPrice: number;
+  payType: string;
+  status: number;
+  message: string;
+  proc: boolean;
+  signdate: number;
+};
+
+export type OrderCancelCpLogResult = { items: OrderCancelCpLogItem[]; total: number; page: number; totalPages: number };
+
+const CANCEL_CP_LOG_PAGE_SIZE = 30;
+
+// Port of managers/order/order_cancel_cp_log_list.php — order.ts's
+// orderStatus95 writes this every time a PG cancel is attempted.
+export async function getOrderCancelCpLogList(filters: { keyword?: string; status?: number }, page = 1): Promise<OrderCancelCpLogResult> {
+  const where = {
+    ...(filters.status !== undefined ? { status: filters.status } : {}),
+    ...(filters.keyword ? { order_num: { contains: filters.keyword } } : {}),
+  };
+
+  const total = await prisma.orderCancelCpLog.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / CANCEL_CP_LOG_PAGE_SIZE));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+
+  const rows = await prisma.orderCancelCpLog.findMany({
+    where,
+    orderBy: { uid: "desc" },
+    skip: (safePage - 1) * CANCEL_CP_LOG_PAGE_SIZE,
+    take: CANCEL_CP_LOG_PAGE_SIZE,
+  });
+
+  return {
+    items: rows.map((r) => ({
+      uid: r.uid,
+      orderNum: r.order_num,
+      ogUid: r.og_uid,
+      price: r.price,
+      remPrice: r.rem_price,
+      payType: r.pay_type,
+      status: r.status,
+      message: r.message,
+      proc: r.proc === 1,
+      signdate: r.signdate,
+    })),
+    total,
+    page: safePage,
+    totalPages,
+  };
+}
+
+export async function markOrderCancelCpLogProcessed(uid: number): Promise<{ ok: true } | { ok: false; error: string }> {
+  const updated = await prisma.orderCancelCpLog.updateMany({ where: { uid }, data: { proc: 1 } });
+  if (updated.count === 0) return { ok: false, error: "존재하지 않는 로그입니다." };
+  return { ok: true };
+}

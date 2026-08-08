@@ -2,7 +2,13 @@ import { logoutAction } from "@/app/logout/actions";
 
 const NAV_SECTIONS: { title: string; items: { href: string; label: string }[] }[] = [
   { title: "대시보드", items: [{ href: "/", label: "홈" }] },
-  { title: "주문", items: [{ href: "/orders", label: "주문관리" }] },
+  {
+    title: "주문",
+    items: [
+      { href: "/orders", label: "주문관리" },
+      { href: "/order-cancel-log", label: "PG 취소 로그" },
+    ],
+  },
   {
     title: "상품",
     items: [

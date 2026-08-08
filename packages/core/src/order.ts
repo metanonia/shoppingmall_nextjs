@@ -727,6 +727,23 @@ export async function orderStatus95(orderNum: string, actorId: string): Promise<
       where: { order_num: orderNum },
       data: { pay_info: `${order.pay_info} | 취소결과: ${cancelResult.ok ? "SUCCESS" : cancelResult.reason}` },
     });
+    // Port of plugin/{aronhub,nicepay,inicis}/cancelResult.php's audit
+    // insert — og_uid=0 represents "whole order" since this one PG call
+    // covers every line, unlike partialRefundOrder which never touches the
+    // PG at all (see that function's own comment).
+    await prisma.orderCancelCpLog.create({
+      data: {
+        order_num: orderNum,
+        og_uid: 0,
+        price: order.pay_total,
+        rem_price: cancelResult.ok ? 0 : order.pay_total,
+        pay_type: order.pay_type as "B" | "C" | "R" | "V" | "H" | "M",
+        pay_number: order.pay_number,
+        status: cancelResult.ok ? 0 : 1,
+        message: cancelResult.ok ? "SUCCESS" : cancelResult.reason,
+        signdate: now(),
+      },
+    });
     if (!cancelResult.ok) return { ok: false, error: "결제 취소에 실패했습니다. 잠시 후 다시 시도해주세요." };
   }
 
