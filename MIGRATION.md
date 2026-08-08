@@ -86,8 +86,8 @@ cd ../backoffice && pnpm dev                # http://localhost:3001 (관리자, 
 재검토(2026-08-08) 결과 각 Phase 진행 중 스코프 논의에서 아예 다뤄지지 않아
 "미뤄둔 것"에 문서화되지 못한 레거시 기능이 다수 발견됐습니다** — 버그가
 아니라 "존재 자체를 몰랐던 누락"입니다. 사용자 지시로 발견된 항목 전부를
-우선순위 순 그룹(A~I)으로 나눠 구현 중이며, **그룹 A~G 전체 완료, H/I 남음**
-— 상세는 아래 "## 마이그레이션 완결성 감사" 섹션과
+우선순위 순 그룹(A~I)으로 나눠 구현 중이며, **그룹 A~H 완료(기타정책만
+의도적 스코프컷), I 남음** — 상세는 아래 "## 마이그레이션 완결성 감사" 섹션과
 [[migration_completeness_audit]] 메모리 참고. 이 저장소를 넘겨받는 작업자는
 "9단계 완료"라는 문구만 보고 레거시 기능이 전부 있다고 가정하지 말고,
 완결성 감사 섹션에서 아직 취소선이 안 그어진(미착수) 항목부터 이어서
@@ -534,11 +534,27 @@ Phase 9까지 끝낸 뒤 "레거시 기준으로 정말 빠진 게 없는지"를
   동일해서 병합) 신설, `/access-log` 조회 화면, 로그인/로그아웃 지점에 기록.
 - ~~SMS 발송이력 조회~~ ✅ 그룹D: `/sms-log` 조회 화면(`SmsLog`는 Phase 5부터
   존재). 자동메일 템플릿 관리(`mail_*.php` 3종)는 여전히 미착수(그룹I).
-- 환경설정 4종 부재: 회원정책(`member_info.php`), 회원등급설정
-  (`member_level_info.php`), 상품환경설정(`goods_info.php`), 기타정책
-  (`etcs_info.php`). (미착수, 그룹H)
-- 회원등급 **자동평가/일괄산정**(`member_level.php`) 부재 — 지금은 수동
-  선택변경만 가능. (미착수, 그룹H)
+- ~~환경설정 4종 부재~~ 그룹H에서 3/4 처리, 1개는 의도적 스코프컷:
+  - ✅ 회원정책(`/settings/member`): 가입항목 필수여부/이메일·SMS수신동의/
+    자동승인/로그인제한 + **소셜로그인 admin/api_id/api_key 설정**(Phase 3
+    "구조만"이던 `ConfigurationSocial`을 완성 — 읽기는 이미 있었는데 쓰는 화면이
+    없어서 버튼이 계속 숨어있었음).
+  - ✅ 회원등급설정(`/settings/member-levels`): `MemberLevel`의 name/discount/
+    mileage/delivery_free/price(자동승급 기준금액)/coupon_uid(승급쿠폰) CRUD.
+  - ✅ 상품환경설정(`/settings/goods`): 가격제한 + 직영상품 공통 배송/환불/
+    교환/AS 안내문구(정보 없어 상품 자체 필드로 조용히 폴백되던 gap을 해소).
+  - ~~기타정책(`etcs_info.php`)~~ **의도적 스코프컷**: 필드 전부(주문취소/
+    안내메시지 목록, 자동배송완료/구매확정 일수, SMS 자격증명, 스마트 택배조회
+    키)를 확인한 결과 이 저장소에서 실제로 읽는 코드가 하나도 없음 — SMS는
+    `.env`(`sms.ts`), 배송조회는 `.env`(`SWEETTRACKER_API_KEY`,
+    `delivery-tracker.ts`)로 이미 자격증명을 받고, 자동완료 배치 자체가
+    미구현, 취소사유 드롭다운도 없음. 아무도 안 읽는 컬럼에 입력 화면만
+    만들면 관리자가 "이게 뭔가 동작한다"고 오인하게 되므로 미구현 유지.
+- ~~회원등급 **자동평가/일괄산정**~~ ✅ 그룹H: `recalculateMemberLevels()`
+  — 레거시는 `mallRN_order_sales`의 type/status/confirmation으로 집계하는데
+  Phase 8이 그 컬럼들 없이 재설계해서(그룹G 참고) 대신 `OrderInfo.pay_total`을
+  회원별로 합산. `MemberLevel.price`/`coupon_uid`는 계속 죽어있던 컬럼이었는데
+  이제 실제로 쓰임.
 - ~~**휴면회원 관리자 조회 화면 부재**~~ ✅ 그룹D: `/member-sleep` 조회 화면
   신설. 재활성화(해제) 버튼은 레거시의 완전히 다른 인증 플로우라 계속 스코프컷
   유지([[migration_deferred_items]] 참고).
@@ -553,8 +569,11 @@ Phase 9까지 끝낸 뒤 "레거시 기준으로 정말 빠진 게 없는지"를
   (`order-admin.ts`의 `AdminOrderListFilters`).
 - ~~DB 에러로그 조회, 배송추적 API 호출 로그 조회~~ ✅ 그룹E: `DbErrorLog`
   (cron 두 라우트의 catch 블록에서 best-effort 기록), `DeliveryApiLog`
-  (`pollDeliveryTracking`이 매 폴링마다 기록) + 각각 조회 화면. 회원 엑셀
-  일괄등록(`member_adds.php`)은 여전히 미착수(그룹H).
+  (`pollDeliveryTracking`이 매 폴링마다 기록) + 각각 조회 화면.
+- ~~회원 엑셀 일괄등록~~ ✅ 그룹H(H4): `/members/import`, F4(상품 엑셀
+  일괄등록)와 동일한 위치기반 컬럼/exceljs 방식. MD5 평문저장 체크박스(레거시)
+  대신 항상 argon2id 해시, job/hobby 마스터값 검증은 그 마스터리스트 자체가
+  이 저장소에 없어서 자유 텍스트로 통과.
 
 ### 입점사 백엔드 — 운영 임팩트 큼
 
@@ -564,9 +583,11 @@ Phase 9까지 끝낸 뒤 "레거시 기준으로 정말 빠진 게 없는지"를
   디렉토리+세션게이팅 라우트로 서빙(레거시의 PII 노출 결함 개선).
 - ~~벤더 비밀번호 변경 기능 부재~~ ✅ 그룹B: `changeVendorPassword` +
   `/vendor/profile`의 비밀번호 변경 폼.
-- 옵션/브랜드/제조사/원산지 **마스터 값 관리**(`goods_info.php`의
-  `goods_option_info`/`goods_brand_info`/`goods_make_info`/`goods_origin_info`)
-  부재 — `GoodsForm.tsx`에서 brand/origin이 자유 텍스트. (미착수, 그룹H)
+- ~~브랜드/제조사/원산지 **마스터 값 관리**~~ ✅ 그룹H(H5): `/vendor/store`에
+  줄바꿈 구분 텍스트영역 3개 추가, `GoodsForm`의 브랜드/제조사/원산지
+  입력창에 `<datalist>` 자동완성으로 연결(강제 선택 아님 — 자유 입력 그대로
+  가능). `goods_option_info`(옵션명 마스터값)는 제외 — 이 저장소의
+  `GoodsOptionBuilder`는 옵션명도 자유 텍스트라 연결할 곳이 없음.
 - ~~상품 진열관리/일괄수정/엑셀등록~~ ✅ 그룹F: `/vendor/goods/display`
   (main1/main2와 동일한 슬롯 시스템에 `store` 슬롯 추가, 벤더 소유권 검증 포함),
   `/vendor/goods/bulk-edit`(F5), `/vendor/goods/import`(F4 — 처음엔 "레거시도
