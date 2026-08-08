@@ -26,9 +26,14 @@ export default async function GoodsListPage({
           </label>
           <button type="submit">검색</button>
         </form>
-        <a href="/goods/new">
-          <button type="button">상품 등록</button>
-        </a>
+        <div style={{ display: "flex", gap: 8 }}>
+          <a href={`/goods/export?${new URLSearchParams({ ...(keyword ? { keyword } : {}), ...(pending ? { pending } : {}) }).toString()}`}>
+            <button type="button">엑셀 다운로드</button>
+          </a>
+          <a href="/goods/new">
+            <button type="button">상품 등록</button>
+          </a>
+        </div>
       </div>
 
       <table style={{ width: "100%" }}>

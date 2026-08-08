@@ -70,6 +70,16 @@ export default async function OrdersPage({
         <button type="submit">검색</button>
       </form>
 
+      <div style={{ marginBottom: 16 }}>
+        <a
+          href={`/orders/export?${new URLSearchParams(
+            Object.fromEntries(Object.entries(params).filter(([k, v]) => k !== "page" && v)) as Record<string, string>,
+          ).toString()}`}
+        >
+          <button type="button">엑셀 다운로드</button>
+        </a>
+      </div>
+
       {result.items.length === 0 ? (
         <div>주문이 없습니다.</div>
       ) : (

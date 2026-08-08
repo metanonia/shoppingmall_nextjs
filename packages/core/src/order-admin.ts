@@ -102,6 +102,63 @@ export async function getAdminOrderList(filters: AdminOrderListFilters, page = 1
   return { items, total, page: safePage, totalPages };
 }
 
+const ORDER_EXPORT_ROW_CAP = 5000;
+
+// Backs the admin order list's excel-download button — same
+// filters/columns as getAdminOrderList, without pagination.
+export async function getAdminOrderExportRows(filters: AdminOrderListFilters): Promise<AdminOrderListItem[]> {
+  const where: Prisma.OrderInfoWhereInput = { reals: 1 };
+  if (filters.keyword) {
+    where.OR = [
+      { order_num: { contains: filters.keyword } },
+      { id: { contains: filters.keyword } },
+      { name: { contains: filters.keyword } },
+      { cell: { contains: filters.keyword } },
+      { email: { contains: filters.keyword } },
+    ];
+  }
+  if (filters.payStatus) where.pay_status = filters.payStatus;
+  if (filters.payType) where.pay_type = filters.payType;
+  if (filters.dateFrom || filters.dateTo) {
+    where.signdate = {
+      ...(filters.dateFrom ? { gte: dateToUnix(filters.dateFrom) } : {}),
+      ...(filters.dateTo ? { lte: dateToUnix(filters.dateTo, true) } : {}),
+    };
+  }
+  if (filters.status !== undefined) {
+    const matchingOrderNums = await prisma.orderGoods.findMany({
+      where: { status: filters.status, reals: 1 },
+      select: { order_num: true },
+      distinct: ["order_num"],
+    });
+    where.order_num = { in: matchingOrderNums.map((r) => r.order_num) };
+  }
+
+  const orders = await prisma.orderInfo.findMany({ where, orderBy: { uid: "desc" }, take: ORDER_EXPORT_ROW_CAP });
+  const orderNums = orders.map((o) => o.order_num);
+  const goodsRows = orderNums.length ? await prisma.orderGoods.findMany({ where: { order_num: { in: orderNums } } }) : [];
+  const byOrderNum = new Map<string, typeof goodsRows>();
+  for (const g of goodsRows) {
+    const arr = byOrderNum.get(g.order_num) ?? [];
+    arr.push(g);
+    byOrderNum.set(g.order_num, arr);
+  }
+
+  return orders.map((o) => {
+    const lines = byOrderNum.get(o.order_num) ?? [];
+    return {
+      orderNum: o.order_num,
+      buyerId: o.id || "게스트",
+      name: o.name,
+      payType: o.pay_type,
+      payStatus: o.pay_status,
+      payTotal: o.pay_total,
+      signdate: o.signdate,
+      itemSummary: lines.length > 0 ? `${lines[0].g_name}${lines.length > 1 ? ` 외 ${lines.length - 1}건` : ""}` : "",
+    };
+  });
+}
+
 export type AdminOrderLineView = {
   ogUid: number;
   goodsUid: number;

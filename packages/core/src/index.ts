@@ -1,5 +1,6 @@
 export * from "./add-page";
 export * from "./admin-dashboard";
+export * from "./admin-excel-export";
 export * from "./admin-stats";
 export * from "./banners";
 export * from "./board";

@@ -10,10 +10,15 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
     <div>
       <h1 style={{ fontSize: 20, marginBottom: 20 }}>회원관리</h1>
 
-      <form method="get" style={{ marginBottom: 16 }}>
-        <input type="text" name="keyword" placeholder="아이디/이름/이메일/연락처" defaultValue={keyword} />
-        <button type="submit">검색</button>
-      </form>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+        <form method="get" style={{ display: "flex", gap: 8 }}>
+          <input type="text" name="keyword" placeholder="아이디/이름/이메일/연락처" defaultValue={keyword} />
+          <button type="submit">검색</button>
+        </form>
+        <a href={`/members/export?${new URLSearchParams(keyword ? { keyword } : {}).toString()}`}>
+          <button type="button">엑셀 다운로드</button>
+        </a>
+      </div>
 
       <MemberLevelForm members={result.items} />
 

@@ -57,6 +57,28 @@ export async function getAdminMemberList(filters: { keyword?: string; level?: nu
   };
 }
 
+const MEMBER_EXPORT_ROW_CAP = 5000;
+
+// Backs the admin member list's excel-download button — same
+// filters/columns as getAdminMemberList, without pagination.
+export async function getAdminMemberExportRows(filters: { keyword?: string; level?: number }): Promise<AdminMemberListItem[]> {
+  const where = {
+    ...(filters.keyword
+      ? {
+          OR: [
+            { id: { contains: filters.keyword } },
+            { name: { contains: filters.keyword } },
+            { email: { contains: filters.keyword } },
+            { cell: { contains: filters.keyword } },
+          ],
+        }
+      : {}),
+    ...(filters.level !== undefined ? { level: filters.level } : {}),
+  };
+  const rows = await prisma.member.findMany({ where, orderBy: { uid: "desc" }, take: MEMBER_EXPORT_ROW_CAP });
+  return rows.map((r) => ({ id: r.id, name: r.name, email: r.email, cell: r.cell, level: r.level, mileage: r.mileage, signdate: r.signdate }));
+}
+
 export type MemberAdminResult = { ok: true } | { ok: false; error: string };
 
 // Port of managers/member/member_post.php's `case "level"` — bulk level

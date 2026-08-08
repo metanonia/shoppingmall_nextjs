@@ -477,3 +477,28 @@ export async function bulkUpdateOrderPriority(uids: number[], priority: number, 
   if (updated.count === 0) return { ok: false, error: "권한이 없거나 존재하지 않는 상품입니다." };
   return { ok: true };
 }
+
+const EXPORT_ROW_CAP = 5000;
+
+// Backs the admin goods list's excel-download button — same filters/columns
+// as getAdminGoodsList, just without pagination (capped rather than
+// unbounded, same safety margin as member/order exports below).
+export async function getAdminGoodsExportRows(filters: { keyword?: string; vendor?: string; authCk?: "Y" | "N" }): Promise<AdminGoodsListItem[]> {
+  const where = {
+    ...(filters.keyword ? { OR: [{ name: { contains: filters.keyword } }, { goods_code: { contains: filters.keyword } }] } : {}),
+    ...(filters.vendor !== undefined ? { vendor: filters.vendor } : {}),
+    ...(filters.authCk ? { auth_ck: filters.authCk } : {}),
+  };
+  const rows = await prisma.goods.findMany({ where, orderBy: { uid: "desc" }, take: EXPORT_ROW_CAP });
+  return rows.map((r) => ({
+    uid: r.uid,
+    name: r.name,
+    vendor: r.vendor,
+    price: r.price,
+    qty: r.qty,
+    displayUse: r.display_use === 1,
+    saleUse: r.sale_use === 1,
+    authCk: r.auth_ck,
+    signdate: r.signdate,
+  }));
+}
