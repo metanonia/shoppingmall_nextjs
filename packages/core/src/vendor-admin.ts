@@ -165,3 +165,101 @@ export async function getVendorSalesCalculateList(vendorId: string): Promise<Ven
     signdate: r.signdate,
   }));
 }
+
+export type VendorStatsPoint = { date: string; goodsTotal: number; commissionTotal: number };
+export type VendorStatsResult = { points: VendorStatsPoint[]; goodsTotal: number; commissionTotal: number; payoutTotal: number };
+
+function toVendorStatsResult(rows: { signdate?: number; confirm_date?: number; price: number; qty: number; commission_amount: number }[], dateField: "signdate" | "confirm_date"): VendorStatsResult {
+  const byDate = new Map<string, VendorStatsPoint>();
+  for (const row of rows) {
+    const ts = dateField === "signdate" ? row.signdate! : row.confirm_date!;
+    const key = new Date(ts * 1000).toISOString().slice(0, 10);
+    const point = byDate.get(key) ?? { date: key, goodsTotal: 0, commissionTotal: 0 };
+    point.goodsTotal += row.price * row.qty;
+    point.commissionTotal += row.commission_amount;
+    byDate.set(key, point);
+  }
+  const points = Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+  const goodsTotal = points.reduce((sum, p) => sum + p.goodsTotal, 0);
+  const commissionTotal = points.reduce((sum, p) => sum + p.commissionTotal, 0);
+  return { points, goodsTotal, commissionTotal, payoutTotal: goodsTotal - commissionTotal };
+}
+
+// vendor/order/sales_statistics.php's "raw sales" view — every order-goods
+// line for this vendor within the period, keyed by signdate (order time),
+// regardless of confirmation/settlement state. See getVendorSettlementStats
+// for the confirm_date-keyed, confirmed-only counterpart
+// (vendor/calculate/calculate_statistics.php).
+export async function getVendorSalesStats(vendorId: string, dateFrom: string, dateTo: string): Promise<VendorStatsResult> {
+  const rows = await prisma.orderSales.findMany({
+    where: { vendor: vendorId, signdate: { gte: dateToUnix(dateFrom), lte: dateToUnix(dateTo, true) } },
+    select: { signdate: true, price: true, qty: true, commission_amount: true },
+  });
+  return toVendorStatsResult(rows, "signdate");
+}
+
+export async function getVendorSettlementStats(vendorId: string, dateFrom: string, dateTo: string): Promise<VendorStatsResult> {
+  const rows = await prisma.orderSales.findMany({
+    where: { vendor: vendorId, confirmed: 1, confirm_date: { gte: dateToUnix(dateFrom), lte: dateToUnix(dateTo, true) } },
+    select: { confirm_date: true, price: true, qty: true, commission_amount: true },
+  });
+  return toVendorStatsResult(rows, "confirm_date");
+}
+
+export type VendorSalesDetailItem = {
+  uid: number;
+  orderNum: string;
+  goodsName: string;
+  price: number;
+  qty: number;
+  commissionAmount: number;
+  confirmed: boolean;
+  settled: boolean;
+  signdate: number;
+  confirmDate: number;
+};
+
+function toDetailItem(r: {
+  uid: number;
+  order_num: string;
+  g_name: string;
+  price: number;
+  qty: number;
+  commission_amount: number;
+  confirmed: number;
+  settled: number;
+  signdate: number;
+  confirm_date: number;
+}): VendorSalesDetailItem {
+  return {
+    uid: r.uid,
+    orderNum: r.order_num,
+    goodsName: r.g_name,
+    price: r.price,
+    qty: r.qty,
+    commissionAmount: r.commission_amount,
+    confirmed: r.confirmed === 1,
+    settled: r.settled === 1,
+    signdate: r.signdate,
+    confirmDate: r.confirm_date,
+  };
+}
+
+// vendor/order/sales_detail.php — sale-line detail underlying getVendorSalesStats.
+export async function getVendorSalesDetailList(vendorId: string, dateFrom: string, dateTo: string): Promise<VendorSalesDetailItem[]> {
+  const rows = await prisma.orderSales.findMany({
+    where: { vendor: vendorId, signdate: { gte: dateToUnix(dateFrom), lte: dateToUnix(dateTo, true) } },
+    orderBy: { signdate: "desc" },
+  });
+  return rows.map(toDetailItem);
+}
+
+// vendor/calculate/calculate_detail.php — confirmed-line detail underlying
+// getVendorSettlementStats, sorted by confirm_date like legacy.
+export async function getVendorSettlementDetailList(vendorId: string, dateFrom: string, dateTo: string): Promise<VendorSalesDetailItem[]> {
+  const rows = await prisma.orderSales.findMany({
+    where: { vendor: vendorId, confirmed: 1, confirm_date: { gte: dateToUnix(dateFrom), lte: dateToUnix(dateTo, true) } },
+    orderBy: { confirm_date: "desc" },
+  });
+  return rows.map(toDetailItem);
+}

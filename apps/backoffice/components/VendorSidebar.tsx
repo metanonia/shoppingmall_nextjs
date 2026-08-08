@@ -8,6 +8,10 @@ const NAV_ITEMS = [
   { href: "/vendor/goods/import", label: "엑셀 일괄등록" },
   { href: "/vendor/orders", label: "주문관리" },
   { href: "/vendor/settlement", label: "정산" },
+  { href: "/vendor/stats/sales", label: "매출통계" },
+  { href: "/vendor/stats/sales-detail", label: "매출상세" },
+  { href: "/vendor/stats/settlement", label: "정산통계" },
+  { href: "/vendor/stats/settlement-detail", label: "정산상세" },
   { href: "/vendor/store", label: "스토어설정" },
   { href: "/vendor/profile", label: "업체정보관리" },
 ];

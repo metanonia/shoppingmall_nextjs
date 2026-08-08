@@ -58,7 +58,16 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string }[] }[
       { href: "/settings/agreement", label: "약관" },
     ],
   },
-  { title: "통계", items: [{ href: "/stats/sales", label: "매출통계" }] },
+  {
+    title: "통계",
+    items: [
+      { href: "/stats/sales", label: "매출통계" },
+      { href: "/stats/margin", label: "마진통계" },
+      { href: "/stats/members", label: "회원통계" },
+      { href: "/stats/goods-ranking", label: "상품랭킹" },
+      { href: "/stats/mileage", label: "마일리지통계" },
+    ],
+  },
   { title: "개발자", items: [{ href: "/db-error-log", label: "오류 로그" }] },
   { title: "입점사", items: [{ href: "/vendors", label: "입점사관리" }] },
 ];
