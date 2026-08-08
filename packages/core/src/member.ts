@@ -1,5 +1,8 @@
 import { prisma } from "@shoppingmall/db";
 import { hashPassword, verifyPassword } from "@shoppingmall/auth";
+import { getShopConfig } from "./config";
+import { renderPasswordResetCodeEmail, sendMail } from "./mailer";
+import { renderPasswordResetCodeSms, sendSms } from "./sms";
 
 export type MemberProfile = {
   id: string;
@@ -331,4 +334,111 @@ export async function findOrCreateSocialMember(
     },
   });
   return toProfile(row);
+}
+
+function maskFromIndex(value: string, visible: number): string {
+  if (!value || value.length <= visible) return value;
+  return value.slice(0, visible) + "*".repeat(value.length - visible);
+}
+
+function maskCell(cell: string): string {
+  const digits = cell.replace(/-/g, "");
+  if (digits.length < 7) return maskFromIndex(cell, 3);
+  return `${digits.slice(0, 3)}-****-${digits.slice(-4)}`;
+}
+
+export type FindMemberIdResult = { ok: true; maskedId: string } | { ok: false; error: string };
+
+// Port of php/id_search_post.php — name+email lookup, member row first then
+// dormant-archive fallback (mirrors authenticateMember's own sleep
+// fallback). Legacy returns the id unmasked; this repo masks it since a
+// public lookup endpoint returning full ids verbatim is needless exposure.
+export async function findMemberId(name: string, email: string): Promise<FindMemberIdResult> {
+  const row =
+    (await prisma.member.findFirst({ where: { name, email } })) ??
+    (await prisma.memberSleep.findFirst({ where: { name, email } }));
+  if (!row) return { ok: false, error: "일치하는 회원 정보가 없습니다." };
+  return { ok: true, maskedId: maskFromIndex(row.id, 2) };
+}
+
+export type PasswordResetChannel = "email" | "sms";
+
+export type LookupPasswordResetResult =
+  | { ok: true; maskedEmail: string | null; maskedCell: string | null }
+  | { ok: false; error: string };
+
+// Port of php/passwd_search_step_json.php step1 — name+id lookup, returns
+// masked contact channels so the caller can pick where to receive the code.
+export async function lookupPasswordResetTargets(id: string, name: string): Promise<LookupPasswordResetResult> {
+  const row = await prisma.member.findFirst({ where: { id, name } });
+  if (!row) return { ok: false, error: "일치하는 회원 정보가 없습니다." };
+  return {
+    ok: true,
+    maskedEmail: row.email ? maskFromIndex(row.email, 3) : null,
+    maskedCell: row.cell ? maskCell(row.cell) : null,
+  };
+}
+
+const RESET_CODE_VALID_SECONDS = 300;
+
+export type RequestResetCodeResult = { ok: true } | { ok: false; error: string };
+
+// Port of php/passwd_search_step_json.php step2 — issues a 6-digit code into
+// the member's own auth_code/auth_code_time columns (already present on
+// Member for this exact purpose) and sends it over the chosen channel.
+// Never throws — a delivery failure surfaces as {ok:false}, same
+// not-taking-down-the-flow discipline as notification.ts.
+export async function requestPasswordResetCode(id: string, name: string, channel: PasswordResetChannel): Promise<RequestResetCodeResult> {
+  const row = await prisma.member.findFirst({ where: { id, name } });
+  if (!row) return { ok: false, error: "일치하는 회원 정보가 없습니다." };
+  if (channel === "email" && !row.email) return { ok: false, error: "등록된 이메일이 없습니다." };
+  if (channel === "sms" && !row.cell) return { ok: false, error: "등록된 휴대폰번호가 없습니다." };
+
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const now = Math.floor(Date.now() / 1000);
+  await prisma.member.update({ where: { id }, data: { auth_code: code, auth_code_time: now } });
+
+  const config = await getShopConfig();
+  try {
+    if (channel === "email") {
+      const result = await sendMail({
+        to: row.email,
+        subject: `[${config.basicName}] 비밀번호 재설정 인증코드`,
+        html: renderPasswordResetCodeEmail({ shopName: config.basicName, code }),
+      });
+      if (!result.ok) return { ok: false, error: "인증코드 발송에 실패했습니다." };
+    } else {
+      const result = await sendSms({ to: row.cell, text: renderPasswordResetCodeSms({ shopName: config.basicName, code }) }, config);
+      if (!result.ok) return { ok: false, error: "인증코드 발송에 실패했습니다." };
+    }
+  } catch {
+    return { ok: false, error: "인증코드 발송에 실패했습니다." };
+  }
+
+  return { ok: true };
+}
+
+export type VerifyResetCodeResult = { ok: true } | { ok: false; error: string };
+
+export async function verifyPasswordResetCode(id: string, code: string): Promise<VerifyResetCodeResult> {
+  const row = await prisma.member.findFirst({ where: { id }, select: { auth_code: true, auth_code_time: true } });
+  if (!row || !row.auth_code) return { ok: false, error: "인증코드를 먼저 요청해 주세요." };
+  if (row.auth_code_time + RESET_CODE_VALID_SECONDS < Math.floor(Date.now() / 1000)) {
+    return { ok: false, error: "인증코드가 만료되었습니다. 다시 요청해 주세요." };
+  }
+  if (row.auth_code !== code) return { ok: false, error: "인증코드가 일치하지 않습니다." };
+  return { ok: true };
+}
+
+export type ResetPasswordResult = { ok: true } | { ok: false; error: string };
+
+// Port of php/passwd_search_post.php — re-verifies the code (never trusts a
+// client-side "verified" flag) before writing the new password, then clears
+// auth_code so it can't be replayed.
+export async function resetPasswordWithCode(id: string, code: string, newPassword: string): Promise<ResetPasswordResult> {
+  const verified = await verifyPasswordResetCode(id, code);
+  if (!verified.ok) return verified;
+
+  await prisma.member.update({ where: { id }, data: { passwd: await hashPassword(newPassword), auth_code: "", auth_code_time: 0 } });
+  return { ok: true };
 }

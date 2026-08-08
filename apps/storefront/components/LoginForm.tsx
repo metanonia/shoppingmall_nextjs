@@ -44,6 +44,16 @@ export function LoginForm({ redirectTo, socialProviders }: { redirectTo: string;
             <div className="floatRight">
               <ul>
                 <li className="line">
+                  <a href="/id_search" className="underLine">
+                    아이디 찾기
+                  </a>
+                </li>
+                <li className="line">
+                  <a href="/passwd_search" className="underLine">
+                    비밀번호 찾기
+                  </a>
+                </li>
+                <li className="line">
                   <a href="/regist" className="underLine">
                     회원가입
                   </a>

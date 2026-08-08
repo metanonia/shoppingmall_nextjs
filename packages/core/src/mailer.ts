@@ -73,6 +73,14 @@ export function renderOrderReceivedEmail(params: {
   return `<h2>${params.shopName} 주문 접수</h2><p>주문번호: ${params.orderNum}</p><table>${rows}</table><p>결제금액: ${params.payTotal.toLocaleString("en-US")}원</p>`;
 }
 
+// Port of php/passwd_search_step_json.php's step2 email branch — legacy
+// substitutes {AUTHCODE}/{SHOPNAME} into the DB-editable 'passwd' auto_mail
+// template; this repo has no admin-editable template screen yet, so the
+// copy is inline (same simplification as the other renderers below).
+export function renderPasswordResetCodeEmail(params: { shopName: string; code: string }): string {
+  return `<h2>${params.shopName} 비밀번호 재설정 인증코드</h2><p>인증코드: <b>${params.code}</b></p><p>5분 이내에 입력해 주세요.</p>`;
+}
+
 // Port of async_day_proc.php's 30-day-ahead dormant-member warning — sent
 // once, on the day a member crosses 335 days since last login (see
 // scheduled-jobs.ts's processDormantMembers).

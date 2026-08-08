@@ -88,6 +88,12 @@ export function renderVendorPaidSms(params: { shopName: string; orderName: strin
   return `[${params.shopName}] ${params.orderName}님이 주문한 상품의 결제가 완료되었습니다.`;
 }
 
+// Port of php/passwd_search_step_json.php's step2 SMS branch
+// (mallSmsAuto('authcode', ...)).
+export function renderPasswordResetCodeSms(params: { shopName: string; code: string }): string {
+  return `[${params.shopName}] 비밀번호 재설정 인증코드는 ${params.code} 입니다. (5분 이내 입력)`;
+}
+
 // Port of lib.Shop.php's status3Sms()/mallRN_sms_auto type='delivery'
 // template (ORDER_NAME/GOODS_NAME/DELIVERY_NAME/DELIVERY_NUM placeholders),
 // hardcoded per this file's existing no-admin-template-table principle.
