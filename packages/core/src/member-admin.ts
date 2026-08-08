@@ -93,6 +93,99 @@ export async function getCouponManagerOptions(): Promise<CouponManagerOption[]> 
   return rows.map((r) => ({ uid: r.uid, name: r.name, discount: r.discount, discountType: r.discount_type }));
 }
 
+export type CouponManagerListItem = {
+  uid: number;
+  name: string;
+  discount: number;
+  discountType: "P" | "W";
+  discountLimit: number;
+  useSDate: Date | null;
+  useEDate: Date | null;
+  useDay: number;
+  useLimit: number;
+  signdate: number;
+};
+
+// Port of managers/member/coupon_list.php — this repo skips `type`/
+// `use_limit2`/`goods_order` (per-vendor issuance-trigger and product-scope
+// targeting, an advanced feature with no consumer of it yet anywhere in
+// this migration — coupon.ts's calcCouponDiscount applies a coupon
+// shop-wide). `use_type` is kept: issueCoupon() (coupon.ts) already
+// branches on it to decide fixed-date vs relative-days expiry.
+export async function getCouponManagerList(): Promise<(CouponManagerListItem & { useType: number })[]> {
+  const rows = await prisma.couponManager.findMany({ orderBy: { uid: "desc" } });
+  return rows.map((r) => ({
+    uid: r.uid,
+    name: r.name,
+    discount: r.discount,
+    discountType: r.discount_type,
+    discountLimit: r.discount_limit,
+    useSDate: r.use_s_date,
+    useEDate: r.use_e_date,
+    useDay: r.use_day,
+    useLimit: r.use_limit,
+    useType: r.use_type,
+    signdate: r.signdate,
+  }));
+}
+
+export type CouponManagerInput = {
+  name: string;
+  discount: number;
+  discountType: "P" | "W";
+  discountLimit: number;
+  useSDate: string; // yyyy-mm-dd, empty = no start bound
+  useEDate: string; // used when useType===0 (fixed expiry date)
+  useDay: number; // used when useType!==0 (days valid from issue date) — see issueCoupon
+  useType: number;
+  useLimit: number; // 0 = unlimited
+};
+
+export type CouponManagerResult = { ok: true } | { ok: false; error: string };
+
+function toDateOrSentinel(dateStr: string): Date {
+  return dateStr ? new Date(`${dateStr}T00:00:00`) : new Date("1000-01-01");
+}
+
+export async function createCouponManager(input: CouponManagerInput): Promise<CouponManagerResult> {
+  if (!input.name) return { ok: false, error: "쿠폰명을 입력해 주세요." };
+  await prisma.couponManager.create({
+    data: {
+      name: input.name,
+      discount: input.discount,
+      discount_type: input.discountType,
+      discount_limit: input.discountLimit,
+      use_s_date: toDateOrSentinel(input.useSDate),
+      use_e_date: toDateOrSentinel(input.useEDate),
+      use_day: input.useDay,
+      use_type: input.useType,
+      use_limit: input.useLimit,
+      signdate: Math.floor(Date.now() / 1000),
+    },
+  });
+  return { ok: true };
+}
+
+export async function updateCouponManager(uid: number, input: CouponManagerInput): Promise<CouponManagerResult> {
+  if (!input.name) return { ok: false, error: "쿠폰명을 입력해 주세요." };
+  const updated = await prisma.couponManager.updateMany({
+    where: { uid },
+    data: {
+      name: input.name,
+      discount: input.discount,
+      discount_type: input.discountType,
+      discount_limit: input.discountLimit,
+      use_s_date: toDateOrSentinel(input.useSDate),
+      use_e_date: toDateOrSentinel(input.useEDate),
+      use_day: input.useDay,
+      use_type: input.useType,
+      use_limit: input.useLimit,
+    },
+  });
+  if (updated.count === 0) return { ok: false, error: "존재하지 않는 쿠폰입니다." };
+  return { ok: true };
+}
+
 export type AdjustMileageInput = { memberId: string; amount: number; reason: string; actorId: string };
 
 // Port of managers/member/mileage_post.php's manual earn/deduct path —
@@ -112,4 +205,56 @@ export async function adjustMileage(input: AdjustMileageInput, config: MileageVa
     await useMileage(input.memberId, -input.amount, input.reason, "", input.actorId);
   }
   return { ok: true };
+}
+
+export type MileageLogListItem = {
+  uid: number;
+  memberId: string;
+  content: string;
+  mileage: number;
+  useMileage: number;
+  orderNum: string;
+  procId: string;
+  signdate: number;
+};
+
+export type MileageLogListResult = { items: MileageLogListItem[]; total: number; page: number; totalPages: number };
+
+const MILEAGE_LOG_PAGE_SIZE = 30;
+
+// Port of managers/member/mileage_list.php — the admin-wide ledger view,
+// as opposed to mileage.ts's getMileageHistory (single member, used by
+// mypage/my_mileage). Legacy's mileage_log_list.php (deleted-row recovery)
+// isn't ported — see scheduled-jobs.ts's expireMileageLots comment, this
+// migration uses a plain reversal ledger row instead of a separate
+// snapshot/recovery table.
+export async function getMileageLogList(filters: { keyword?: string }, page = 1): Promise<MileageLogListResult> {
+  const where = filters.keyword ? { OR: [{ id: { contains: filters.keyword } }, { content: { contains: filters.keyword } }] } : {};
+
+  const total = await prisma.mileage.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / MILEAGE_LOG_PAGE_SIZE));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+
+  const rows = await prisma.mileage.findMany({
+    where,
+    orderBy: { uid: "desc" },
+    skip: (safePage - 1) * MILEAGE_LOG_PAGE_SIZE,
+    take: MILEAGE_LOG_PAGE_SIZE,
+  });
+
+  return {
+    items: rows.map((r) => ({
+      uid: r.uid,
+      memberId: r.id,
+      content: r.content,
+      mileage: r.mileage,
+      useMileage: r.use_mileage,
+      orderNum: r.order_num,
+      procId: r.proc_id,
+      signdate: r.signdate,
+    })),
+    total,
+    page: safePage,
+    totalPages,
+  };
 }

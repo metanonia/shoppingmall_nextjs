@@ -10,6 +10,11 @@ export type AdminOrderListFilters = {
   payType?: "B" | "C" | "R" | "V" | "H" | "M";
   dateFrom?: string; // yyyy-mm-dd
   dateTo?: string;
+  // Line-level progress status (OrderGoods.status — see order.ts's
+  // STATUS_LABELS) — matches legacy order_list.php's status dropdown.
+  // OrderInfo has no status column of its own, so this filters to orders
+  // that have at least one line in the given status.
+  status?: number;
 };
 
 export type AdminOrderListItem = {
@@ -51,6 +56,14 @@ export async function getAdminOrderList(filters: AdminOrderListFilters, page = 1
       ...(filters.dateFrom ? { gte: dateToUnix(filters.dateFrom) } : {}),
       ...(filters.dateTo ? { lte: dateToUnix(filters.dateTo, true) } : {}),
     };
+  }
+  if (filters.status !== undefined) {
+    const matchingOrderNums = await prisma.orderGoods.findMany({
+      where: { status: filters.status, reals: 1 },
+      select: { order_num: true },
+      distinct: ["order_num"],
+    });
+    where.order_num = { in: matchingOrderNums.map((r) => r.order_num) };
   }
 
   const total = await prisma.orderInfo.count({ where });

@@ -1,4 +1,4 @@
-import { getAdminOrderList } from "@shoppingmall/core";
+import { STATUS_LABELS, getAdminOrderList } from "@shoppingmall/core";
 
 const PAY_TYPE_LABELS: Record<string, string> = { B: "무통장입금", C: "카드", R: "실시간계좌이체", V: "가상계좌", H: "휴대폰", M: "마일리지" };
 const PAY_STATUS_LABELS: Record<string, string> = { A: "입금대기", B: "미확인", C: "결제완료", D: "결제실패" };
@@ -14,7 +14,15 @@ function formatDate(signdate: number): string {
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; keyword?: string; payStatus?: string; payType?: string; dateFrom?: string; dateTo?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    keyword?: string;
+    payStatus?: string;
+    payType?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    status?: string;
+  }>;
 }) {
   const params = await searchParams;
   const page = Number(params.page ?? 1) || 1;
@@ -25,6 +33,7 @@ export default async function OrdersPage({
       payType: params.payType as "B" | "C" | "R" | "V" | "H" | "M" | undefined,
       dateFrom: params.dateFrom,
       dateTo: params.dateTo,
+      status: params.status ? Number(params.status) : undefined,
     },
     page,
   );
@@ -43,6 +52,14 @@ export default async function OrdersPage({
         <select name="payType" defaultValue={params.payType ?? ""}>
           <option value="">결제수단 전체</option>
           {Object.entries(PAY_TYPE_LABELS).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
+            </option>
+          ))}
+        </select>
+        <select name="status" defaultValue={params.status ?? ""}>
+          <option value="">진행단계 전체</option>
+          {Object.entries(STATUS_LABELS).map(([k, v]) => (
             <option key={k} value={k}>
               {v}
             </option>

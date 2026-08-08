@@ -16,6 +16,8 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string }[] }[
     items: [
       { href: "/members", label: "회원관리" },
       { href: "/members/withdrawals", label: "탈퇴회원" },
+      { href: "/coupons", label: "쿠폰관리" },
+      { href: "/mileage-log", label: "마일리지 내역" },
     ],
   },
   {
