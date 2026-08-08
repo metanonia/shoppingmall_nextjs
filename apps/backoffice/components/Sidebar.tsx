@@ -14,6 +14,7 @@ const NAV_SECTIONS: { title: string; items: { href: string; label: string }[] }[
     title: "상품",
     items: [
       { href: "/goods", label: "상품관리" },
+      { href: "/goods/display", label: "진열관리" },
       { href: "/categories", label: "카테고리" },
       { href: "/exhibitions", label: "기획전" },
     ],
